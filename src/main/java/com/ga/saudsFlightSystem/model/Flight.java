@@ -41,6 +41,7 @@ public class Flight {
 
     @ManyToOne
     @JoinColumn(name = "airplane_id")
+    @JsonIgnore
     private Airplane airplane;
 
     @ManyToOne

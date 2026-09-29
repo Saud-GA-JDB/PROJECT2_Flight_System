@@ -30,5 +30,8 @@ public class Airline {
     @OneToMany(mappedBy = "airline", fetch = FetchType.LAZY)
     private List<Flight> flightsList;
 
+    @OneToMany(mappedBy = "airline", fetch = FetchType.LAZY)
+    private List<Airplane> airplanesList;
+
 
 }
