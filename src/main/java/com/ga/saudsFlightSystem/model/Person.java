@@ -21,6 +21,11 @@ public abstract class Person {
     private String lName;
     @Column(unique = true)
     private String emailAddress;
+
+    @Column
+    private String phoneNumberOpeningCode;
+    @Column
+    private String phoneNumber;
     @Column
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;

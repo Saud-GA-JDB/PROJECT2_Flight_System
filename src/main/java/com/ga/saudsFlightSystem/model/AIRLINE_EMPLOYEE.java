@@ -16,17 +16,13 @@ public class AIRLINE_EMPLOYEE extends Person{
     private AirlineRole airlineRole;
 
     @Column
-    private Long airlineId;
-
-    @Column
-    @CreationTimestamp
-    private final LocalDateTime hireDate;
+    private LocalDateTime hireDate;
 
     @Column
     private Long salary;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "airline_id")
     @JsonIgnore
     private Airline airline;
 }

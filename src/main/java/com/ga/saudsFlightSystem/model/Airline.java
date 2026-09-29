@@ -13,6 +13,10 @@ public class Airline {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column
+    private String name;
+
     @Column(unique = true)
     private String airlineCode;
 
@@ -20,8 +24,11 @@ public class Airline {
     private String headquartersCountry;
 
 
-    @OneToMany(mappedBy = "airline_employee", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "airline", fetch = FetchType.LAZY)
     private List<AIRLINE_EMPLOYEE> airlineEmployeesList;
+
+    @OneToMany(mappedBy = "airline", fetch = FetchType.LAZY)
+    private List<Flight> flightsList;
 
 
 }
