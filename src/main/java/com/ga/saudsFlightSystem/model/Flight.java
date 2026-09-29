@@ -46,10 +46,12 @@ public class Flight {
 
     @ManyToOne
     @JoinColumn(name = "origin_airport_id")
+    @JsonIgnore
     private Airport originAirport;
 
     @ManyToOne
     @JoinColumn(name = "destination_airport_id")
+    @JsonIgnore
     private Airport destinationAirport;
 
     @OneToMany(mappedBy = "flight", fetch = FetchType.LAZY)
