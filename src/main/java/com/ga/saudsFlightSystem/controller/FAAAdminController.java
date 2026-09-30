@@ -22,8 +22,8 @@ public class FAAAdminController {
     }
 
     @PostMapping("/airlines")
-    public Airline createAirline(@RequestBody Airline airline) {
-        return airlineService.addAirline(airline);
+    public Airline createAirline(String name, String airlineCode, String headquartersCountry) {
+        return airlineService.addAirline(name, airlineCode, headquartersCountry);
     }
 
 //    @PostMapping("/login")
