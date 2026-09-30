@@ -103,7 +103,7 @@ public class UserService {
     Helper Methods
      */
 
-    public boolean isAllowedEndpoint(String endpoint, User.Role role) {
+    public static boolean isAllowedEndpoint(String endpoint, User.Role role) {
         switch (role) {
             case CUSTOMER:
                 if (endpoint.trim().equalsIgnoreCase("customer")) return true;
@@ -121,5 +121,10 @@ public class UserService {
                 throw new InvalidInformationException("Role doesn't exits");
         }
         return false;
+    }
+
+    public static User getCurrentLoggedInUser() {
+        MyUserDetails userDetails = (MyUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return userDetails.getUser();
     }
 }
