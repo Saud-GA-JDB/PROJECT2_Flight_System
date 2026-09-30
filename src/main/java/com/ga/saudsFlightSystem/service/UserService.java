@@ -85,6 +85,7 @@ public class UserService {
     }
 
     public ResponseEntity<?> loginUser(LoginRequest loginRequest) {
+        System.out.println("called login service"); /*         TODO: DEBUGGING         */
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));

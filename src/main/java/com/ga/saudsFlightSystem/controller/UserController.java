@@ -20,6 +20,8 @@ public class UserController {
 
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {
+        System.out.println("called login controller"); /*         TODO: DEBUGGING         */
+
         return userService.loginUser(loginRequest);
     }
 }
