@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.security;
 
-import com.ga.saudsFlightSystem.model.Person;
+import com.ga.saudsFlightSystem.model.User;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,7 +14,7 @@ import java.util.HashSet;
 @NoArgsConstructor
 public class MyUserDetails implements UserDetails {
     @Getter
-    private Person person;
+    private User user;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -23,12 +23,12 @@ public class MyUserDetails implements UserDetails {
 
     @Override
     public String getPassword() {
-        return person.getPassword();
+        return user.getPassword();
     }
 
     @Override
     public String getUsername() {
-        return person.getEmailAddress();
+        return user.getEmailAddress();
     }
 
     @Override
@@ -38,7 +38,7 @@ public class MyUserDetails implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return person.isActive();
+        return user.isActive();
     }
 
     @Override
