@@ -98,4 +98,28 @@ public class UserService {
                     .body(new LoginResponse("Error: Email or password is incorrect, or the account is inactive."));
         }
     }
+
+    /*
+    Helper Methods
+     */
+
+    public boolean isAllowedEndpoint(String endpoint, User.Role role) {
+        switch (role) {
+            case CUSTOMER:
+                if (endpoint.trim().equalsIgnoreCase("customer")) return true;
+                break;
+            case FAA_ADMIN:
+                if (endpoint.trim().equalsIgnoreCase("faaadmin")) return true;
+                break;
+            case AIRPORT_EMPLOYEE:
+                if (endpoint.trim().equalsIgnoreCase("airportEmployee")) return true;
+                break;
+            case AIRLINE_EMPLOYEE:
+                if (endpoint.trim().equalsIgnoreCase("airlineEmployee")) return true;
+                break;
+            default:
+                throw new InvalidInformationException("Role doesn't exits");
+        }
+        return false;
+    }
 }
