@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Email;
 import java.io.File;
 import jakarta.mail.MessagingException;
@@ -36,7 +37,9 @@ public class EmailService {
             javaMailSender.send(mailMessage);
             return "Mail Sent Successfully";
         } catch (Exception e) {
-            return "Error while sending mail";
+            e.printStackTrace();
+            throw new InvalidInformationException(
+                    "Could not send the verification email. Check the server console.");
         }
     }
 }

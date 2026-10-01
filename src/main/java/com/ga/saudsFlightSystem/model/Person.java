@@ -19,6 +19,9 @@ public abstract class Person {
     @Column
     private String lName;
 
+    @Column(unique = true, nullable = false)
+    private String cpr;
+
     @Column
     private String phoneNumberOpeningCode;
     @Column

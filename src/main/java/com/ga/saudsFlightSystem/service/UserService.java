@@ -1,11 +1,13 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
-import com.ga.saudsFlightSystem.model.Person;
+import com.ga.saudsFlightSystem.model.Customer;
+import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.LoginRequest;
+import com.ga.saudsFlightSystem.model.request.RegistrationRequest;
 import com.ga.saudsFlightSystem.model.request.response.LoginResponse;
+import com.ga.saudsFlightSystem.repository.PendingRegistrationRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.security.JWTUtils;
 import com.ga.saudsFlightSystem.security.MyUserDetails;
@@ -27,57 +29,68 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JWTUtils jwtUtils;
     private final AuthenticationManager authenticationManager;
+    private final PendingRegistrationService pendingRegistrationService;
+    private final PendingRegistrationRepository pendingRegistrationRepository;
 
     @Autowired
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder,
-                       JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager) {
+                       JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager,
+                       PendingRegistrationService pendingRegistrationService,
+                       PendingRegistrationRepository pendingRegistrationRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
         this.authenticationManager = authenticationManager;
+        this.pendingRegistrationService = pendingRegistrationService;
+        this.pendingRegistrationRepository = pendingRegistrationRepository;
     }
 
-    public User createUser(User userObject) {
-        if (userObject.getEmailAddress() == null || userObject.getEmailAddress().isBlank()
-                || userObject.getPassword() == null || userObject.getPassword().isBlank()) {
-            throw new InvalidInformationException("Email address and password are required.");
+    public User createUser(RegistrationRequest request) {
+        if (request.getPassword() == null || request.getPassword().isBlank()) {
+            throw new InvalidInformationException("Password is required.");
+        }
+        if (request.getFName() == null || request.getFName().isBlank()
+                || request.getLName() == null || request.getLName().isBlank()) {
+            throw new InvalidInformationException("First name and last name are required.");
+        }
+        if (request.getPhoneNumber() == null || request.getPhoneNumber().isBlank()
+                || request.getPhoneNumberOpeningCode() == null
+                || request.getPhoneNumberOpeningCode().isBlank()) {
+            throw new InvalidInformationException(
+                    "Phone number and opening code are required.");
+        }
+        if (request.getSecurityQuestion() == null
+                || request.getSecurityQuestion().isBlank()
+                || request.getSecurityQuestionAnswer() == null
+                || request.getSecurityQuestionAnswer().isBlank()) {
+            throw new InvalidInformationException(
+                    "Security question and answer are required.");
         }
 
-        int profileCount = 0;
-        Person profile = null;
-        User.Role role = null;
-        if (userObject.getCustomer() != null) {
-            profileCount++;
-            profile = userObject.getCustomer();
-            role = User.Role.CUSTOMER;
-        }
-        if (userObject.getAirlineEmployee() != null) {
-            profileCount++;
-            profile = userObject.getAirlineEmployee();
-            role = User.Role.AIRLINE_EMPLOYEE;
-        }
-        if (userObject.getFaaAdmin() != null) {
-            profileCount++;
-            profile = userObject.getFaaAdmin();
-            role = User.Role.FAA_ADMIN;
-        }
-        if (profileCount != 1) {
-            throw new InvalidInformationException("Provide exactly one customer, airlineEmployee, or faaAdmin profile.");
-        }
-        if (userObject.getId() != null || profile.getId() != null) {
-            throw new InvalidInformationException("Do not provide IDs when registering a new user and profile.");
-        }
-        if (userObject.getRole() != null && userObject.getRole() != role) {
-            throw new InvalidInformationException("The role must match the profile type.");
-        }
-        if (userRepository.existsByEmailAddress(userObject.getEmailAddress())) {
-            throw new InformationExistException("User with this email address already exists.");
-        }
+        PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(
+                request.getPendingRegistrationId(), request.getCode());
+        pendingRegistrationService.checkExistingDetails(pending.getEmailAddress(), pending.getCpr());
 
-        userObject.setRole(role);
-        userObject.setActive(true);
-        userObject.setPassword(passwordEncoder.encode(userObject.getPassword()));
-        return userRepository.save(userObject);
+        Customer customer = new Customer();
+        customer.setCpr(pending.getCpr());
+        customer.setFName(request.getFName());
+        customer.setLName(request.getLName());
+        customer.setPhoneNumber(request.getPhoneNumber());
+        customer.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode());
+
+        User user = new User();
+        user.setEmailAddress(pending.getEmailAddress());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setSecurityQuestion(request.getSecurityQuestion());
+        user.setSecurityQuestionAnswer(request.getSecurityQuestionAnswer());
+        user.setRole(User.Role.CUSTOMER);
+        user.setActive(true);
+        user.setCustomer(customer);
+
+        User savedUser = userRepository.save(user);
+        // Only delete pending after the user saves successfully.
+        pendingRegistrationRepository.delete(pending);
+        return savedUser;
     }
 
     public User findUserByEmailAddress(String email) {

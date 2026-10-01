@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.security;
 
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,10 +38,13 @@ public class SecurityConfiguration {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests( auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll() // to see the errors
                         .requestMatchers( // allow these
                                 "/auth/users",
                                 "/auth/users/login",
-                                "/auth/users/register"
+                                "/auth/users/register",
+                                "/auth/users/register/email",
+                                "/auth/users/verification"
                         ).permitAll()
                         .anyRequest().authenticated() // any other require authentication
                 );

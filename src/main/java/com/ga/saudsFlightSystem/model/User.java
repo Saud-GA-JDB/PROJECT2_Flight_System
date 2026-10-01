@@ -25,7 +25,7 @@ public class User {
 
     @Column
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-    private String securityQuestionAnswer;
+        private String securityQuestionAnswer;
 
     @Column
     private Role role;
