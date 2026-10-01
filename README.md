@@ -7,25 +7,27 @@ basically a flight system, there will be two parts. the first part is a basic fl
 Customer registration endpoints
 ---
 
-Use these endpoints in order. Send JSON with `Content-Type: application/json`; no login is required.
+Use these endpoints in order. Send JSON with `Content-Type: application/json`. Only setup requires the Bearer token returned by login.
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
 | POST | `/auth/users/register/email` | Checks email and CPR availability, saves a pending registration, and requests a verification email. | `email`, `cpr` | `{"email":"you@example.com","cpr":"123456789"}` |
-| POST | `/auth/users/verification` | Verifies the code and returns the pending registration ID (for example, `12`). | `email`, `code` | `{"email":"you@example.com","code":"482193"}` |
-| POST | `/auth/users/register` | Creates the customer and user using the pending email and CPR, then deletes pending after saving successfully. | `pendingRegistrationId`, `code`, `password`, `fname`, `lname`, `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
+| POST | `/auth/users/verification` | Verifies the code, creates an inactive customer account with status `SETUP_REQUIRED`, and returns a success message instructing the user to log in with CPR as their initial password. | `email`, `code` | `{"email":"you@example.com","code":"482193"}` |
+| POST | `/auth/users/login` | Logs in using email and CPR as the initial password. Returns the JWT in the response's `message` field. | `email`, `password` | `{"email":"you@example.com","password":"123456789"}` |
+| POST | `/auth/users/setup` | Completes the logged-in customer's details, changes the password, activates the account, then deletes pending after saving successfully. | `email`, `password`, `fName`, `lName`, `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
 
-Use the code received by email and the ID returned by verification in the final request. Codes expire after 10 minutes and allow three incorrect attempts. Request a new code after expiry if needed.
+Codes expire after 10 minutes and allow three incorrect attempts. Request a new code after expiry if verification has not been completed. After verification, setup does not require the code or pending ID and is not limited by the code's expiry.
 
-All fields in this final registration example are required, including `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, and `securityQuestionAnswer`:
+Setup-required accounts can log in and finish setup but cannot access other protected endpoints. Send `Authorization: Bearer <token>` when calling `/auth/users/setup`. The email must match the logged-in user. Choose a new password different from the CPR. Successful setup sets `isActive` to true and status to `ACTIVE`.
+
+All fields in this setup example are required:
 
 ```json
 {
-  "pendingRegistrationId": 12,
-  "code": "482193",
-  "password": "your-password",
-  "fname": "Saud",
-  "lname": "Example",
+  "email": "you@example.com",
+  "password": "your-new-password",
+  "fName": "Saud",
+  "lName": "Example",
   "phoneNumber": "12345678",
   "phoneNumberOpeningCode": "+973",
   "securityQuestion": "Your question",

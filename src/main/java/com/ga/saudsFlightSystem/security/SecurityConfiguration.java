@@ -40,19 +40,18 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests( auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll() // to see the errors
                         .requestMatchers( // allow these
-                                "/auth/users",
                                 "/auth/users/login",
-                                "/auth/users/register",
                                 "/auth/users/register/email",
                                 "/auth/users/verification"
                         ).permitAll()
-                        .anyRequest().authenticated() // any other require authentication
+                        .requestMatchers("/auth/users/setup").authenticated() // for completing the user account setup
+                        .anyRequest().hasAuthority("ACCOUNT_ACTIVE")
                 );
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    @Bean //check the authentication manager, if valid return else throw an error
+    @Bean // check the authentication manager, if valid return else throw an error
     public AuthenticationManager authenticationManager (
             AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();

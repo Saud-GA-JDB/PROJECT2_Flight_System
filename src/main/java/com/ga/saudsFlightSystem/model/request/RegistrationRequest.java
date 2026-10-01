@@ -4,8 +4,7 @@ import lombok.Getter;
 
 @Getter
 public class RegistrationRequest {
-    private Long pendingRegistrationId;
-    private String code;
+    private String email;
 
     private String password;
     private String securityQuestion;

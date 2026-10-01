@@ -33,6 +33,9 @@ public class User {
     @Column
     private boolean isActive;
 
+    @Column
+    private Status status;
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", unique = true)
     private Customer customer;
@@ -46,4 +49,6 @@ public class User {
     private FAAAdmin faaAdmin;
 
     public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN}
+
+    public enum Status {SETUP_REQUIRED, ACTIVE}
 }

@@ -18,10 +18,10 @@ public class UserController {
     private UserService userService;
     private PendingRegistrationService pendingRegistrationService;
 
-//    @PostMapping("/register")
-//    public User createUser(@RequestBody RegistrationRequest request) {
-//        return userService.createUser(request);
-//    }
+    @PostMapping("/setup")
+    public User finishSetup(@RequestBody RegistrationRequest request) {
+        return userService.finishSetup(request);
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {

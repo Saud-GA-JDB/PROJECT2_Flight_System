@@ -23,6 +23,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
+
 @Service
 public class UserService {
     private final UserRepository userRepository;
@@ -45,7 +47,18 @@ public class UserService {
         this.pendingRegistrationRepository = pendingRegistrationRepository;
     }
 
-    public User createUser(RegistrationRequest request) {
+    public User finishSetup(RegistrationRequest request) {
+        User loggedInUser = getCurrentLoggedInUser();
+        if (request.getEmail() == null
+                || !request.getEmail().equals(loggedInUser.getEmailAddress())) {
+            throw new InvalidInformationException("Email must match the logged-in user.");
+        }
+
+        User user = userRepository.findUserByEmailAddress(request.getEmail());
+        if (user == null || user.getStatus() != User.Status.SETUP_REQUIRED) {
+            throw new InvalidInformationException("This account does not require setup.");
+        }
+
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new InvalidInformationException("Password is required.");
         }
@@ -68,24 +81,26 @@ public class UserService {
         }
 
         PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(
-                request.getPendingRegistrationId(), request.getCode());
-        pendingRegistrationService.checkExistingDetails(pending.getEmailAddress(), pending.getCpr());
+                request.getEmail());
+        if (request.getPassword().equals(pending.getCpr())) {
+            throw new InvalidInformationException("Choose a new password different from your CPR.");
+        }
 
-        Customer customer = new Customer();
-        customer.setCpr(pending.getCpr());
+        Customer customer = user.getCustomer();
         customer.setFName(request.getFName());
         customer.setLName(request.getLName());
         customer.setPhoneNumber(request.getPhoneNumber());
         customer.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode());
 
-        User user = new User();
-        user.setEmailAddress(pending.getEmailAddress());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setSecurityQuestion(request.getSecurityQuestion());
-        user.setSecurityQuestionAnswer(request.getSecurityQuestionAnswer());
-        user.setRole(User.Role.CUSTOMER);
+        user.setSecurityQuestionAnswer(
+                passwordEncoder.encode(
+                        request.getSecurityQuestionAnswer()
+                                .trim()
+                                .toLowerCase(Locale.ROOT)));
         user.setActive(true);
-        user.setCustomer(customer);
+        user.setStatus(User.Status.ACTIVE);
 
         User savedUser = userRepository.save(user);
         // Only delete pending after the user saves successfully.

@@ -8,5 +8,4 @@ import org.springframework.stereotype.Repository;
 public interface PendingRegistrationRepository extends JpaRepository<PendingRegistration, Long> {
     PendingRegistration findByEmailAddress(String emailAddress);
     PendingRegistration findByCpr(String cpr);
-    PendingRegistration findPendingRegistrationById(Long id);
 }

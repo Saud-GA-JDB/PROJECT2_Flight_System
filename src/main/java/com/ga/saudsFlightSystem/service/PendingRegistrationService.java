@@ -4,6 +4,8 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.PendingRegistration;
+import com.ga.saudsFlightSystem.model.Customer;
+import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.RegistrationResponse;
 import com.ga.saudsFlightSystem.repository.PendingRegistrationRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
@@ -81,21 +83,43 @@ public class PendingRegistrationService {
 
     public ResponseEntity<?> verify(String email, String code) {
         PendingRegistration pending = checkCode(email, code);
+
+        User user = userRepository.findUserByEmailAddress(pending.getEmailAddress());
+        if (user == null) {
+            checkExistingDetails(pending.getEmailAddress(), pending.getCpr());
+
+            Customer customer = new Customer();
+            customer.setCpr(pending.getCpr());
+
+            user = new User();
+            user.setEmailAddress(pending.getEmailAddress());
+            user.setPassword(passwordEncoder.encode(pending.getCpr()));
+            user.setRole(User.Role.CUSTOMER);
+            user.setActive(false);
+            user.setStatus(User.Status.SETUP_REQUIRED);
+            user.setCustomer(customer);
+            userRepository.save(user);
+        } else {
+            // Repeating verification must not reset an existing password.
+            if (user.getStatus() != User.Status.SETUP_REQUIRED
+                    || user.getCustomer() == null
+                    || !pending.getCpr().equals(user.getCustomer().getCpr())) {
+                throw new InformationExistException("A user with this email already exists.");
+            }
+        }
+
         pending.setVerified(true);
         pendingRegistrationRepository.save(pending);
-        return ResponseEntity.ok(pending.getId());
+        return ResponseEntity.ok(new RegistrationResponse(
+                "Verification successful. Your password is your CPR. Please log in and finish setup."));
     }
 
-    public PendingRegistration getVerifiedRegistration(Long pendingRegistrationId, String code) {
-        if (pendingRegistrationId == null) {
-            throw new InvalidInformationException("Pending registration ID is required.");
-        }
+    public PendingRegistration getVerifiedRegistration(String email) {
         PendingRegistration pending =
-                pendingRegistrationRepository.findPendingRegistrationById(pendingRegistrationId);
+                pendingRegistrationRepository.findByEmailAddress(email);
         if (pending == null) {
             throw new InformationNotFoundException("No pending registration found.");
         }
-        pending = checkCode(pending.getEmailAddress(), code);
         if (!pending.isVerified()) {
             throw new InvalidInformationException("Verify your email first.");
         }

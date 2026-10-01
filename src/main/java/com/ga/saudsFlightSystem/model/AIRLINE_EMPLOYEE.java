@@ -25,4 +25,6 @@ public class AIRLINE_EMPLOYEE extends Person{
     @JoinColumn(name = "airline_id")
     @JsonIgnore
     private Airline airline;
+
+
 }
