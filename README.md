@@ -229,3 +229,11 @@ string headquartersCountry
     ATC_EMPLOYEE ||--o{ FLIGHT_CONTROL_EVENT : handles
     FLIGHT ||--o{ FLIGHT_CONTROL_EVENT : has
 ```
+-------------------------------------------------------------------------------------------
+Used Resources
+---
+Baeldung email varification methods post
+https://www.baeldung.com/java-email-validation-regex
+
+GeekForGeeks Spring boot sending email via SMTP tutorial
+https://www.geeksforgeeks.org/springboot/spring-boot-sending-email-via-smtp/
