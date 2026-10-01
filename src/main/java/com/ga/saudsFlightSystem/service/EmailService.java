@@ -6,6 +6,7 @@ import java.io.File;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 
+import org.apache.commons.validator.routines.EmailValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -41,6 +42,13 @@ public class EmailService {
             throw new InvalidInformationException(
                     "Could not send the verification email. Check the server console.");
         }
+    }
+
+
+    // helper methods
+
+    public static boolean validateEmailFormat(String email) {
+        return EmailValidator.getInstance().isValid(email);
     }
 }
 
