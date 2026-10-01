@@ -239,3 +239,6 @@ GeekForGeeks Spring boot sending email via SMTP tutorial
 https://www.geeksforgeeks.org/springboot/spring-boot-sending-email-via-smtp/
 
 chatgpt suggested the code cpr.matches("[0-9]{9} in PendingRegistrationService sendCode() method
+
+StackOverFlow for phone number validation
+https://stackoverflow.com/questions/71654287/how-to-validate-phone-number-using-spring-boot
