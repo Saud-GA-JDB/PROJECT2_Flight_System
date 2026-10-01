@@ -33,18 +33,21 @@ public class UserService {
     private final AuthenticationManager authenticationManager;
     private final PendingRegistrationService pendingRegistrationService;
     private final PendingRegistrationRepository pendingRegistrationRepository;
+    private final PasswordService passwordService;
 
     @Autowired
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder,
                        JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager,
                        PendingRegistrationService pendingRegistrationService,
-                       PendingRegistrationRepository pendingRegistrationRepository) {
+                       PendingRegistrationRepository pendingRegistrationRepository,
+                       PasswordService passwordService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
         this.authenticationManager = authenticationManager;
         this.pendingRegistrationService = pendingRegistrationService;
         this.pendingRegistrationRepository = pendingRegistrationRepository;
+        this.passwordService = passwordService;
     }
 
     public User finishSetup(RegistrationRequest request) {
@@ -61,6 +64,9 @@ public class UserService {
 
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new InvalidInformationException("Password is required.");
+        }
+        if (!passwordService.isValidPassword(request.getPassword())) {
+            throw new InvalidInformationException("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
         }
         if (request.getFName() == null || request.getFName().isBlank()
                 || request.getLName() == null || request.getLName().isBlank()) {
