@@ -237,3 +237,5 @@ https://www.baeldung.com/java-email-validation-regex
 
 GeekForGeeks Spring boot sending email via SMTP tutorial
 https://www.geeksforgeeks.org/springboot/spring-boot-sending-email-via-smtp/
+
+chatgpt suggested the code cpr.matches("[0-9]{9} in PendingRegistrationService sendCode() method

@@ -48,6 +48,11 @@ public class PendingRegistrationService {
     }
 
     public ResponseEntity<?> sendCode(String email, String cpr) {
+        if(!EmailService.validateEmailFormat(email)) throw new InvalidInformationException("invalid Email Format");
+        if (cpr == null || !cpr.matches("[0-9]{9}")) {
+            throw new InvalidInformationException("CPR must contain exactly 9 digits.");
+        }
+
         checkExistingDetails(email, cpr);
         checkPending(pendingRegistrationRepository.findByEmailAddress(email));
         checkPending(pendingRegistrationRepository.findByCpr(cpr));
