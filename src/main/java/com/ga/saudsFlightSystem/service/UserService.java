@@ -34,13 +34,14 @@ public class UserService {
     private final PendingRegistrationService pendingRegistrationService;
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordService passwordService;
+    private final PhoneValidationService phoneValidationService;
 
     @Autowired
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder,
                        JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager,
                        PendingRegistrationService pendingRegistrationService,
                        PendingRegistrationRepository pendingRegistrationRepository,
-                       PasswordService passwordService) {
+                       PasswordService passwordService, PhoneValidationService phoneValidationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
@@ -48,6 +49,7 @@ public class UserService {
         this.pendingRegistrationService = pendingRegistrationService;
         this.pendingRegistrationRepository = pendingRegistrationRepository;
         this.passwordService = passwordService;
+        this.phoneValidationService = phoneValidationService;
     }
 
     public User finishSetup(RegistrationRequest request) {
@@ -78,6 +80,9 @@ public class UserService {
             throw new InvalidInformationException(
                     "Phone number and opening code are required.");
         }
+        if (phoneValidationService.isValidPhoneNumber(request.getPhoneNumber(), request.getPhoneNumberOpeningCode()))
+            throw new InvalidInformationException(
+                    "Invalid phone number or country code.");
         if (request.getSecurityQuestion() == null
                 || request.getSecurityQuestion().isBlank()
                 || request.getSecurityQuestionAnswer() == null
