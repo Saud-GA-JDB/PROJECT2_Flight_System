@@ -6,6 +6,7 @@ import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.LoginRequest;
 import com.ga.saudsFlightSystem.model.request.RegistrationRequest;
+import com.ga.saudsFlightSystem.model.request.response.ForgetPasswordResponse;
 import com.ga.saudsFlightSystem.model.request.response.LoginResponse;
 import com.ga.saudsFlightSystem.repository.PendingRegistrationRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
@@ -35,13 +36,14 @@ public class UserService {
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordService passwordService;
     private final PhoneValidationService phoneValidationService;
+    private final EmailService emailService;
 
     @Autowired
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder,
                        JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager,
                        PendingRegistrationService pendingRegistrationService,
                        PendingRegistrationRepository pendingRegistrationRepository,
-                       PasswordService passwordService, PhoneValidationService phoneValidationService) {
+                       PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
@@ -50,6 +52,7 @@ public class UserService {
         this.pendingRegistrationRepository = pendingRegistrationRepository;
         this.passwordService = passwordService;
         this.phoneValidationService = phoneValidationService;
+        this.emailService = emailService;
     }
 
     public User finishSetup(RegistrationRequest request) {
@@ -136,6 +139,36 @@ public class UserService {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new LoginResponse("Error: Email or password is incorrect, or the account is inactive."));
         }
+    }
+    /*
+     * boolean
+
+     * */
+    public ResponseEntity<?> forgetPassword(String email, String securityQuestionAnswer) {
+        /*TODO: Continue here----------------------*/
+        if (!userRepository.existsByEmailAddress(email))
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ForgetPasswordResponse("Error: Email does not exist."));
+
+        User user = findUserByEmailAddress(email);
+        String hashedSecurityQuestionAnswer = user.getSecurityQuestionAnswer();
+        if (!passwordEncoder.matches(securityQuestionAnswer, hashedSecurityQuestionAnswer))
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ForgetPasswordResponse("Error: Email or security question answer is incorrect"));
+
+        user.setPassword(user.getCustomer().getCpr()); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
+        // TODO: Should i handle an exception here with try catch? bc sending an email may fail
+        emailService.sendEmail(user.getEmailAddress(), "Reset Password", String.format(
+                "Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately." +
+                        "\nIf you have not requested a password reset, Call us immediately." +
+                        "\nBest Regards," +
+                        "\nSaud Flight System.",
+                        user.getCustomer().getFName()
+                ));
+        userRepository.save(user);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(new ForgetPasswordResponse("You're Password has been reset. Please check you're mail"));
     }
 
     /*

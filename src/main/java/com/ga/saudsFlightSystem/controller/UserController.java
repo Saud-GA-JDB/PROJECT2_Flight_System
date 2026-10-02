@@ -1,10 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.User;
-import com.ga.saudsFlightSystem.model.request.LoginRequest;
-import com.ga.saudsFlightSystem.model.request.RegistrationEmailRequest;
-import com.ga.saudsFlightSystem.model.request.RegistrationRequest;
-import com.ga.saudsFlightSystem.model.request.VerifyEmailRequest;
+import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.PendingRegistrationService;
 import com.ga.saudsFlightSystem.service.UserService;
 import lombok.AllArgsConstructor;
@@ -39,5 +36,10 @@ public class UserController {
     @PostMapping("/register/email")
     public ResponseEntity<?> sendVerificationCode(@RequestBody RegistrationEmailRequest request) {
         return pendingRegistrationService.sendCode(request.getEmail(), request.getCpr());
+    }
+
+    @PostMapping("/login/forgetPassword")
+    public ResponseEntity<?> forgetPassword(@RequestBody ForgetPasswordRequest request) {
+        return userService.forgetPassword(request.getEmail(), request.getHashedSecurityQuestionAnswer());
     }
 }
