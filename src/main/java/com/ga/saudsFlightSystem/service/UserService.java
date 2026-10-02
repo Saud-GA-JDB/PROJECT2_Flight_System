@@ -56,17 +56,11 @@ public class UserService {
     }
 
     public User finishSetup(RegistrationRequest request) {
-        User loggedInUser = getCurrentLoggedInUser();
-        if (request.getEmail() == null
-                || !request.getEmail().equals(loggedInUser.getEmailAddress())) {
-            throw new InvalidInformationException("Email must match the logged-in user.");
-        }
+        User user = getCurrentLoggedInUser();
 
-        User user = userRepository.findUserByEmailAddress(request.getEmail());
         if (user == null || user.getStatus() != User.Status.SETUP_REQUIRED) {
             throw new InvalidInformationException("This account does not require setup.");
         }
-
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new InvalidInformationException("Password is required.");
         }
@@ -95,7 +89,7 @@ public class UserService {
         }
 
         PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(
-                request.getEmail());
+                user.getEmailAddress());
         if (request.getPassword().equals(pending.getCpr())) {
             throw new InvalidInformationException("Choose a new password different from your CPR.");
         }
@@ -152,11 +146,11 @@ public class UserService {
 
         User user = findUserByEmailAddress(email);
         String hashedSecurityQuestionAnswer = user.getSecurityQuestionAnswer();
-        if (!passwordEncoder.matches(securityQuestionAnswer, hashedSecurityQuestionAnswer))
+        if (securityQuestionAnswer == null || !passwordEncoder.matches(securityQuestionAnswer.trim().toLowerCase(), hashedSecurityQuestionAnswer))
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ForgetPasswordResponse("Error: Email or security question answer is incorrect"));
 
-        user.setPassword(user.getCustomer().getCpr()); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
+        user.setPassword(passwordEncoder.encode(user.getCustomer().getCpr())); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
         // TODO: Should i handle an exception here with try catch? bc sending an email may fail
         emailService.sendEmail(user.getEmailAddress(), "Reset Password", String.format(
                 "Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately." +

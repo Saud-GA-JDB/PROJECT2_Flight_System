@@ -38,7 +38,7 @@ public class UserController {
         return pendingRegistrationService.sendCode(request.getEmail(), request.getCpr());
     }
 
-    @PostMapping("/login/forgetPassword")
+    @PostMapping("/forgetPassword")
     public ResponseEntity<?> forgetPassword(@RequestBody ForgetPasswordRequest request) {
         return userService.forgetPassword(request.getEmail(), request.getHashedSecurityQuestionAnswer());
     }

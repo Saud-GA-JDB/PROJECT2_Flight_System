@@ -5,5 +5,5 @@ import lombok.Getter;
 @Getter
 public class ForgetPasswordRequest {
     private String email;
-    private String hashedSecurityQuestionAnswer;
+    private String securityQuestionAnswer;
 }
