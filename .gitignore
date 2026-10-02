@@ -32,6 +32,3 @@ build/
 
 ### VS Code ###
 .vscode/
-/.secret-cleanup-work/
-/.secret-cleanup-tools/
-/secret_cleanup_prepare.py
