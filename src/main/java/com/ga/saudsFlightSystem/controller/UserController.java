@@ -40,6 +40,11 @@ public class UserController {
 
     @PostMapping("/forgetPassword")
     public ResponseEntity<?> forgetPassword(@RequestBody ForgetPasswordRequest request) {
-        return userService.forgetPassword(request.getEmail(), request.getHashedSecurityQuestionAnswer());
+        return userService.forgetPassword(request.getEmail(), request.getSecurityQuestionAnswer());
+    }
+
+    @PostMapping("/changePassword")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
+        return userService.changePassword(request.getNewPassword());
     }
 }

@@ -165,6 +165,17 @@ public class UserService {
                 .body(new ForgetPasswordResponse("You're Password has been reset. Please check you're mail"));
     }
 
+    public ResponseEntity<?> changePassword(String newPassword) {
+        if (!passwordService.isValidPassword(newPassword))
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
+                    .body("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
+
+        User user = getCurrentLoggedInUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        return ResponseEntity.status(HttpStatus.OK).body("Success! New Password Has Been Set");
+    }
+
     /*
     Helper Methods
      */
