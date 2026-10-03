@@ -3,7 +3,9 @@ package com.ga.saudsFlightSystem.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -28,7 +30,12 @@ public class Airplane {
     private Long maxMileage;
 
     @Column
-    private String status;
+    @CreationTimestamp
+    private LocalDateTime addedAt;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Status status = Status.GROUNDED;
 
     @ManyToOne
     @JoinColumn(name = "airline_id", nullable = false)
@@ -37,4 +44,9 @@ public class Airplane {
 
     @OneToMany(mappedBy = "airplane", fetch = FetchType.LAZY)
     private List<Flight> flightsList;
+    public enum Status{ACTIVE, GROUNDED}
+
+    @OneToMany(mappedBy = "airplane", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<AirplaneRequest> requests;
 }

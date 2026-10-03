@@ -37,11 +37,15 @@ All fields in this setup example are required:
 
 ERD Diagram
 ---
+Implemented entities below follow the current JPA models. `Person` is a mapped superclass, so its fields appear in `CUSTOMER`, `AIRLINE_EMPLOYEE`, and `FAA_ADMIN`; it has no separate table. Attribute names use Java field names, with relationship IDs representing join columns. Enum attributes show Java types (not database storage types).
+
+Entities marked `PLANNED` and their relationships are retained from the original design and are not implemented yet. In particular, `AIRPORT.operatorId` is planned. For implemented relationships, an optional parent (`o|`) reflects a nullable join column in the current model.
+
 ```mermaid
 erDiagram
 AIRLINE {
 long id PK
-string name
+string name UK
 string airlineCode UK
 string headquartersCountry
 }
@@ -52,20 +56,75 @@ string headquartersCountry
         string registrationNumber UK
         string model
         int seatCapacity
-        string status
+        long maxMileage
+        Status status "ACTIVE or GROUNDED; default GROUNDED"
+    }
+
+    AIRPLANE_REQUEST {
+        long id PK
+        long airplaneId FK "Required"
+        ApprovalStatus status "PENDING, ACCEPTED, DENIED; default PENDING"
+        string reviewReason "Up to 500 characters"
+        datetime requestedAt "Creation timestamp"
+        datetime reviewedAt
+        long reviewedById FK "Nullable FAA admin reviewer"
+    }
+
+    FAA_ADMIN {
+        long id PK
+        string fName
+        string lName
+        string cpr UK "Required"
+        string phoneNumberOpeningCode
+        string phoneNumber
+        byte[] imageData
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    USER {
+        long id PK
+        string emailAddress UK "Required"
+        string password "Required"
+        string securityQuestion
+        string securityQuestionAnswer
+        Role role "CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN"
+        boolean isActive
+        Status status "SETUP_REQUIRED or ACTIVE"
+        long customerId FK, UK "Nullable"
+        long airlineEmployeeId FK, UK "Nullable"
+        long faaAdminId FK, UK "Nullable"
+    }
+
+    PENDING_REGISTRATION {
+        long id PK
+        string emailAddress UK "Required"
+        string cpr UK "Required"
+        string codeHash "Required"
+        datetime expiresAt "Required"
+        int failedAttempts "Required"
+        boolean verified "Required"
     }
 
     AIRLINE_EMPLOYEE {
         long id PK
         long airlineId FK
-        string firstName
-        string lastName
-        string email UK
-        string role
-        date hireDate
+        string fName
+        string lName
+        string cpr UK "Required"
+        string phoneNumberOpeningCode
+        string phoneNumber
+        byte[] imageData
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
+        AirlineRole airlineRole "PILOT, FLIGHT_ATTENDANT, GATE_RECEPTION"
+        datetime hireDate
+        long salary
     }
 
-    AIRPORT_OPERATOR {
+    AIRPORT_OPERATOR["AIRPORT_OPERATOR (PLANNED)"] {
         long id PK
         string name
         string contactEmail
@@ -73,7 +132,7 @@ string headquartersCountry
 
     AIRPORT {
         long id PK
-        long operatorId FK
+        long operatorId FK "PLANNED; not in Airport model"
         string iataCode UK
         string name
         string city
@@ -81,7 +140,7 @@ string headquartersCountry
         string timeZone
     }
 
-    AIRPORT_EMPLOYEE {
+    AIRPORT_EMPLOYEE["AIRPORT_EMPLOYEE (PLANNED)"] {
         long id PK
         long operatorId FK
         long airportId FK
@@ -107,23 +166,29 @@ string headquartersCountry
 
     CUSTOMER {
         long id PK
-        string firstName
-        string lastName
-        string email UK
+        string fName
+        string lName
+        string cpr UK "Required"
+        string phoneNumberOpeningCode
         string phoneNumber
+        byte[] imageData
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
     }
 
     BOOKING {
         long id PK
         long customerId FK
         long flightId FK
-        string bookingReference UK
+        string bookingRef UK
         string seatNumber
         datetime bookedAt
+        datetime updatedAt
         string status
     }
 
-    CREW_ASSIGNMENT {
+    CREW_ASSIGNMENT["CREW_ASSIGNMENT (PLANNED)"] {
         long id PK
         long flightId FK
         long employeeId FK
@@ -131,7 +196,7 @@ string headquartersCountry
         datetime assignedAt
     }
 
-    GROUND_SERVICE_ASSIGNMENT {
+    GROUND_SERVICE_ASSIGNMENT["GROUND_SERVICE_ASSIGNMENT (PLANNED)"] {
         long id PK
         long flightId FK
         long airportId FK
@@ -141,13 +206,13 @@ string headquartersCountry
         datetime completedAt
     }
 
-    MAINTENANCE_PROVIDER {
+    MAINTENANCE_PROVIDER["MAINTENANCE_PROVIDER (PLANNED)"] {
         long id PK
         string name
         string contactEmail
     }
 
-    MAINTENANCE_EMPLOYEE {
+    MAINTENANCE_EMPLOYEE["MAINTENANCE_EMPLOYEE (PLANNED)"] {
         long id PK
         long providerId FK
         string firstName
@@ -156,7 +221,7 @@ string headquartersCountry
         string licenseNumber
     }
 
-    MAINTENANCE_RECORD {
+    MAINTENANCE_RECORD["MAINTENANCE_RECORD (PLANNED)"] {
         long id PK
         long airplaneId FK
         long technicianId FK
@@ -166,13 +231,13 @@ string headquartersCountry
         string releaseStatus
     }
 
-    AIR_NAVIGATION_SERVICE_PROVIDER {
+    AIR_NAVIGATION_SERVICE_PROVIDER["AIR_NAVIGATION_SERVICE_PROVIDER (PLANNED)"] {
         long id PK
         string name
         string providerType
     }
 
-    CONTROL_FACILITY {
+    CONTROL_FACILITY["CONTROL_FACILITY (PLANNED)"] {
         long id PK
         long providerId FK
         long airportId FK
@@ -180,7 +245,7 @@ string headquartersCountry
         string facilityType
     }
 
-    ATC_EMPLOYEE {
+    ATC_EMPLOYEE["ATC_EMPLOYEE (PLANNED)"] {
         long id PK
         long facilityId FK
         string firstName
@@ -189,7 +254,7 @@ string headquartersCountry
         string employeeNumber UK
     }
 
-    FLIGHT_CONTROL_EVENT {
+    FLIGHT_CONTROL_EVENT["FLIGHT_CONTROL_EVENT (PLANNED)"] {
         long id PK
         long flightId FK
         long controllerId FK
@@ -199,18 +264,24 @@ string headquartersCountry
     }
 
     AIRLINE ||--o{ AIRPLANE : manages
-    AIRLINE ||--o{ AIRLINE_EMPLOYEE : employs
-    AIRLINE ||--o{ FLIGHT : operates
+    AIRLINE o|--o{ AIRLINE_EMPLOYEE : employs
+    AIRLINE o|--o{ FLIGHT : operates
     AIRPLANE o|--o{ FLIGHT : assignedTo
+    AIRPLANE ||--o{ AIRPLANE_REQUEST : has
+    FAA_ADMIN o|--o{ AIRPLANE_REQUEST : reviews
+
+    CUSTOMER o|--o| USER : linkedTo
+    AIRLINE_EMPLOYEE o|--o| USER : linkedTo
+    FAA_ADMIN o|--o| USER : linkedTo
 
     AIRPORT_OPERATOR ||--o{ AIRPORT : operates
     AIRPORT_OPERATOR ||--o{ AIRPORT_EMPLOYEE : employs
     AIRPORT ||--o{ AIRPORT_EMPLOYEE : workplace
-    AIRPORT ||--o{ FLIGHT : origin
-    AIRPORT ||--o{ FLIGHT : destination
+    AIRPORT o|--o{ FLIGHT : origin
+    AIRPORT o|--o{ FLIGHT : destination
 
-    CUSTOMER ||--o{ BOOKING : makes
-    FLIGHT ||--o{ BOOKING : has
+    CUSTOMER o|--o{ BOOKING : makes
+    FLIGHT o|--o{ BOOKING : has
 
     AIRLINE_EMPLOYEE ||--o{ CREW_ASSIGNMENT : receives
     FLIGHT ||--o{ CREW_ASSIGNMENT : has

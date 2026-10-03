@@ -6,6 +6,7 @@ import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.repository.AirlineRepository;
 import lombok.AllArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 @Service

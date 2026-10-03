@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "airline_employees")
 public class AIRLINE_EMPLOYEE extends Person{
-    enum AirlineRole{PILOT, FLIGHT_ATTENDANT, GATE_RECEPTION} //ill start with just pilot first
+    public enum AirlineRole{PILOT, FLIGHT_ATTENDANT, GATE_RECEPTION, ADMIN} //ill start with just pilot first
     @Column
     private AirlineRole airlineRole;
 
