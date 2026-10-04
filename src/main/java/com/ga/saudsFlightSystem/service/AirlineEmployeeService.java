@@ -5,6 +5,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
+import com.ga.saudsFlightSystem.model.request.response.AddFlightResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -152,7 +153,10 @@ public class AirlineEmployeeService {
 
         flightRepository.save(flight);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(flight);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new AddFlightResponse(
+                flight.getFlightNumber(), airplane.getRegistrationNumber(),
+                originAirport.getIataCode(), arrivalAirport.getIataCode(),
+                flight.getScheduledDeparture(), flight.getScheduledArrival(), flight.getStatus()));
 
     }
 }
