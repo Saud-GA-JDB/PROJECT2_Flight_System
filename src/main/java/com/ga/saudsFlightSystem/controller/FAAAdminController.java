@@ -21,16 +21,6 @@ public class FAAAdminController {
     private EmailService emailService;
     private AirlineEmployeeService airlineEmployeeService;
 
-    @GetMapping("/airplaneRequests")
-    public ResponseEntity<?> getPendingAirplaneRequests() {
-        return faaAdminService.getPendingAirplaneRequests();
-    }
-
-    @PutMapping("/airplaneRequests/{requestId}")
-    public ResponseEntity<?> reviewAirplaneRequest(@PathVariable(name = "requestId") Long requestId, @RequestBody ReviewAirplaneRequest review) {
-        return faaAdminService.reviewAirplaneRequest(requestId, review);
-    }
-
     @GetMapping
     public String test() {
         System.out.println("test ran");
@@ -51,6 +41,16 @@ public class FAAAdminController {
     @PostMapping("/airlines/{airlineId}/addAirlineAdmin")
     public ResponseEntity<?> addAirlineAdmin(@PathVariable(name = "airlineId") Long airlineId, @RequestBody AddAirlineAdminRequest request) {
         return airlineEmployeeService.addAirlineAdmin(airlineId, request);
+    }
+
+    @GetMapping("/airplaneRequests")
+    public ResponseEntity<?> getPendingAirplaneRequests() {
+        return faaAdminService.getPendingAirplaneRequests();
+    }
+
+    @PutMapping("/airplaneRequests/{requestId}")
+    public ResponseEntity<?> reviewAirplaneRequest(@PathVariable(name = "requestId") Long requestId, @RequestBody ReviewAirplaneRequest request) {
+        return faaAdminService.reviewAirplaneRequest(requestId, request);
     }
 
 
