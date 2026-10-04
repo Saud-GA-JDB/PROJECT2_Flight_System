@@ -25,7 +25,7 @@ public class Airline {
 
 
     @OneToMany(mappedBy = "airline", fetch = FetchType.LAZY)
-    private List<AIRLINE_EMPLOYEE> airlineEmployeesList;
+    private List<AirlineEmployee> airlineEmployeesList;
 
     @OneToMany(mappedBy = "airline", fetch = FetchType.LAZY)
     private List<Flight> flightsList;

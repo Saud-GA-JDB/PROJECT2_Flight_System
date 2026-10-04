@@ -42,7 +42,7 @@ public class User {
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "airline_employee_id", referencedColumnName = "id", unique = true)
-    private AIRLINE_EMPLOYEE airlineEmployee;
+    private AirlineEmployee airlineEmployee;
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "faa_admin_id", referencedColumnName = "id", unique = true)

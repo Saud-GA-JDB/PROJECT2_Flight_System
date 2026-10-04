@@ -2,12 +2,13 @@ package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.Email;
-import com.ga.saudsFlightSystem.service.AirlineService;
-import com.ga.saudsFlightSystem.service.EmailService;
-import com.ga.saudsFlightSystem.service.FAAAdminService;
-import com.ga.saudsFlightSystem.service.UserService;
+import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
+import com.ga.saudsFlightSystem.service.*;
 import lombok.AllArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping(path = "/faaadmin")
@@ -17,6 +18,7 @@ public class FAAAdminController {
     private UserService userService;
     private AirlineService airlineService;
     private EmailService emailService;
+    private AirlineEmployeeService airlineEmployeeService;
 
     @GetMapping
     public String test() {
@@ -28,6 +30,16 @@ public class FAAAdminController {
     @PostMapping("/airlines")
     public Airline createAirline(String name, String airlineCode, String headquartersCountry) {
         return airlineService.addAirline(name, airlineCode, headquartersCountry);
+    }
+
+    @GetMapping("/airlines")
+    public List<Airline> getAllAirlines() {
+        return airlineService.getAllAirlines();
+    }
+
+    @PostMapping("/airlines/{airlineId}/addAirlineAdmin")
+    public ResponseEntity<?> addAirlineAdmin(@PathVariable(name = "airlineId") Long airlineId, @RequestBody AddAirlineAdminRequest request) {
+        return airlineEmployeeService.addAirlineAdmin(airlineId, request);
     }
 
 

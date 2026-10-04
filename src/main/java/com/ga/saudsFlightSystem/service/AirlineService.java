@@ -9,6 +9,8 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @AllArgsConstructor
 public class AirlineService {
@@ -39,5 +41,10 @@ public class AirlineService {
         airline.setHeadquartersCountry(headquartersCountry);
 
         return airlineRepository.save(airline);
+    }
+    public List<Airline> getAllAirlines() {
+        if (!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint");
+        return airlineRepository.findAll();
     }
 }

@@ -1,7 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.model.AIRLINE_EMPLOYEE;
+import com.ga.saudsFlightSystem.model.AirlineEmployee;
 import com.ga.saudsFlightSystem.model.Airplane;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.AddAirplaneResponse;
@@ -23,8 +23,8 @@ public class AirplaneService {
         if(!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()) ) {
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
         }
-        AIRLINE_EMPLOYEE airlineEmployee = user.getAirlineEmployee();
-        if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AIRLINE_EMPLOYEE.AirlineRole.ADMIN) {
+        AirlineEmployee airlineEmployee = user.getAirlineEmployee();
+        if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
             throw new IllegalEndpoint("Only airline admins can add airplanes!");
         }
         if (registrationNumber == null || registrationNumber.isBlank() ||
