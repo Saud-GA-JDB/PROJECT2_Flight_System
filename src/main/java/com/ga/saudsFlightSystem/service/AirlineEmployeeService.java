@@ -14,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.UUID;
@@ -116,6 +117,8 @@ public class AirlineEmployeeService {
                 request.getArrivalAirportIataCode()==null || request.getArrivalAirportIataCode().isBlank() ||
                 request.getScheduledArrival()==null || request.getScheduledDeparture()==null
         ) throw new InvalidInformationException("Please fill in all the required fields");
+        if (!request.getScheduledDeparture().isAfter(LocalDateTime.now()))
+            throw new InvalidInformationException("Departure Time must be in the future");
         if (!airportRepository.existsByIataCode(request.getArrivalAirportIataCode()))
             throw new InvalidInformationException("Please put a valid arrival airport");
         if (!airportRepository.existsByIataCode(request.getOriginAirportIataCode()))
@@ -145,8 +148,7 @@ public class AirlineEmployeeService {
 
         if (!Objects.equals(airplane.getAirline().getId(), airlineEmployee.getAirline().getId()))
             throw new InvalidInformationException("airplane must be owned by the airline");
-        //TODO: HERE...
-        if(airplaneService.isAvailable())
+        airplaneService.checkAvailability(airplane, request.getScheduledDeparture(), request.getScheduledArrival());
 
         flightRepository.save(flight);
 

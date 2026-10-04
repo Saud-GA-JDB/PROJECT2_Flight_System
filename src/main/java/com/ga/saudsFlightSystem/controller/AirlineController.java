@@ -20,6 +20,6 @@ public class AirlineController {
 
     @PostMapping("/airplanes") //this is for adding the airplane not activating it
     public ResponseEntity<?> addAirplane(@RequestBody AddAirplaneRequest addAirplaneRequest) {
-        return airplaneService.addAirplane(addAirplaneRequest.getRegistrationNumber(), addAirplaneRequest.getModel(), addAirplaneRequest.getSeatCapacity(), addAirplaneRequest.getMaxMileage());
+        return airplaneService.addAirplane(addAirplaneRequest.getRegistrationNumber(), addAirplaneRequest.getModel(), addAirplaneRequest.getStandardSeatCapacity(), addAirplaneRequest.getFirstClassSeatCapacity(), addAirplaneRequest.getMaxMileage());
     }
 }
