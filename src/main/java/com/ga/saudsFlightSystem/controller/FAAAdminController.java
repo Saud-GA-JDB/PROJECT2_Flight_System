@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.controller;
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.Email;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
+import com.ga.saudsFlightSystem.model.request.ReviewAirplaneRequest;
 import com.ga.saudsFlightSystem.service.*;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,16 @@ public class FAAAdminController {
     private AirlineService airlineService;
     private EmailService emailService;
     private AirlineEmployeeService airlineEmployeeService;
+
+    @GetMapping("/airplaneRequests")
+    public ResponseEntity<?> getPendingAirplaneRequests() {
+        return faaAdminService.getPendingAirplaneRequests();
+    }
+
+    @PutMapping("/airplaneRequests/{requestId}")
+    public ResponseEntity<?> reviewAirplaneRequest(@PathVariable(name = "requestId") Long requestId, @RequestBody ReviewAirplaneRequest review) {
+        return faaAdminService.reviewAirplaneRequest(requestId, review);
+    }
 
     @GetMapping
     public String test() {
