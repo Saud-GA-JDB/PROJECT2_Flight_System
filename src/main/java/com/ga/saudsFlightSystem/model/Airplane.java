@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -24,7 +25,10 @@ public class Airplane {
     private String model;
 
     @Column
-    private int seatCapacity;
+    private int firstClassSeatsCapacity;
+
+    @Column
+    private int standardSeatsCapacity;
 
     @Column
     private Long maxMileage;

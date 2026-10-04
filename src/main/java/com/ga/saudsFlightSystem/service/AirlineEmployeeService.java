@@ -3,13 +3,9 @@ package com.ga.saudsFlightSystem.service;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
-import com.ga.saudsFlightSystem.model.Airline;
-import com.ga.saudsFlightSystem.model.AirlineEmployee;
-import com.ga.saudsFlightSystem.model.User;
+import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
-import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
-import com.ga.saudsFlightSystem.repository.AirlineRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.repository.*;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
@@ -19,6 +15,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Objects;
+import java.util.UUID;
+
+import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.ACTIVE;
 
 @Service
 @AllArgsConstructor
@@ -26,12 +26,16 @@ public class AirlineEmployeeService {
     AirlineRepository airlineRepository;
     UserRepository userRepository;
     AirlineEmployeeRepository airlineEmployeeRepository;
+    AirportRepository airportRepository;
+    AirplaneRepository airplaneRepository;
+    FlightRepository flightRepository;
+    AirplaneService airplaneService;
     PasswordEncoder passwordEncoder;
     PhoneValidationService phoneValidationService;
     PendingRegistrationService pendingRegistrationService;
     public ResponseEntity<?> addAirlineAdmin(Long airlineId, AddAirlineAdminRequest request) {
         User user = UserService.getCurrentLoggedInUser();
-        if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()) ) {
+        if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole())) {
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
         }
         //validation
@@ -90,13 +94,63 @@ public class AirlineEmployeeService {
         newUser.setSecurityQuestion(request.getSecurityQuestion());
         newUser.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase()));
         newUser.setAirlineEmployee(airlineEmployee);
-//        User.setStatus(User.Status.ACTIVE);
         newUser.setActive(true);
         userRepository.save(newUser);
         newUser.setStatus(User.Status.ACTIVE);
         airlineEmployeeRepository.save(airlineEmployee);
-        //TODO: can i return the request as a response since i need the same fields and set securityQuestionAnswer to null??
         request.setSecurityQuestionAnswer(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(request);
+    }
+
+    public ResponseEntity<?> addFlight(Long airplaneId, AddFlightRequest request) {
+        User user = UserService.getCurrentLoggedInUser();
+        if(!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()) ) {
+            throw new IllegalEndpoint("You are not allowed this API Endpoint!");
+        }
+        AirlineEmployee airlineEmployee = user.getAirlineEmployee();
+        if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
+            throw new IllegalEndpoint("Only airline admins can add flights!");
+        }
+        // validation
+        if (    request.getOriginAirportIataCode()==null || request.getOriginAirportIataCode().isBlank() ||
+                request.getArrivalAirportIataCode()==null || request.getArrivalAirportIataCode().isBlank() ||
+                request.getScheduledArrival()==null || request.getScheduledDeparture()==null
+        ) throw new InvalidInformationException("Please fill in all the required fields");
+        if (!airportRepository.existsByIataCode(request.getArrivalAirportIataCode()))
+            throw new InvalidInformationException("Please put a valid arrival airport");
+        if (!airportRepository.existsByIataCode(request.getOriginAirportIataCode()))
+            throw new InvalidInformationException("Please put a valid origin airport");
+        if (request.getScheduledArrival().isBefore(request.getScheduledDeparture()))
+            throw new InvalidInformationException("Arrival Time can't be before Departure Time");
+        if (request.getScheduledDeparture().isEqual(request.getScheduledArrival()))
+            throw new InvalidInformationException("Arrival Time can't be the same as Departure Time");
+        if (request.getArrivalAirportIataCode().equalsIgnoreCase(request.getOriginAirportIataCode()))
+            throw new InvalidInformationException("Origin and Arrival Airports can't be the same");
+
+
+        Flight flight = new Flight();
+        flight.setFlightNumber(UUID.randomUUID().toString());
+        flight.setAirline(user.getAirlineEmployee().getAirline());
+        flight.setStatus(ACTIVE);
+        Airplane airplane = airplaneRepository.findById(airplaneId).orElseThrow(()-> new InformationNotFoundException("couldn't find airplane with this id"));
+        flight.setAirplane(airplane);
+        flight.setFirstClassSeatsCount(airplane.getFirstClassSeatsCapacity());
+        flight.setStandardSeatsCount(airplane.getStandardSeatsCapacity());
+        flight.setScheduledArrival(request.getScheduledArrival());
+        flight.setScheduledDeparture(request.getScheduledDeparture());
+        Airport arrivalAirport = airportRepository.findByIataCode(request.getArrivalAirportIataCode());
+        flight.setDestinationAirport(arrivalAirport);
+        Airport originAirport = airportRepository.findByIataCode(request.getOriginAirportIataCode());
+        flight.setOriginAirport(originAirport);
+
+        if (!Objects.equals(airplane.getAirline().getId(), airlineEmployee.getAirline().getId()))
+            throw new InvalidInformationException("airplane must be owned by the airline");
+        //TODO: HERE...
+        if(airplaneService.isAvailable())
+
+        flightRepository.save(flight);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(flight);
+
     }
 }

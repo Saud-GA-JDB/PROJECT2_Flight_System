@@ -1,6 +1,8 @@
-package com.ga.saudsFlightSystem.model;
+package com.ga.saudsFlightSystem.model.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.ga.saudsFlightSystem.model.Airplane;
+import com.ga.saudsFlightSystem.model.FAAAdmin;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;

@@ -20,6 +20,11 @@ public class Flight {
     private String flightNumber;
 
     @Column
+    private int firstClassSeatsCount;
+    @Column
+    private int standardSeatsCount;
+
+    @Column
     private LocalDateTime scheduledDeparture;
 
     @Column
@@ -32,7 +37,8 @@ public class Flight {
     private LocalDateTime actualArrival;
 
     @Column
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private FlightStatus status;
 
     @ManyToOne
     @JoinColumn(name = "airline_id")
@@ -57,5 +63,6 @@ public class Flight {
     @OneToMany(mappedBy = "flight", fetch = FetchType.LAZY)
     private List<Booking> bookingsList;
 
+    public enum FlightStatus{ACTIVE, IN_AIR, CLOSED, CANCELLED}
 
 }

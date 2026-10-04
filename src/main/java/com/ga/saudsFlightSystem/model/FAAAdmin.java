@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import jakarta.persistence.*;
 import lombok.Data;
 

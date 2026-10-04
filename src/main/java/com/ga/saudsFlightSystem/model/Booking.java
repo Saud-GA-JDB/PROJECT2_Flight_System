@@ -32,7 +32,8 @@ public class Booking {
     private String seatNumber;
 
     @Column
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private BookingStatus status;
 
     @ManyToOne
     @JoinColumn(name = "customer_id")
@@ -43,4 +44,6 @@ public class Booking {
     @JoinColumn(name = "flight_id")
     @JsonIgnore
     private Flight flight;
+
+    public enum BookingStatus{BOOKED, CANCELLED, FINISHED}
 }
