@@ -13,12 +13,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
-import java.util.UUID;
 
 import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.ACTIVE;
 
@@ -104,6 +104,7 @@ public class AirlineEmployeeService {
         return ResponseEntity.status(HttpStatus.CREATED).body(request);
     }
 
+    @Transactional
     public ResponseEntity<?> addFlight(Long airplaneId, AddFlightRequest request) {
         User user = UserService.getCurrentLoggedInUser();
         if(!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()) ) {
@@ -133,7 +134,6 @@ public class AirlineEmployeeService {
 
 
         Flight flight = new Flight();
-        flight.setFlightNumber(UUID.randomUUID().toString());
         flight.setAirline(user.getAirlineEmployee().getAirline());
         flight.setStatus(ACTIVE);
         Airplane airplane = airplaneRepository.findById(airplaneId).orElseThrow(()-> new InformationNotFoundException("couldn't find airplane with this id"));
@@ -151,6 +151,8 @@ public class AirlineEmployeeService {
             throw new InvalidInformationException("airplane must be owned by the airline");
         airplaneService.checkAvailability(airplane, request.getScheduledDeparture(), request.getScheduledArrival());
 
+        flight = flightRepository.save(flight);
+        flight.setFlightNumber(flight.getAirline().getAirlineCode() + flight.getId());
         flightRepository.save(flight);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new AddFlightResponse(
