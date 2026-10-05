@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.controller;
 
-import com.ga.saudsFlightSystem.model.AddFlightRequest;
+import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.AddAirplaneRequest;
 import com.ga.saudsFlightSystem.service.AirlineEmployeeService;
 import com.ga.saudsFlightSystem.service.AirplaneService;

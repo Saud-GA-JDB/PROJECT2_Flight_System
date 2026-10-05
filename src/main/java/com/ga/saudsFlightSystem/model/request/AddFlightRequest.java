@@ -1,4 +1,4 @@
-package com.ga.saudsFlightSystem.model;
+package com.ga.saudsFlightSystem.model.request;
 
 import lombok.Getter;
 

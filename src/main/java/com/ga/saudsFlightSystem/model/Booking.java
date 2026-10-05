@@ -36,9 +36,9 @@ public class Booking {
     private BookingStatus status;
 
     @ManyToOne
-    @JoinColumn(name = "customer_id")
+    @JoinColumn(name = "user_id")
     @JsonIgnore
-    private Customer customer;
+    private User user;
 
     @ManyToOne
     @JoinColumn(name = "flight_id")
