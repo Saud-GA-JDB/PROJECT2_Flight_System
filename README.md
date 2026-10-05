@@ -35,6 +35,51 @@ All fields in this setup example are required:
 }
 ```
 
+Live notifications (SSE)
+---
+
+An active, authenticated user opens `GET /notifications` with `Authorization: Bearer <JWT>`.
+The response is `text/event-stream` and stays open. User ID and role come from the JWT-authenticated
+account, never from client-supplied parameters. Each tab/device gets its own connection.
+
+Try it in PowerShell (replace the token with an FAA admin token):
+
+```powershell
+curl.exe -N -H "Authorization: Bearer YOUR_FAA_TOKEN" http://localhost:8080/notifications
+```
+
+The first event is `connected`. While this command is running, use an airline admin token to call
+`POST /airlineAdmin/airplanes/{airplaneId}/requestActivation` for a valid airplane. After the request
+transaction commits, all connected FAA admins receive `airplane-activation-requested`. Its JSON
+payload is the same `AirplaneRequestResponse` DTO returned to the requesting airline admin.
+Customers and airline employees do not receive this event. A rejected or rolled-back request sends nothing.
+
+Reuse `NotificationService` from other business services:
+
+```java
+notificationService.sendToUser(userId, "booking-updated", bookingResponse);
+notificationService.sendToRole(User.Role.FAA_ADMIN, "airplane-activation-requested", requestResponse);
+```
+
+Choose recipients on the backend. Use user delivery for private updates; role delivery reaches
+every connected member of that role, so it is not suitable for airline-specific private information.
+Payloads should be DTO snapshots, not JPA entities. Calls made inside a Spring transaction are
+deferred until successful commit; calls outside a transaction send immediately.
+
+The server sends a comment heartbeat every 25 seconds and closes streams after five minutes.
+Clients must reconnect with a valid token; each new connection repeats authentication and account
+checks. Role/account changes are reflected on reconnection, not immediately within an existing stream.
+Disconnect the stream on logout. The SSE `retry` hint is three seconds, but a streaming `fetch`
+client must implement its own reconnect loop and event parsing. Native browser `EventSource`
+cannot set the required Authorization header; use a header-capable SSE client or streaming `fetch`.
+The frontend handles named events to show toasts or update its notification UI.
+
+Delivery is live and best-effort within one backend instance. There is no stored notification inbox,
+event replay, or multi-server fan-out. After connecting/reconnecting, FAA clients should also fetch
+`GET /faaadmin/airplaneRequests` to recover outstanding work and deduplicate by `requestId`.
+Network writes use Spring MVC's blocking emitter API; a slow client can delay broadcasting.
+For multiple backend instances or larger traffic, add a shared broker and bounded asynchronous delivery.
+
 ERD Diagram
 ---
 Implemented entities below follow the current JPA models. `Person` is a mapped superclass, so its fields appear in `CUSTOMER`, `AIRLINE_EMPLOYEE`, and `FAA_ADMIN`; it has no separate table. Attribute names use Java field names, with relationship IDs representing join columns. Enum attributes show Java types (not database storage types).

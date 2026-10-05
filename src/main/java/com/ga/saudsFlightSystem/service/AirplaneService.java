@@ -16,6 +16,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -25,7 +26,9 @@ import java.util.Objects;
 public class AirplaneService {
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
+    private NotificationService notificationService;
 
+    @Transactional
     public ResponseEntity<?> requestActivation(Long airplaneId) {
         User user = UserService.getCurrentLoggedInUser();
         if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole())) {
@@ -55,9 +58,11 @@ public class AirplaneService {
         request.setAirplane(airplane);
         airplaneRequestRepository.save(request);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(new AirplaneRequestResponse(
+        AirplaneRequestResponse response = new AirplaneRequestResponse(
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
-                request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt()));
+                request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt());
+        notificationService.sendToRole(User.Role.FAA_ADMIN, "airplane-activation-requested", response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     public void checkAvailability(Airplane airplane, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {

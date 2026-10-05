@@ -39,6 +39,9 @@ public class SecurityConfiguration {
                 )
                 .authorizeHttpRequests( auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll() // to see the errors
+                        // Initial SSE requests still require ACCOUNT_ACTIVE. Allow container completion dispatches.
+                        .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ASYNC
+                                && request.getServletPath().equals("/notifications")).permitAll()
                         .requestMatchers( // allow these
                                 "/auth/users/login",
                                 "/auth/users/register/email",
