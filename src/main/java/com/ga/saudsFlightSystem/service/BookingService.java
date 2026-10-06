@@ -5,6 +5,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.BookingResponse;
+import com.ga.saudsFlightSystem.repository.AirlineRepository;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
@@ -13,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -22,6 +24,16 @@ public class BookingService {
     private FlightRepository flightRepository;
     private BookingRepository bookingRepository;
     private UserRepository userRepository;
+    private AirlineRepository airlineRepository;
+
+    public List<Booking> getBookings() {
+        User user = UserService.getCurrentLoggedInUser();
+        if (user.getRole() != User.Role.AIRLINE_EMPLOYEE)
+            return user.getBookingsList();
+        if (user.getAirlineEmployee() != null && user.getAirlineEmployee().getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN)
+            return bookingRepository.findByFlight_Airline_IdOrderByBookedAtDesc(user.getAirlineEmployee().getAirline().getId());
+        throw new IllegalEndpoint("You are not allowed to view these bookings");
+    }
 
     public ResponseEntity<BookingResponse> bookFlight(Long userId, Long flightId, String seatType, Long seatId) {
         //validate input
