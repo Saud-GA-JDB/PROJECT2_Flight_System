@@ -134,6 +134,17 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 For example, `/bookings/search?userId=1&flightId=2&status=BOOKED`. Status must be `BOOKED`, `CANCELLED`, or `FINISHED`. Filters can be used individually or together; results must match all supplied filters. Omit all filters to retrieve every booking for the admin's airline.
 
+Create airline endpoint
+---
+
+Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`. Supply query parameters or form fields; this controller does not accept a JSON request body.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| POST | `/faaadmin/airlines` | Creates and returns an airline. | `name`, `airlineCode`, `headquartersCountry` (query parameters or form fields) | No JSON body. |
+
+For example, `POST /faaadmin/airlines?name=Example%20Air&airlineCode=EA&headquartersCountry=Bahrain`. The name and airline code must be unique. The current service does not validate missing or blank fields.
+
 Live notifications (SSE)
 ---
 
