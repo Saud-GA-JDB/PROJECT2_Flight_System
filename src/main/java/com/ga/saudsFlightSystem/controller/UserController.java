@@ -7,6 +7,7 @@ import com.ga.saudsFlightSystem.service.UserService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping(path = "/auth/users")
@@ -46,5 +47,13 @@ public class UserController {
     @PostMapping("/changePassword")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
         return userService.changePassword(request.getNewPassword());
+    }
+
+    @PutMapping("/updateProfile")
+    public ResponseEntity<?> updateProfile(
+            @RequestParam(required = false) Long userId,
+            @RequestPart("request") UpdateProfileRequest request,
+            @RequestParam(required = false) MultipartFile image) {
+        return userService.updateProfile(userId, request, image);
     }
 }

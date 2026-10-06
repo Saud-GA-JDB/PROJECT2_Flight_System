@@ -1,15 +1,23 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.saudsFlightSystem.exception.InformationExistException;
+import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.model.Customer;
+import com.ga.saudsFlightSystem.model.Person;
 import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.LoginRequest;
 import com.ga.saudsFlightSystem.model.request.RegistrationRequest;
+import com.ga.saudsFlightSystem.model.request.UpdateProfileRequest;
 import com.ga.saudsFlightSystem.model.request.response.ForgetPasswordResponse;
 import com.ga.saudsFlightSystem.model.request.response.LoginResponse;
 import com.ga.saudsFlightSystem.repository.PendingRegistrationRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.repository.CustomerRepository;
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
+import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import com.ga.saudsFlightSystem.security.JWTUtils;
 import com.ga.saudsFlightSystem.security.MyUserDetails;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +30,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -36,13 +50,19 @@ public class UserService {
     private final PasswordService passwordService;
     private final PhoneValidationService phoneValidationService;
     private final EmailService emailService;
+    private final CustomerRepository customerRepository;
+    private final AirlineEmployeeRepository airlineEmployeeRepository;
+    private final FAAAdminRepository faaAdminRepository;
+    private final String UPLOAD_DIR = "uploads/";
 
     @Autowired
     public UserService(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder,
                        JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager,
                        PendingRegistrationService pendingRegistrationService,
                        PendingRegistrationRepository pendingRegistrationRepository,
-                       PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService) {
+                       PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
+                       CustomerRepository customerRepository, AirlineEmployeeRepository airlineEmployeeRepository,
+                       FAAAdminRepository faaAdminRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
@@ -52,6 +72,9 @@ public class UserService {
         this.passwordService = passwordService;
         this.phoneValidationService = phoneValidationService;
         this.emailService = emailService;
+        this.customerRepository = customerRepository;
+        this.airlineEmployeeRepository = airlineEmployeeRepository;
+        this.faaAdminRepository = faaAdminRepository;
     }
 
     public User finishSetup(RegistrationRequest request) {
@@ -146,10 +169,11 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(user.getCustomer().getCpr())); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
         // TODO: Should i handle an exception here with try catch? bc sending an email may fail
         emailService.sendEmail(user.getEmailAddress(), "Reset Password", String.format(
-                "Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately." +
-                        "\nIf you have not requested a password reset, Call us immediately." +
-                        "\nBest Regards," +
-                        "\nSaud Flight System.",
+                """
+                        Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately.
+                        If you have not requested a password reset, Call us immediately.
+                        Best Regards,
+                        Saud Flight System.""",
                         user.getCustomer().getFName()
                 ));
         userRepository.save(user);
@@ -169,9 +193,204 @@ public class UserService {
         return ResponseEntity.status(HttpStatus.OK).body("Success! New Password Has Been Set");
     }
 
+    public ResponseEntity<?> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
+        User user = getCurrentLoggedInUser();
+        User profileOwner = user;
+
+        if (userId != null) {
+            if (!UserService.isAllowedEndpoint("faaadmin", user.getRole())
+                    || user.getFaaAdmin() == null) {
+                throw new IllegalEndpoint("Only FAA admins can update other users profiles");
+            }
+
+            if (request.getSecurityQuestion() != null
+                    || request.getSecurityQuestionAnswer() != null) {
+                throw new IllegalEndpoint("Security question and answer can only be changed through your own profile");
+            }
+
+            profileOwner = userRepository.findById(userId)
+                    .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists."));
+        } else {
+            if (request.getFName() != null || request.getLName() != null
+                    || request.getCpr() != null
+                    || request.getEmailAddress() != null
+                    || request.getActive() != null) {
+                throw new IllegalEndpoint("Only FAA admins can change these details");
+            }
+        }
+
+        Person person = null;
+
+        if (profileOwner.getRole() == User.Role.CUSTOMER) {
+            person = profileOwner.getCustomer();
+        } else if (profileOwner.getRole() == User.Role.AIRLINE_EMPLOYEE) {
+            person = profileOwner.getAirlineEmployee();
+        } else if (profileOwner.getRole() == User.Role.FAA_ADMIN) {
+            person = profileOwner.getFaaAdmin();
+        }
+
+        boolean hasImage = image != null && !image.isEmpty();
+
+        if (person == null && (
+                request.getFName() != null || request.getLName() != null
+                        || request.getCpr() != null
+                        || request.getPhoneNumber() != null
+                        || request.getPhoneNumberOpeningCode() != null
+                        || hasImage)) {
+            throw new InvalidInformationException("No profile information found for this user");
+        }
+
+        // validate before updating
+        if (request.getFName() != null && request.getFName().isBlank()) {
+            throw new InvalidInformationException("First name cannot be blank");
+        }
+        if (request.getLName() != null && request.getLName().isBlank()) {
+            throw new InvalidInformationException("Last name cannot be blank");
+        }
+
+        if (request.getActive() != null && request.getActive()) {
+            throw new InvalidInformationException(
+                    "This endpoint only allows account deactivation");
+        }
+
+        if (request.getEmailAddress() != null) {
+            if (!EmailService.validateEmailFormat(request.getEmailAddress())) {
+                throw new InvalidInformationException("Invalid email format");
+            }
+
+            if (!request.getEmailAddress().equals(profileOwner.getEmailAddress())) {
+                if (profileOwner.getStatus() == User.Status.SETUP_REQUIRED) {
+                    throw new InvalidInformationException(
+                            "Complete account setup before changing email");
+                }
+
+                if (userRepository.existsByEmailAddress(request.getEmailAddress())) {
+                    throw new InformationExistException(
+                            "A user with this email already exists.");
+                }
+            }
+        }
+
+        if (request.getCpr() != null) {
+            if (!request.getCpr().matches("[0-9]{9}")) {
+                throw new InvalidInformationException("CPR must contain exactly 9 digits.");
+            }
+
+            if (!request.getCpr().equals(person.getCpr())) {
+                if (profileOwner.getStatus() == User.Status.SETUP_REQUIRED) {
+                    throw new InvalidInformationException("Complete account setup before changing CPR");
+                }
+
+                checkCprAvailable(request.getCpr());
+            }
+        }
+
+        String phoneNumber = null;
+        String openingCode = null;
+
+        if (request.getPhoneNumber() != null || request.getPhoneNumberOpeningCode() != null) {
+            phoneNumber = person.getPhoneNumber();
+            openingCode = person.getPhoneNumberOpeningCode();
+
+            if (request.getPhoneNumber() != null) {
+                phoneNumber = request.getPhoneNumber();
+            }
+            if (request.getPhoneNumberOpeningCode() != null) {
+                openingCode = request.getPhoneNumberOpeningCode();
+            }
+
+            if (phoneNumber == null || phoneNumber.isBlank()
+                    || openingCode == null || openingCode.isBlank()
+                    || !phoneValidationService.isValidPhoneNumber(phoneNumber, openingCode)) {
+                throw new InvalidInformationException("Invalid phone number or country code.");
+            }
+        }
+
+        if (request.getSecurityQuestion() != null || request.getSecurityQuestionAnswer() != null) {
+            if (request.getSecurityQuestion() == null
+                    || request.getSecurityQuestion().isBlank()
+                    || request.getSecurityQuestionAnswer() == null
+                    || request.getSecurityQuestionAnswer().isBlank()) {
+                throw new InvalidInformationException("Security question and answer are required together.");
+            }
+        }
+
+
+        if (hasImage) {
+            saveProfileImage(person, image);
+        }
+
+        if (request.getFName() != null) {
+            person.setFName(request.getFName());
+        }
+        if (request.getLName() != null) {
+            person.setLName(request.getLName());
+        }
+        if (request.getCpr() != null) {
+            person.setCpr(request.getCpr());
+        }
+        if (request.getEmailAddress() != null) {
+            profileOwner.setEmailAddress(request.getEmailAddress());
+        }
+        if (phoneNumber != null) {
+            person.setPhoneNumber(phoneNumber);
+            person.setPhoneNumberOpeningCode(openingCode);
+        }
+
+        if (request.getSecurityQuestion() != null) {
+            profileOwner.setSecurityQuestion(request.getSecurityQuestion());
+            profileOwner.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase()));
+        }
+
+        if (request.getActive() != null) {
+            profileOwner.setActive(false);
+            profileOwner.setStatus(User.Status.DEACTIVATED);
+        }
+
+        userRepository.save(profileOwner);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body("Profile updated successfully");
+    }
+
     /*
     Helper Methods
      */
+
+    private void checkCprAvailable(String cpr) {
+        if (customerRepository.existsByCpr(cpr)
+                || airlineEmployeeRepository.existsByCpr(cpr)
+                || faaAdminRepository.existsByCpr(cpr)) {
+            throw new InformationExistException("A person with this CPR already exists.");
+        }
+    }
+
+    private void saveProfileImage(Person person, MultipartFile image) {
+        String originalFileName = image.getOriginalFilename();
+
+        if (originalFileName == null || originalFileName.isBlank()
+                || originalFileName.contains("/")
+                || originalFileName.contains("\\")) {
+            throw new InvalidInformationException("Invalid image filename");
+        }
+
+        try {
+            Path uploadPath = Paths.get(UPLOAD_DIR).toAbsolutePath();
+
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+
+            String uniqueId = UUID.randomUUID().toString();
+            String fileName = uniqueId + "_" + originalFileName;
+            Path filePath = uploadPath.resolve(fileName);
+
+            image.transferTo(filePath);
+            person.setImageUrl(UPLOAD_DIR + fileName);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not save image", e);
+        }
+    }
 
     public static boolean isAllowedEndpoint(String endpoint, User.Role role) {
         switch (role) {
