@@ -46,6 +46,17 @@ Requires an active account and `Authorization: Bearer <token>`, including for th
 
 The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401.
 
+Change password endpoint
+---
+
+Requires an active account and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| POST | `/auth/users/changePassword` | Changes the logged-in user's password and returns a success message. | `newPassword` | `{"newPassword":"NewPassword123"}` |
+
+The validator requires 8 to 30 characters, at least one uppercase letter and one digit, and no whitespace. Invalid passwords return 422; the current error message incorrectly says the maximum is 20.
+
 Live notifications (SSE)
 ---
 
