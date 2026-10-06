@@ -61,5 +61,5 @@ public class User {
 
     public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN}
 
-    public enum Status {SETUP_REQUIRED, ACTIVE}
+    public enum Status {SETUP_REQUIRED, ACTIVE, DEACTIVATED}
 }
