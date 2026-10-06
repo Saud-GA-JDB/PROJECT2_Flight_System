@@ -21,8 +21,10 @@ public class BookingController {
         return bookingService.getBookings();
     }
 
-    @GetMapping
-    public List<Booking> getUserBookings(@RequestParam(name = "userId") Long userId) {
-        return bookingService.getUserBookings(userId);
+    @GetMapping("/filter")
+    public List<Booking> searchBookings(@RequestParam(required = false) Long userId,
+                                        @RequestParam(required = false) Long flightId,
+                                        @RequestParam(required = false) Booking.BookingStatus status) {
+        return bookingService.getUserBookings(userId, flightId, status);
     }
 }

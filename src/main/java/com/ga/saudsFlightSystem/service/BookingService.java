@@ -35,6 +35,19 @@ public class BookingService {
         throw new IllegalEndpoint("You are not allowed to view these bookings");
     }
 
+    public List<Booking> getUserBookings(Long userId, Long flightId, Booking.BookingStatus status) {
+        User user = UserService.getCurrentLoggedInUser();
+        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint");
+
+
+        if (user.getAirlineEmployee().getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed this endpoint.");
+        Long airlineId = user.getAirlineEmployee().getAirline().getId();
+
+        return bookingRepository.searchBookings(airlineId, userId, flightId, status);
+    }
+
     public ResponseEntity<BookingResponse> bookFlight(Long userId, Long flightId, String seatType, Long seatId) {
         //validate input
         User bookingOwner = userRepository.findById(userId)
