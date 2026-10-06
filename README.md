@@ -79,6 +79,17 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 The airplane must belong to the admin's airline and must not already be active. An existing pending request blocks submission; seven days must pass after the last request before requesting again. Connected FAA admins receive the `airplane-activation-requested` SSE event after the transaction commits. The airplane stays grounded until FAA approval.
 
+Add flight endpoint
+---
+
+Requires an active airline employee with airline role `ADMIN` and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates an active flight for the admin's airline and returns an `AddFlightResponse` with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00"}` |
+
+Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities.
+
 Live notifications (SSE)
 ---
 
