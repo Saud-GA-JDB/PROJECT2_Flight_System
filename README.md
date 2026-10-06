@@ -68,6 +68,17 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 Registration number must be unique. Both seat capacities and max mileage must be greater than zero. Missing or invalid fields return 422; a duplicate registration number returns 404. Activation requires FAA approval.
 
+Request airplane activation endpoint
+---
+
+Requires an active airline employee with airline role `ADMIN` and `Authorization: Bearer <token>`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| POST | `/airlineAdmin/airplanes/{airplaneId}/requestActivation` | Creates a pending activation request and returns an `AirplaneRequestResponse` with status 201. | `airplaneId` (path) | No body. |
+
+The airplane must belong to the admin's airline and must not already be active. An existing pending request blocks submission; seven days must pass after the last request before requesting again. Connected FAA admins receive the `airplane-activation-requested` SSE event after the transaction commits. The airplane stays grounded until FAA approval.
+
 Live notifications (SSE)
 ---
 
