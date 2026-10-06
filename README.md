@@ -4,6 +4,16 @@ basically a flight system, there will be two parts. the first part is a basic fl
 
 ------------------------------------------------------------------------------------------------------------------------
 
+Cron Jobs
+---
+
+**Flight status update:** `FlightService.updateFlightStatus()` runs every 5 minutes using `@Scheduled(cron = "0 */5 * * * *")`.
+
+- Changes `ACTIVE` to `IN_AIR` when `actualDeparture` is not null and its time has been reached.
+- Changes `IN_AIR` to `CLOSED` when `actualArrival` is not null and its time has been reached.
+
+Null actual times leave the status unchanged, allowing for delayed flights. Time checks use the server's local time.
+
 Customer registration endpoints
 ---
 
