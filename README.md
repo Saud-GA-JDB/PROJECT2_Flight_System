@@ -101,6 +101,17 @@ Requires an active account and `Authorization: Bearer <token>`. Users can book f
 
 For example, `/customer/1/flights/2/standard/3/book`. The user and flight must exist. `seatType` must be exactly `standard` or `firstClass`; `seatId` starts at 1 and must be within that class's capacity. The seat must be available, both flight and airplane must be active, and departure must be more than five minutes away. A successful booking has status `BOOKED` and a generated booking reference.
 
+View bookings endpoint
+---
+
+Requires an active account and `Authorization: Bearer <token>`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| GET | `/bookings` | Returns the logged-in user's bookings, or all bookings for the logged-in airline admin's airline ordered by booking time descending. | None. | No body. |
+
+Airline employees must have airline role `ADMIN` to use this endpoint. Other account roles receive their own booking list. The response is a list of booking objects.
+
 Live notifications (SSE)
 ---
 
