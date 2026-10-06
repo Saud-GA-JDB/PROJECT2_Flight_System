@@ -35,6 +35,17 @@ All fields in this setup example are required:
 }
 ```
 
+Password reset endpoint
+---
+
+Requires an active account and `Authorization: Bearer <token>`, including for this reset route. Send JSON with `Content-Type: application/json`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| POST | `/auth/users/forgetPassword` | Checks the customer's security answer, resets their password to CPR, sends an email, and returns a confirmation message. | `email`, `securityQuestionAnswer` | `{"email":"you@example.com","securityQuestionAnswer":"Your answer"}` |
+
+The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401.
+
 Live notifications (SSE)
 ---
 
