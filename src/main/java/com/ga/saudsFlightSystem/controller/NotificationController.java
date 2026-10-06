@@ -22,7 +22,6 @@ public class NotificationController {
     public ResponseEntity<SseEmitter> subscribe() throws IOException {
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-cache")
-                .header("X-Accel-Buffering", "no")
                 .body(notificationService.subscribe(UserService.getCurrentLoggedInUser()));
     }
 }

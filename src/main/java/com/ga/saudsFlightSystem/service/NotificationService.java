@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-/** Live delivery for this server instance. Business services choose recipients and DTO payloads. */
 @Service
 public class NotificationService {
     private record Connection(Long userId, User.Role role, SseEmitter emitter) {}
