@@ -27,6 +27,7 @@ public class AirplaneService {
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
     private NotificationService notificationService;
+    private EmailService emailService;
 
     @Transactional
     public ResponseEntity<?> requestActivation(Long airplaneId) {
@@ -56,7 +57,19 @@ public class AirplaneService {
         }
         AirplaneRequest request = new AirplaneRequest();
         request.setAirplane(airplane);
+        request.setRequestedBy(user);
         airplaneRequestRepository.save(request);
+
+        emailService.sendEmail(user.getEmailAddress(), "Activation Request Submitted", String.format(
+                """
+                        Your airplane activation request has been submitted for FAA review.
+                        Registration number: %s
+                        Model: %s
+                        Best Regards,
+                        Saud Flight System.""",
+                airplane.getRegistrationNumber(),
+                airplane.getModel()
+        ));
 
         AirplaneRequestResponse response = new AirplaneRequestResponse(
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
@@ -106,6 +119,16 @@ public class AirplaneService {
         airplane.setMaxMileage(maxMileage);
 
         airplaneRepository.save(airplane);
+
+        emailService.sendEmail(user.getEmailAddress(), "Airplane Added", String.format(
+                "Your airplane has been added successfully." +
+                        "\nRegistration number: %s" +
+                        "\nModel: %s" +
+                        "\nBest Regards," +
+                        "\nSaud Flight System.",
+                airplane.getRegistrationNumber(),
+                airplane.getModel()
+        ));
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), user.getAirlineEmployee().getCpr(), airplane.getStatus()));

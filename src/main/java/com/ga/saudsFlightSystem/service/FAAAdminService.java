@@ -26,6 +26,7 @@ public class FAAAdminService {
     private UserService userService;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
+    private EmailService emailService;
 
     public ResponseEntity<?> getPendingAirplaneRequests() {
         User user = UserService.getCurrentLoggedInUser();
@@ -77,6 +78,22 @@ public class FAAAdminService {
         request.setReviewedBy(user.getFaaAdmin());
         airplaneRepository.save(airplane);
         airplaneRequestRepository.save(request);
+
+        emailService.sendEmail(request.getRequestedBy().getEmailAddress(),
+                "Activation Request " + request.getStatus(), String.format(
+                        """
+                                Your airplane activation request has been reviewed.
+                                Registration number: %s
+                                Model: %s
+                                Status: %s
+                                Reason: %s
+                                Best Regards,
+                                Saud Flight System.""",
+                        airplane.getRegistrationNumber(),
+                        airplane.getModel(),
+                        request.getStatus(),
+                        request.getReviewReason()
+                ));
 
         return ResponseEntity.status(HttpStatus.OK).body(new AirplaneRequestResponse(
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
