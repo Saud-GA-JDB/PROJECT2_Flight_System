@@ -3,10 +3,8 @@ package com.ga.saudsFlightSystem.controller;
 import com.ga.saudsFlightSystem.model.Booking;
 import com.ga.saudsFlightSystem.service.BookingService;
 import lombok.AllArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -21,7 +19,12 @@ public class BookingController {
         return bookingService.getBookings();
     }
 
-    @GetMapping("/filter")
+    @DeleteMapping("{bookingId}")
+    public ResponseEntity<?> cancelBooking(@PathVariable(name = "bookingId") Long bookingId) {
+        return bookingService.cancelBooking(bookingId);
+    }
+
+    @GetMapping("/search")
     public List<Booking> searchBookings(@RequestParam(required = false) Long userId,
                                         @RequestParam(required = false) Long flightId,
                                         @RequestParam(required = false) Booking.BookingStatus status) {

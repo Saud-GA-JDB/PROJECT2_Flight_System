@@ -10,8 +10,10 @@ import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,6 +48,51 @@ public class BookingService {
         Long airlineId = user.getAirlineEmployee().getAirline().getId();
 
         return bookingRepository.searchBookings(airlineId, userId, flightId, status);
+    }
+
+    @Transactional
+    public ResponseEntity<?> cancelBooking(Long bookingId) {
+        User user = UserService.getCurrentLoggedInUser();
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow( () -> {
+            throw new InvalidInformationException("No Booking with that id found");
+        });
+        if (user.getRole() == User.Role.AIRLINE_EMPLOYEE &&
+                (user.getAirlineEmployee() == null || user.getAirlineEmployee().getAirline() == null))
+            throw new IllegalEndpoint("No airline employee information found");
+        boolean isAirlineAdmin = user.getRole() == User.Role.AIRLINE_EMPLOYEE &&
+                user.getAirlineEmployee().getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN &&
+                Objects.equals(user.getAirlineEmployee().getAirline().getId(), booking.getFlight().getAirline().getId());
+        //check that only airline admin can change other people bookings
+        if (!Objects.equals(user.getId(), booking.getUser().getId()) && !isAirlineAdmin)
+            throw new IllegalEndpoint("Only airline admins can cancel other people bookings for their airline");
+
+        if (booking.getStatus() != Booking.BookingStatus.BOOKED)
+            throw new InvalidInformationException("booking is already done. you can only cancel active bookings");
+
+
+        if (isAirlineAdmin) {
+            booking.setStatus(Booking.BookingStatus.CANCELLED);
+        } else {
+            if (!LocalDateTime.now().isAfter(booking.getFlight().getScheduledDeparture().minusHours(48))) {
+                booking.setStatus(Booking.BookingStatus.CANCELLED);
+            } else {
+                return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
+                        .body("Sorry, Bookings must be cancelled 48 hours before flight departure. You can contact the airline customer service if you have special circumstances.");
+            }
+        }
+        Flight flight = booking.getFlight();
+        if (booking.getSeatNumber().startsWith("firstClass-")) {
+            flight.setFirstClassSeatsCount(flight.getFirstClassSeatsCount() + 1);
+        } else {
+            flight.setStandardSeatsCount(flight.getStandardSeatsCount() + 1);
+        }
+        flightRepository.save(flight);
+        Booking savedBooking = bookingRepository.save(booking);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(new BookingResponse(
+                        savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUser().getId(),
+                        savedBooking.getFlight().getId(), savedBooking.getSeatNumber(), savedBooking.getStatus(),
+                        savedBooking.getBookedAt()));
     }
 
     public ResponseEntity<BookingResponse> bookFlight(Long userId, Long flightId, String seatType, Long seatId) {
