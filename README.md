@@ -154,6 +154,34 @@ Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`.
 | --- | --- | --- | --- | --- |
 | GET | `/faaadmin/airlines` | Returns the list of all airlines. | None. | No body. |
 
+Add airline admin endpoint
+---
+
+Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| POST | `/faaadmin/airlines/{airlineId}/addAirlineAdmin` | Creates an airline employee with airline role `ADMIN` and CPR as the initial password. Returns the submitted details with the security answer cleared, with status 201. | `airlineId` (path), `emailAddress`, `cpr`, `fName`, `lName`, `phoneNumberOpeningCode`, `phoneNumber`, `hireDate`, `salary`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
+
+The airline must exist, and email and CPR must be available. CPR must contain exactly nine digits, the email must have a valid format, and the phone number must be valid for its country code. Salary must be greater than zero; hire date uses `yyyy-MM-dd`. Names, security question, and security answer must not be blank.
+
+All fields in this example are required:
+
+```json
+{
+  "emailAddress": "admin@example.com",
+  "cpr": "123456789",
+  "fName": "Saud",
+  "lName": "Example",
+  "phoneNumberOpeningCode": "+973",
+  "phoneNumber": "36001234",
+  "hireDate": "2026-10-01",
+  "salary": 1200,
+  "securityQuestion": "Your question",
+  "securityQuestionAnswer": "Your answer"
+}
+```
+
 Live notifications (SSE)
 ---
 
