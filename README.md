@@ -145,6 +145,15 @@ Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`. Supp
 
 For example, `POST /faaadmin/airlines?name=Example%20Air&airlineCode=EA&headquartersCountry=Bahrain`. The name and airline code must be unique. The current service does not validate missing or blank fields.
 
+View airlines endpoint
+---
+
+Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| GET | `/faaadmin/airlines` | Returns the list of all airlines. | None. | No body. |
+
 Live notifications (SSE)
 ---
 
