@@ -27,6 +27,7 @@ public class BookingService {
     private BookingRepository bookingRepository;
     private UserRepository userRepository;
     private AirlineRepository airlineRepository;
+    private EmailService emailService;
 
     public List<Booking> getBookings() {
         User user = UserService.getCurrentLoggedInUser();
@@ -88,6 +89,14 @@ public class BookingService {
         }
         flightRepository.save(flight);
         Booking savedBooking = bookingRepository.save(booking);
+        emailService.sendEmail(savedBooking.getUser().getEmailAddress(), "Booking Cancelled", String.format(
+                """
+                        Your booking %s for flight %s has been cancelled.
+                        Best Regards,
+                        Saud Flight System.""",
+                savedBooking.getBookingRef(),
+                flight.getFlightNumber()
+        ));
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new BookingResponse(
                         savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUser().getId(),
@@ -150,6 +159,25 @@ public class BookingService {
         }
         flightRepository.save(flight);
         Booking savedBooking = bookingRepository.save(booking);
+
+        emailService.sendEmail(bookingOwner.getEmailAddress(), "Booking Confirmation", String.format(
+                """
+                        Your flight has been booked successfully.
+                        Booking reference: %s
+                        Flight number: %s
+                        Seat: %s
+                        From: %s
+                        To: %s
+                        Scheduled departure: %s
+                        Best Regards,
+                        Saud Flight System.""",
+                savedBooking.getBookingRef(),
+                flight.getFlightNumber(),
+                savedBooking.getSeatNumber(),
+                flight.getOriginAirport().getIataCode(),
+                flight.getDestinationAirport().getIataCode(),
+                flight.getScheduledDeparture()
+        ));
 
         return ResponseEntity.status(201).body(new BookingResponse(
                 savedBooking.getId(), savedBooking.getBookingRef(), bookingOwner.getId(),
