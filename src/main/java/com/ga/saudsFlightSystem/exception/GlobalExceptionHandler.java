@@ -4,6 +4,8 @@ import com.ga.saudsFlightSystem.model.request.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.MailException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -34,6 +36,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleForbidden(
             IllegalEndpoint ex, HttpServletRequest request) {
         return build(ex.getMessage(), HttpStatus.FORBIDDEN, request);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> handleAuthentication(
+            AuthenticationException ex, HttpServletRequest request) {
+        return build(
+                "Error: Email or password is incorrect, or the account is inactive.",
+                HttpStatus.UNAUTHORIZED,
+                request
+        );
+    }
+
+    @ExceptionHandler(MailException.class)
+    public ResponseEntity<ErrorResponse> handleMail(
+            MailException ex, HttpServletRequest request) {
+        return build(
+                "Could not send the email.",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                request
+        );
     }
 
     @ExceptionHandler(Exception.class)
