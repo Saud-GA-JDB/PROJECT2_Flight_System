@@ -182,6 +182,17 @@ All fields in this example are required:
 }
 ```
 
+Pending airplane requests endpoint
+---
+
+Requires an active `FAA_ADMIN` account with a linked FAA admin profile and `Authorization: Bearer <token>`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| GET | `/faaadmin/airplaneRequests` | Returns a list of `AirplaneRequestResponse` objects for activation requests with status `PENDING`, with status 200. | None. | No body. |
+
+Requests are returned across all airlines. An empty list is returned when no requests are pending. Fetch this endpoint after connecting or reconnecting to notifications to recover outstanding requests, and deduplicate by `requestId`.
+
 Live notifications (SSE)
 ---
 
