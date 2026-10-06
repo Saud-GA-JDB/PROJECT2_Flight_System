@@ -112,6 +112,17 @@ Requires an active account and `Authorization: Bearer <token>`.
 
 Airline employees must have airline role `ADMIN` to use this endpoint. Other account roles receive their own booking list. The response is a list of booking objects.
 
+Cancel booking endpoint
+---
+
+Requires an active account and `Authorization: Bearer <token>`. Only the booking owner or an airline employee with airline role `ADMIN` for the booking's airline can cancel it.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| DELETE | `/bookings/{bookingId}` | Marks a booking as `CANCELLED`, restores the available seat count for its class, and returns a `BookingResponse` with status 200. | `bookingId` (path) | No body. |
+
+The booking must exist and have status `BOOKED`. Owners must cancel at least 48 hours before departure or receive 417; an admin of the booking's airline is exempt from this time limit. The booking record is retained.
+
 Live notifications (SSE)
 ---
 
