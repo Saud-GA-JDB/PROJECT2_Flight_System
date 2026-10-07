@@ -59,7 +59,9 @@ Requires an active account and `Authorization: Bearer <token>`, including for th
 | --- | --- | --- | --- | --- |
 | POST | `/auth/users/forgetPassword` | Checks the customer's security answer, resets their password to CPR, sends an email, and returns a confirmation message. | `email`, `securityQuestionAnswer` | `{"email":"you@example.com","securityQuestionAnswer":"Your answer"}` |
 
-The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401.
+The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401. These responses and the successful 200 response contain a `message` field. The security answer is trimmed and converted to lowercase before checking it against the stored hash.
+
+The reset email is sent to the target customer's email address with subject `Reset Password`. Email sending failures return 500 through the global error handler, with fields `timestamp`, `status`, `error`, `message`, and `path`, and message `Could not send the email.`. The explicit password save occurs after the email is sent.
 
 Change password endpoint
 ---
