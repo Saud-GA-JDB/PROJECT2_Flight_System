@@ -47,10 +47,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 if (userDetails.isAccountNonLocked() && userDetails.isEnabled()) {
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                } else {
+                    logger.warn("JWT authentication rejected because the account was locked or disabled");
                 }
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e);
+            logger.warn("Could not authenticate the request. Exception type: " + e.getClass().getSimpleName());
         }
         filterChain.doFilter(request, response);
     }

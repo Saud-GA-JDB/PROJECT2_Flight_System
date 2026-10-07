@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 @Service
@@ -36,7 +35,7 @@ public class JWTUtils {
             Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(authToken);
             return true;
         } catch (SecurityException e) {
-            logger.log(Level.SEVERE, "Invalid JWT Signature: {0}", e.getMessage());
+            logger.warning("JWT authentication failed because the token signature was invalid");
         }
         return false;
     }
