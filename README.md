@@ -174,9 +174,11 @@ Requires an active account and `Authorization: Bearer <token>`. Only the booking
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| DELETE | `/bookings/{bookingId}` | Marks a booking as `CANCELLED`, restores the available seat count for its class, and returns a `BookingResponse` with status 200. | `bookingId` (path) | No body. |
+| DELETE | `/bookings/{bookingId}` | Marks a booking as `CANCELLED`, restores the available seat count for its class, emails the booking owner, and returns a `BookingResponse` with status 200. | `bookingId` (path) | No body. |
 
 The booking must exist and have status `BOOKED`. Owners must cancel at least 48 hours before departure or receive 417; an admin of the booking's airline is exempt from this time limit. The booking record is retained.
+
+The cancellation email is sent to the booking owner's email address, including when an airline admin cancels on their behalf. Its subject is `Booking Cancelled`, and it includes the booking reference and flight number.
 
 Search bookings endpoint
 ---
