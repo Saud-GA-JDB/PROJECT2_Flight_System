@@ -10,31 +10,37 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
+import java.util.logging.Logger;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger logger = Logger.getLogger(GlobalExceptionHandler.class.getName());
 
     @ExceptionHandler(InformationNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(
             InformationNotFoundException ex, HttpServletRequest request) {
+        logger.warning("Request failed because the requested resource was not found");
         return build(ex.getMessage(), HttpStatus.NOT_FOUND, request);
     }
 
     @ExceptionHandler(InvalidInformationException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(
             InvalidInformationException ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the supplied information was invalid");
         return build(ex.getMessage(), HttpStatus.BAD_REQUEST, request);
     }
 
     @ExceptionHandler(InformationExistException.class)
     public ResponseEntity<ErrorResponse> handleConflict(
             InformationExistException ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the information already exists");
         return build(ex.getMessage(), HttpStatus.CONFLICT, request);
     }
 
     @ExceptionHandler(IllegalEndpoint.class)
     public ResponseEntity<ErrorResponse> handleForbidden(
             IllegalEndpoint ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the user was not allowed to perform this action");
         return build(ex.getMessage(), HttpStatus.FORBIDDEN, request);
     }
 
@@ -51,6 +57,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MailException.class)
     public ResponseEntity<ErrorResponse> handleMail(
             MailException ex, HttpServletRequest request) {
+        logger.severe("Could not send the email. Exception type: " + ex.getClass().getSimpleName());
         return build(
                 "Could not send the email.",
                 HttpStatus.INTERNAL_SERVER_ERROR,
@@ -61,6 +68,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(
             Exception ex, HttpServletRequest request) {
+        logger.severe("An unexpected error occurred");
         return build("Something went wrong", HttpStatus.INTERNAL_SERVER_ERROR, request);
     }
 
