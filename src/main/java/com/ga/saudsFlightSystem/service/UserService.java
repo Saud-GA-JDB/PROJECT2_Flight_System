@@ -5,6 +5,7 @@ import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.model.Customer;
+import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.Person;
 import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.User;
@@ -31,6 +32,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -57,6 +59,7 @@ public class UserService {
     private final CustomerRepository customerRepository;
     private final AirlineEmployeeRepository airlineEmployeeRepository;
     private final FAAAdminRepository faaAdminRepository;
+    private final AuditLogService auditLogService;
     private final String UPLOAD_DIR = "uploads/";
 
     @Autowired
@@ -66,7 +69,7 @@ public class UserService {
                        PendingRegistrationRepository pendingRegistrationRepository,
                        PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
                        CustomerRepository customerRepository, AirlineEmployeeRepository airlineEmployeeRepository,
-                       FAAAdminRepository faaAdminRepository) {
+                       FAAAdminRepository faaAdminRepository, AuditLogService auditLogService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
@@ -79,6 +82,7 @@ public class UserService {
         this.customerRepository = customerRepository;
         this.airlineEmployeeRepository = airlineEmployeeRepository;
         this.faaAdminRepository = faaAdminRepository;
+        this.auditLogService = auditLogService;
     }
 
     public User finishSetup(RegistrationRequest request) {
@@ -166,10 +170,7 @@ public class UserService {
 
         return ResponseEntity.ok(new LoginResponse(jwt));
     }
-    /*
-     * boolean
 
-     * */
     public ResponseEntity<?> forgetPassword(String email, String securityQuestionAnswer) {
         /*TODO: Continue here----------------------*/
         if (!userRepository.existsByEmailAddress(email))
@@ -209,6 +210,7 @@ public class UserService {
         return ResponseEntity.status(HttpStatus.OK).body("Success! New Password Has Been Set");
     }
 
+    @Transactional
     public ResponseEntity<?> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
         User user = getCurrentLoggedInUser();
         User profileOwner = user;
@@ -332,22 +334,25 @@ public class UserService {
         }
 
 
-        if (hasImage) {
-            saveProfileImage(person, image);
-        }
+        boolean isRequestNonEmpty = request.getFName() != null || request.getLName() != null || request.getCpr() != null
+                || request.getEmailAddress() != null || request.getPhoneNumber() != null || request.getPhoneNumberOpeningCode() != null
+                || request.getSecurityQuestion() != null || hasImage;
 
-        if (request.getFName() != null) {
+        boolean isDeactivation = request.getActive() != null &&
+                (profileOwner.isActive() || profileOwner.getStatus() != User.Status.DEACTIVATED);
+
+        if (hasImage)
+            saveProfileImage(person, image);
+
+
+        if (request.getFName() != null)
             person.setFName(request.getFName());
-        }
-        if (request.getLName() != null) {
+        if (request.getLName() != null)
             person.setLName(request.getLName());
-        }
-        if (request.getCpr() != null) {
+        if (request.getCpr() != null)
             person.setCpr(request.getCpr());
-        }
-        if (request.getEmailAddress() != null) {
+        if (request.getEmailAddress() != null)
             profileOwner.setEmailAddress(request.getEmailAddress());
-        }
         if (phoneNumber != null) {
             person.setPhoneNumber(phoneNumber);
             person.setPhoneNumberOpeningCode(openingCode);
@@ -364,6 +369,25 @@ public class UserService {
         }
 
         userRepository.save(profileOwner);
+
+        if (isRequestNonEmpty) {
+            String description;
+            if (userId != null)
+                description = "FAA admin updated the profile of user with id " + profileOwner.getId();
+            else
+                description = "User updated their own profile";
+
+
+            auditLogService.addAuditLog(user, AuditLog.Action.PROFILE_UPDATED, AuditLog.EntityType.USER, profileOwner.getId(), description);
+
+            logger.info(description + " (user id: " + user.getId() + ")");
+        }
+
+        if (isDeactivation) {
+            String description = "FAA admin deactivated user with id " + profileOwner.getId();
+            auditLogService.addAuditLog(user, AuditLog.Action.USER_DEACTIVATED, AuditLog.EntityType.USER, profileOwner.getId(), description);
+            logger.info(description + " (user id: " + user.getId() + ")");
+        }
 
         return ResponseEntity.status(HttpStatus.OK)
                 .body("Profile updated successfully");
