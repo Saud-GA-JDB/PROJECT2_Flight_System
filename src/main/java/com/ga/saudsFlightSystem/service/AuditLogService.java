@@ -18,6 +18,7 @@ public class AuditLogService {
         AuditLog auditLog = new AuditLog();
         auditLog.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
+        // scheduled system actions have no logged in user
         if (user != null) {
             auditLog.setUserId(user.getId());
             auditLog.setUserRole(user.getRole());

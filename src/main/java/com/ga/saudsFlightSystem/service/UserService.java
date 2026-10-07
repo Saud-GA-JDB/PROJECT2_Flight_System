@@ -92,6 +92,12 @@ public class UserService {
         this.auditLogService = auditLogService;
     }
 
+    /**
+     * Completes account setup after checking the profile details and new password.
+     *
+     * @param request details needed to finish setup
+     * @return the activated user
+     */
     @Transactional
     public User finishSetup(RegistrationRequest request) {
         User user = getCurrentLoggedInUser();
@@ -161,6 +167,13 @@ public class UserService {
         return userRepository.findUserByEmailAddress(email);
     }
 
+    /**
+     * Logs in the user and limits incorrect passwords to three attempts per day.
+     *
+     * @param loginRequest user email and password
+     * @return the login token
+     */
+    // failed attempts must stay saved even when authentication fails
     @Transactional(noRollbackFor = AuthenticationException.class)
     public ResponseEntity<?> loginUser(LoginRequest loginRequest) {
         logger.info("Login attempted");
@@ -216,6 +229,13 @@ public class UserService {
         userRepository.resetDailyLoginAttempts(LocalDate.now(LOGIN_TIME_ZONE));
     }
 
+    /**
+     * Resets the password to the user's CPR after checking the security answer.
+     *
+     * @param email email of the account to reset
+     * @param securityQuestionAnswer answer used to check the account owner
+     * @return a success message or the reason the reset failed
+     */
     @Transactional
     public ResponseEntity<?> forgetPassword(String email, String securityQuestionAnswer) {
         if (!userRepository.existsByEmailAddress(email)) {
@@ -270,6 +290,15 @@ public class UserService {
         return ResponseEntity.status(HttpStatus.OK).body("Success! New Password Has Been Set");
     }
 
+    /**
+     * Updates profile details based on what the logged in user is allowed to change.
+     * Only FAA admins can update another user's profile.
+     *
+     * @param userId user to update, or null to update your own profile
+     * @param request profile details to change
+     * @param image optional profile image
+     * @return a message confirming the update
+     */
     @Transactional
     public ResponseEntity<?> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
         User user = getCurrentLoggedInUser();
@@ -367,6 +396,7 @@ public class UserService {
         String openingCode = null;
 
         if (request.getPhoneNumber() != null || request.getPhoneNumberOpeningCode() != null) {
+            // keep the existing value if only one part of the phone number is changed
             phoneNumber = person.getPhoneNumber();
             openingCode = person.getPhoneNumberOpeningCode();
 

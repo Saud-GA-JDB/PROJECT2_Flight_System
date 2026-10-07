@@ -40,6 +40,13 @@ public class AirlineEmployeeService {
 
     private static final Logger logger = Logger.getLogger(AirlineEmployeeService.class.getName());
 
+    /**
+     * Lets an FAA admin create an airline admin account with CPR as its password.
+     *
+     * @param airlineId airline the new admin will belong to
+     * @param request account and employee details
+     * @return the submitted details without the security answer
+     */
     @Transactional
     public ResponseEntity<?> addAirlineAdmin(Long airlineId, AddAirlineAdminRequest request) {
         User user = UserService.getCurrentLoggedInUser();
@@ -113,6 +120,13 @@ public class AirlineEmployeeService {
         return ResponseEntity.status(HttpStatus.CREATED).body(request);
     }
 
+    /**
+     * Creates a flight after checking the route, times and airplane availability.
+     *
+     * @param airplaneId airplane assigned to the flight
+     * @param request airports and scheduled flight times
+     * @return the new flight details
+     */
     @Transactional
     public ResponseEntity<?> addFlight(Long airplaneId, AddFlightRequest request) {
         User user = UserService.getCurrentLoggedInUser();
@@ -160,6 +174,7 @@ public class AirlineEmployeeService {
             throw new InvalidInformationException("airplane must be owned by the airline");
         airplaneService.checkAvailability(airplane, request.getScheduledDeparture(), request.getScheduledArrival());
 
+        // save first because the flight number needs the generated flight id
         flight = flightRepository.save(flight);
         flight.setFlightNumber(flight.getAirline().getAirlineCode() + flight.getId());
         flightRepository.save(flight);

@@ -34,6 +34,13 @@ public class AirplaneService {
 
     private static final Logger logger = Logger.getLogger(AirplaneService.class.getName());
 
+    /**
+     * Sends an airplane activation request for FAA review after checking ownership
+     * and the seven day waiting period between requests.
+     *
+     * @param airplaneId airplane to request activation for
+     * @return the submitted request details
+     */
     @Transactional
     public ResponseEntity<?> requestActivation(Long airplaneId) {
         User user = UserService.getCurrentLoggedInUser();
@@ -92,6 +99,7 @@ public class AirplaneService {
             throw new InvalidInformationException("Can't add a flight because the airplane is grounded");
         }
 
+        // leave two hours between flights, whether the new flight is before or after an existing one
         for (Flight flight : airplane.getFlightsList()) {
             if (flight.getStatus() != Flight.FlightStatus.CANCELLED &&
                     scheduledDeparture.isBefore(flight.getScheduledArrival().plusMinutes(120)) &&
@@ -101,6 +109,16 @@ public class AirplaneService {
         }
     }
 
+    /**
+     * Adds an airplane to the admin's airline after checking its details.
+     *
+     * @param registrationNumber unique airplane registration number
+     * @param model airplane model
+     * @param standardSeatCapacity number of standard seats
+     * @param firstClassSeatCapacity number of first class seats
+     * @param maxMileage maximum airplane mileage
+     * @return the added airplane details or a validation message
+     */
     @Transactional
     public ResponseEntity<?> addAirplane(String registrationNumber, String model, int standardSeatCapacity, int firstClassSeatCapacity, Long maxMileage) {
         User user = UserService.getCurrentLoggedInUser();

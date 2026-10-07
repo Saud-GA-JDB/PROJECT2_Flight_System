@@ -49,6 +49,14 @@ public class FAAAdminService {
         return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
 
+    /**
+     * Accepts or denies a pending activation request and updates the airplane status.
+     * Sends the result to the user who made the request.
+     *
+     * @param requestId activation request to review
+     * @param review decision and review reason
+     * @return the reviewed request details
+     */
     @Transactional
     public ResponseEntity<?> reviewAirplaneRequest(Long requestId, ReviewAirplaneRequest review) {
         User user = UserService.getCurrentLoggedInUser();

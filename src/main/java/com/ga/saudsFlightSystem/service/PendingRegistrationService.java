@@ -53,6 +53,13 @@ public class PendingRegistrationService {
         }
     }
 
+    /**
+     * Starts a pending registration and emails a code that expires in ten minutes.
+     *
+     * @param email email to verify
+     * @param cpr CPR for the new account
+     * @return a message confirming the verification email was requested
+     */
     public ResponseEntity<?> sendCode(String email, String cpr) {
         if(!EmailService.validateEmailFormat(email)) throw new InvalidInformationException("invalid Email Format");
         if (cpr == null || !cpr.matches("[0-9]{9}")) {
@@ -93,6 +100,14 @@ public class PendingRegistrationService {
         pendingRegistrationRepository.delete(pending);
     }
 
+    /**
+     * Checks the email code and creates an account that still needs setup.
+     * An existing account waiting for setup can be verified again.
+     *
+     * @param email email used for registration
+     * @param code verification code from the email
+     * @return a message asking the user to log in and finish setup
+     */
     // Incorrect verification attempts must still be saved when validation fails.
     @Transactional(noRollbackFor = InvalidInformationException.class)
     public ResponseEntity<?> verify(String email, String code) {

@@ -26,6 +26,14 @@ public class AirlineService {
     // this function is used by FAAAdminService only
     // TODO: make sure the fields arent empty
     // TODO: for future check that the country is correct. maybe use file based csv
+    /**
+     * Lets an FAA admin add an airline if its name and code are not already used.
+     *
+     * @param name airline name
+     * @param airlineCode unique airline code
+     * @param headquartersCountry country where the airline is based
+     * @return the new airline
+     */
     @Transactional
     public Airline addAirline(String name, String airlineCode, String headquartersCountry) {
         if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()) ) {

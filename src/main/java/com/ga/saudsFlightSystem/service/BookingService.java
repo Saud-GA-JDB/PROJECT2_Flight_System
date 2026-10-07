@@ -55,6 +55,13 @@ public class BookingService {
         return bookingRepository.searchBookings(airlineId, userId, flightId, status);
     }
 
+    /**
+     * Cancels an active booking and makes the seat available again.
+     * Airline admins can cancel bookings for their airline within 48 hours of departure.
+     *
+     * @param bookingId booking to cancel
+     * @return the cancelled booking details or a message if cancellation is too late
+     */
     @Transactional
     public ResponseEntity<?> cancelBooking(Long bookingId) {
         User user = UserService.getCurrentLoggedInUser();
@@ -75,6 +82,7 @@ public class BookingService {
             throw new InvalidInformationException("booking is already done. you can only cancel active bookings");
 
 
+        // the 48 hour cancellation limit only applies when the user is not an airline admin
         if (isAirlineAdmin) {
             booking.setStatus(Booking.BookingStatus.CANCELLED);
         } else {
@@ -119,6 +127,15 @@ public class BookingService {
                         savedBooking.getBookedAt()));
     }
 
+    /**
+     * Books a flight after checking user permission and seat availability.
+     *
+     * @param userId user who will own the booking
+     * @param flightId flight to book
+     * @param seatType firstClass or standard
+     * @param seatId seat number within the selected class
+     * @return the new booking details
+     */
     @Transactional
     public ResponseEntity<BookingResponse> bookFlight(Long userId, Long flightId, String seatType, Long seatId) {
         //validate input

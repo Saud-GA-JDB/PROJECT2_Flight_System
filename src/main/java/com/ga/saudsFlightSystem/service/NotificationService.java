@@ -19,6 +19,13 @@ public class NotificationService {
 
     private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Opens a notification stream and removes its connection when it ends.
+     *
+     * @param user logged in user receiving notifications
+     * @return the notification stream
+     * @throws IOException if the first connection message cannot be sent
+     */
     public SseEmitter subscribe(User user) throws IOException {
         SseEmitter emitter = createEmitter();
         Connection connection = new Connection(user.getId(), user.getRole(), emitter);
@@ -52,6 +59,7 @@ public class NotificationService {
         afterCommit(() -> send(c -> c.role() == role, eventName, data));
     }
 
+    // wait for the transaction to succeed so users do not receive notifications for rolled back changes
     private void afterCommit(Runnable delivery) {
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {

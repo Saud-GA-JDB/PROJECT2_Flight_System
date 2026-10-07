@@ -25,6 +25,23 @@ public class FlightService {
 
     private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
+    /**
+     * Searches flights open for booking using the given filters and page settings.
+     *
+     * @param date optional departure date in yyyy-MM-dd format
+     * @param airlineCode optional airline code
+     * @param originAirport optional origin airport code
+     * @param destinationAirport optional destination airport code
+     * @param originCity optional origin city
+     * @param destinationCity optional destination city
+     * @param originCountry optional origin country
+     * @param destinationCountry optional destination country
+     * @param seatType optional firstClass or standard seat filter
+     * @param page page number starting from 1
+     * @param size number of flights per page
+     * @param sort field and direction, such as scheduledDeparture,asc
+     * @return matching flights with page details
+     */
     public FlightSearchResponse searchFlights(String date, String airlineCode, String originAirport,
                                                String destinationAirport, String originCity, String destinationCity,
                                                String originCountry, String destinationCountry, String seatType,
@@ -71,6 +88,7 @@ public class FlightService {
             throw new InvalidInformationException("sort direction must be asc or desc");
 
         long offset = (pageNumber - 1L) * pageSize;
+        // booking closes five minutes before departure, so hide flights past that limit
         LocalDateTime bookingCutoff = now.plusMinutes(5);
         List<Flight> flights = flightRepository.searchFlights(bookingCutoff, startDate, endDate,
                 airlineCode, originAirport, destinationAirport, originCity, destinationCity,
@@ -94,6 +112,9 @@ public class FlightService {
         return new FlightSearchResponse(content, pageNumber, pageSize, totalElements, totalPages);
     }
 
+    /**
+     * Updates flight status every five minutes using actual departure and arrival times.
+     */
     @Scheduled(cron = "0 */5 * * * *")
     @Transactional
     public void updateFlightStatus() {
