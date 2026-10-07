@@ -253,9 +253,11 @@ Requires an active `FAA_ADMIN` account with a linked FAA admin profile and `Auth
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| PUT | `/faaadmin/airplaneRequests/{requestId}` | Accepts or denies a pending activation request, records the reviewer and review time, and returns an `AirplaneRequestResponse` with status 200. | `requestId` (path), `status`; `reviewReason` is required when denying. | `{"status":"ACCEPTED","reviewReason":"Safety checks passed"}` |
+| PUT | `/faaadmin/airplaneRequests/{requestId}` | Accepts or denies a pending activation request, records the reviewer and review time, emails the original requester, and returns an `AirplaneRequestResponse` with status 200. | `requestId` (path), `status`; `reviewReason` is required when denying. | `{"status":"ACCEPTED","reviewReason":"Safety checks passed"}` |
 
 Status must be `ACCEPTED` or `DENIED`. Accepting sets the airplane to `ACTIVE`; denying sets it to `GROUNDED`. A denial requires a nonblank reason; acceptance defaults to `approve` when the reason is missing or blank. Reasons must not exceed 500 characters. The request must exist and still have status `PENDING`.
+
+The review email is sent to the user stored as the request's `requestedBy`, with subject `Activation Request ACCEPTED` or `Activation Request DENIED`. It includes the airplane's registration number, model, decision, and review reason. The request must have a linked requester for this email step.
 
 Live notifications (SSE)
 ---
