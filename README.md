@@ -32,6 +32,8 @@ Login does not require a Bearer token. Accounts with status `DEACTIVATED` cannot
 
 Codes expire after 10 minutes and allow three incorrect attempts. Request a new code after expiry if verification has not been completed. After verification, setup does not require the code or pending ID and is not limited by the code's expiry.
 
+For `/auth/users/verification`, success returns status 200 with a `message` instructing the user to log in and finish setup. Missing email or code, an expired registration, an incorrect code, or exhausted attempts returns 400. No pending registration returns 404; conflicting existing account details return 409. These errors use the global response fields `timestamp`, `status`, `error`, `message`, and `path`. Repeating verification with a valid, unexpired code preserves the existing password when the account still has status `SETUP_REQUIRED` and its customer CPR matches the pending registration.
+
 Setup-required accounts can log in and finish setup but cannot access other protected endpoints. Send `Authorization: Bearer <token>` when calling `/auth/users/setup`. The account and email come from the authenticated user; no email field is required in the request body. The account must have status `SETUP_REQUIRED` and a verified pending registration. Choose a new password different from the CPR. Successful setup sets `isActive` to true and status to `ACTIVE`.
 
 All fields in this setup example are required:
