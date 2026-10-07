@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
-/** Optional demo data for a local PostgreSQL database. Existing records are never reset. */
+/** Optional sample data for a local PostgreSQL database. Existing records are never reset. */
 @Component
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 public class DatabaseSeeder implements CommandLineRunner {
@@ -33,15 +33,15 @@ public class DatabaseSeeder implements CommandLineRunner {
     public void run(String... args) {
         // Serialize seed runs from multiple application instances.
         em.createNativeQuery("SELECT pg_advisory_xact_lock(900001)").getSingleResult();
-        Airline test = airline("TST", "Test Seed Airline", "Bahrain");
-        Airline demo = airline("DMA", "Demo Airways", "United Arab Emirates");
-        User customer = user("flighttest.customer@mailsac.com", "Test", "Customer", "990000001", User.Role.CUSTOMER, null);
-        user("flighttest.faa@mailsac.com", "Test", "Inspector", "990000002", User.Role.FAA_ADMIN, null);
-        User admin = user("flighttest.airline@mailsac.com", "Test", "Administrator", "990000003", User.Role.AIRLINE_EMPLOYEE, test);
-        User sara = user("sara.customer@example.com", "Sara", "Ahmed", "990000004", User.Role.CUSTOMER, null);
-        User omar = user("omar.customer@example.com", "Omar", "Ali", "990000005", User.Role.CUSTOMER, null);
-        user("layla.customer@example.com", "Layla", "Hassan", "990000006", User.Role.CUSTOMER, null);
-        user("admin.demo@example.com", "Noor", "Khalid", "990000007", User.Role.AIRLINE_EMPLOYEE, demo);
+        Airline test = airline("GF", "Gulf Air", "Bahrain");
+        Airline emirates = airline("EK", "Emirates", "United Arab Emirates");
+        User customer = user("flighttest.customer@mailsac.com", "Ahmed", "Yousif", "990000001", User.Role.CUSTOMER, null);
+        user("flighttest.faa@mailsac.com", "Fatima", "Salman", "990000002", User.Role.FAA_ADMIN, null);
+        User admin = user("flighttest.airline@mailsac.com", "Hassan", "Mahmood", "990000003", User.Role.AIRLINE_EMPLOYEE, test);
+        User sara = user("sara.customer@mailsac.com", "Sara", "Ahmed", "990000004", User.Role.CUSTOMER, null);
+        User omar = user("omar.customer@mailsac.com", "Omar", "Ali", "990000005", User.Role.CUSTOMER, null);
+        user("layla.customer@mailsac.com", "Layla", "Hassan", "990000006", User.Role.CUSTOMER, null);
+        user("noor.airline@mailsac.com", "Noor", "Khalid", "990000007", User.Role.AIRLINE_EMPLOYEE, emirates);
 
         Airport bah = airport("BAH", "Bahrain International Airport", "Muharraq", "Bahrain", "Asia/Bahrain");
         Airport dxb = airport("DXB", "Dubai International Airport", "Dubai", "United Arab Emirates", "Asia/Dubai");
@@ -50,25 +50,25 @@ public class DatabaseSeeder implements CommandLineRunner {
         // Insert the reserved airplane before generating other airplane IDs.
         freeAirplane(test);
         advanceSequence("airplanes");
-        Airplane bookingPlane = airplane("TEST-BOOKING-PLANE", test, 2, 2, Airplane.Status.ACTIVE);
-        Airplane grounded = airplane("TEST-GROUNDED-PLANE", test, 100, 10, Airplane.Status.GROUNDED);
+        Airplane bookingPlane = airplane("A9C-SF01", "Airbus A320-200", test, 138, 12, Airplane.Status.ACTIVE);
+        Airplane grounded = airplane("A9C-SF02", "Airbus A321neo", test, 154, 16, Airplane.Status.GROUNDED);
         activationRequest(grounded, admin);
         advanceSequence("airplane_requests");
 
         LocalDateTime departure = LocalDateTime.now().plusDays(3).withNano(0);
-        Flight fixture = flight("TEST101", bookingPlane, bah, dxb, departure);
+        Flight fixture = flight("GF501", bookingPlane, bah, dxb, departure);
         fixedBooking(customer, fixture);
         advanceSequence("bookings");
 
-        Airplane regional = airplane("DEMO-TST-01", test, 120, 12, Airplane.Status.ACTIVE);
-        Airplane international = airplane("DEMO-DMA-01", demo, 150, 16, Airplane.Status.ACTIVE);
-        Flight outbound = flight("TST201", regional, bah, doh, departure.plusDays(1));
-        flight("TST202", regional, doh, bah, departure.plusDays(2));
-        Flight dubai = flight("DMA301", international, dxb, bah, departure.plusDays(1));
-        flight("DMA302", international, bah, dxb, departure.plusDays(2));
-        booking("DEMO-BOOKING-001", sara, outbound, "standard-1", Booking.BookingStatus.BOOKED);
-        booking("DEMO-BOOKING-002", omar, dubai, "firstClass-1", Booking.BookingStatus.BOOKED);
-        booking("DEMO-BOOKING-003", sara, dubai, "standard-2", Booking.BookingStatus.CANCELLED);
+        Airplane regional = airplane("A9C-SF03", "Airbus A320-200", test, 138, 12, Airplane.Status.ACTIVE);
+        Airplane international = airplane("A6-SF01", "Boeing 777-300ER", emirates, 310, 8, Airplane.Status.ACTIVE);
+        Flight outbound = flight("GF524", regional, bah, doh, departure.plusDays(1));
+        flight("GF525", regional, doh, bah, departure.plusDays(2));
+        Flight dubai = flight("EK837", international, dxb, bah, departure.plusDays(1));
+        flight("EK838", international, bah, dxb, departure.plusDays(2));
+        booking("SFA7K2", sara, outbound, "standard-1", Booking.BookingStatus.BOOKED);
+        booking("SFB8L3", omar, dubai, "firstClass-1", Booking.BookingStatus.BOOKED);
+        booking("SFC9M4", sara, dubai, "standard-2", Booking.BookingStatus.CANCELLED);
         em.flush();
         logger.info("Database seed completed; existing records were preserved.");
     }
@@ -97,7 +97,7 @@ public class DatabaseSeeder implements CommandLineRunner {
             User user = new User();
             user.setEmailAddress(email);
             user.setPassword(passwords.encode("TestPassword1"));
-            user.setSecurityQuestion("What is your demo city?");
+            user.setSecurityQuestion("In which city were you born?");
             user.setSecurityQuestionAnswer(passwords.encode("manama"));
             user.setRole(role);
             user.setStatus(User.Status.ACTIVE);
@@ -142,11 +142,11 @@ public class DatabaseSeeder implements CommandLineRunner {
         });
     }
 
-    private Airplane airplane(String registration, Airline airline, int standard, int first, Airplane.Status status) {
+    private Airplane airplane(String registration, String model, Airline airline, int standard, int first, Airplane.Status status) {
         return findOrCreate(Airplane.class, "registrationNumber", registration, () -> {
             Airplane plane = new Airplane();
             plane.setRegistrationNumber(registration);
-            plane.setModel("Demo passenger aircraft");
+            plane.setModel(model);
             plane.setAirline(airline);
             plane.setStandardSeatsCapacity(standard);
             plane.setFirstClassSeatsCapacity(first);
@@ -206,7 +206,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         em.createNativeQuery("""
                 INSERT INTO airplanes (id, registration_number, model, standard_seats_capacity,
                 first_class_seats_capacity, max_mileage, added_at, status, airline_id)
-                VALUES (900003, 'TEST-FREE-PLANE', 'Test passenger aircraft', 100, 10, 6000, CURRENT_TIMESTAMP, 'ACTIVE', :airline)
+                VALUES (900003, 'TEST-FREE-PLANE', 'Boeing 787-9', 250, 26, 6000, CURRENT_TIMESTAMP, 'ACTIVE', :airline)
                 """).setParameter("airline", airline.getId()).executeUpdate();
     }
 

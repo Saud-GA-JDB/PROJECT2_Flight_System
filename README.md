@@ -618,6 +618,9 @@ StackOverFlow for phone number validation
 https://stackoverflow.com/questions/71654287/how-to-validate-phone-number-using-spring-boot
 ## Database seeding
 
+See [Sample database reference](SAMPLE-DATABASE.md) for login credentials, current
+record IDs, airplane and flight details, bookings, and step-by-step manual tests.
+
 The optional startup seeder supplies demo data and the fixtures required by the service tests.
 Create an empty PostgreSQL database, configure the datasource in `application.properties`
 or through `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
@@ -634,18 +637,18 @@ Seeding is disabled by default. Use these known credentials only in a local demo
 
 All seven seeded accounts use password **`TestPassword1`**, encoded by the application's
 BCrypt `PasswordEncoder`. They start active, with zero failed login attempts and linked
-profiles. The demo security question is “What is your demo city?” with answer `manama`
+profiles. The security question is “In which city were you born?” with answer `manama`
 (also stored encoded).
 
 | Email | Role | Airline |
 | --- | --- | --- |
 | flighttest.customer@mailsac.com | Customer | — |
 | flighttest.faa@mailsac.com | FAA admin | — |
-| flighttest.airline@mailsac.com | Airline admin | Test Seed Airline |
-| sara.customer@example.com | Customer | — |
-| omar.customer@example.com | Customer | — |
-| layla.customer@example.com | Customer | — |
-| admin.demo@example.com | Airline admin | Demo Airways |
+| flighttest.airline@mailsac.com | Airline admin | Gulf Air |
+| sara.customer@mailsac.com | Customer | — |
+| omar.customer@mailsac.com | Customer | — |
+| layla.customer@mailsac.com | Customer | — |
+| noor.airline@mailsac.com | Airline admin | Emirates |
 
 An empty database receives two airlines, three airports (BAH, DXB, DOH), five airplanes,
 five future flights, four bookings (three booked, one cancelled), and one pending
@@ -674,3 +677,5 @@ their database transactions roll back. Stop the demo server before running them.
 $env:APP_SEED_ENABLED = "false"
 .\mvnw.cmd "-Dtest=PasswordServiceTest,AuthenticationTest,BookingServiceTest,FAAAdminServiceTest,AirlineEmployeeServiceTest,FlightServiceTest" test
 ```
+
+Aircraft use Airbus A320-200, Airbus A321neo, Boeing 787-9, and Boeing 777-300ER model names. Registrations, seat layouts, flight numbers, and schedules are illustrative sample data, not a representation of current airline fleets or timetables. The required TEST-FREE-PLANE and TEST-BOOKING-900001 identifiers remain for test compatibility.
