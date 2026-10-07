@@ -582,6 +582,28 @@ string headquartersCountry
     FLIGHT ||--o{ FLIGHT_CONTROL_EVENT : has
 ```
 -------------------------------------------------------------------------------------------
+Logging and audit logs
+---
+
+Application logs record login attempts and outcomes, verification events, important business operations, rejected requests, and errors. They use normal logger calls: `INFO` for operations, `WARNING` for rejected requests, and `SEVERE` for server errors. Unexpected errors use a generic message without a stack trace.
+
+Audit entries are stored in the `audit_logs` table. Each entry contains `id`, `createdAt` (UTC), `userId`, `userRole`, `action`, `entityType`, `entityId`, and a readable `description`. `userId` identifies who performed the action; `entityId` identifies the affected record. Scheduled system actions have no user ID or role. Registration records the newly verified user as the person registering.
+
+Audited actions include registration, account setup, profile updates, deactivation, password changes/resets, booking creation/cancellation, airline and airline admin creation, airplane creation, activation requests and reviews, flight creation, and automatic flight status changes. Repeating successful verification does not create another registration entry. Profile updates record accepted nonempty submissions, including values that were resubmitted unchanged.
+
+Business database changes and their audit entries share a transaction. Email failures roll back the changes for booking creation/cancellation, password resets, airplane creation, and activation requests/reviews. An email already delivered cannot be rolled back, and uploaded profile images are outside the database transaction. Verification keeps incorrect-attempt counts when validation fails. Requesting a verification email retains its existing behavior: the pending registration can remain if sending fails.
+
+Application success messages are written before the transaction commits, so a later commit failure can leave a success message in the application log. Audit entries roll back with the database changes. A scheduled flight-status run saves all its changes and audit entries in one transaction.
+
+Logs and audit descriptions exclude passwords, JWTs/secrets, verification codes, CPRs, security answers, email bodies, and complete request/entity objects. Application timestamps follow the logging configuration; audit timestamps are explicitly UTC.
+
+The existing `spring.jpa.hibernate.ddl-auto=update` setting creates the audit table when the application starts. There is no audit HTTP endpoint. Inspect recent entries in the database with:
+
+```sql
+SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 50;
+```
+
+-------------------------------------------------------------------------------------------
 Used Resources
 ---
 Baeldung email varification methods post

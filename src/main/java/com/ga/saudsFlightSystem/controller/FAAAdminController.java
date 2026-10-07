@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.logging.Logger;
 
 @RestController
 @RequestMapping(path = "/faaadmin")
@@ -21,10 +22,12 @@ public class FAAAdminController {
     private EmailService emailService;
     private AirlineEmployeeService airlineEmployeeService;
 
+    private static final Logger logger = Logger.getLogger(FAAAdminController.class.getName());
+
     @GetMapping
     public String test() {
-        System.out.println("test ran");
         emailService.sendEmail("saud11alkh@gmail.com", "Ticket", "Hello Saud Enjoy");
+        logger.info("FAA test endpoint sent its test email");
         return "hello test";
     }
 

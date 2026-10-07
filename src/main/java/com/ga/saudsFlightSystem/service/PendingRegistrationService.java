@@ -4,6 +4,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.PendingRegistration;
+import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.Customer;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.RegistrationResponse;
@@ -15,9 +16,11 @@ import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.util.logging.Logger;
 
 @Service
 @AllArgsConstructor
@@ -29,6 +32,9 @@ public class PendingRegistrationService {
     private final FAAAdminRepository faaAdminRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(PendingRegistrationService.class.getName());
 
     private static final int maxFailedAttempts = 3;
     private static final int expireTimeInMin = 10;
@@ -71,6 +77,7 @@ public class PendingRegistrationService {
 
         emailService.sendEmail(email, "Verify your email",
                 "Your verification code is " + code + ". It expires in 10 minutes.");
+        logger.info("Verification email sent for pending registration with id " + pending.getId());
 
         return ResponseEntity.ok(new RegistrationResponse("Verification email requested."));
     }
@@ -86,6 +93,8 @@ public class PendingRegistrationService {
         pendingRegistrationRepository.delete(pending);
     }
 
+    // Incorrect verification attempts must still be saved when validation fails.
+    @Transactional(noRollbackFor = InvalidInformationException.class)
     public ResponseEntity<?> verify(String email, String code) {
         PendingRegistration pending = checkCode(email, code);
 
@@ -104,6 +113,9 @@ public class PendingRegistrationService {
             user.setStatus(User.Status.SETUP_REQUIRED);
             user.setCustomer(customer);
             userRepository.save(user);
+            String description = "User registered an account after verifying their email";
+            auditLogService.addAuditLog(user, AuditLog.Action.USER_REGISTERED, AuditLog.EntityType.USER, user.getId(), description);
+            logger.info(description + " (user id: " + user.getId() + ")");
         } else {
             // Repeating verification must not reset an existing password.
             if (user.getStatus() != User.Status.SETUP_REQUIRED
@@ -115,6 +127,7 @@ public class PendingRegistrationService {
 
         pending.setVerified(true);
         pendingRegistrationRepository.save(pending);
+        logger.info("Email verification completed for user with id " + user.getId());
         return ResponseEntity.ok(new RegistrationResponse(
                 "Verification successful. Your password is your CPR. Please log in and finish setup."));
     }
@@ -140,15 +153,18 @@ public class PendingRegistrationService {
             throw new InformationNotFoundException("No pending registration found.");
         }
         if (!pending.getExpiresAt().isAfter(LocalDateTime.now())) {
+            logger.warning("Email verification failed because the registration expired");
             throw new InvalidInformationException("Registration expired. Request a new code.");
         }
         if (pending.getFailedAttempts() >= maxFailedAttempts) {
+            logger.warning("Email verification rejected because the maximum number of incorrect attempts was reached");
             throw new InvalidInformationException(
                     "Too many incorrect attempts. Request a new code after expiry.");
         }
         if (!passwordEncoder.matches(code, pending.getCodeHash())) {
             pending.setFailedAttempts(pending.getFailedAttempts() + 1);
             pendingRegistrationRepository.save(pending);
+            logger.warning("Email verification failed because the code was incorrect");
             throw new InvalidInformationException("Incorrect verification code.");
         }
         return pending;

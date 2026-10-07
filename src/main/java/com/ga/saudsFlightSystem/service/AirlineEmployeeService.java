@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.ACTIVE;
 
@@ -35,6 +36,11 @@ public class AirlineEmployeeService {
     PasswordEncoder passwordEncoder;
     PhoneValidationService phoneValidationService;
     PendingRegistrationService pendingRegistrationService;
+    AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(AirlineEmployeeService.class.getName());
+
+    @Transactional
     public ResponseEntity<?> addAirlineAdmin(Long airlineId, AddAirlineAdminRequest request) {
         User user = UserService.getCurrentLoggedInUser();
         if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole())) {
@@ -100,6 +106,9 @@ public class AirlineEmployeeService {
         userRepository.save(newUser);
         newUser.setStatus(User.Status.ACTIVE);
         airlineEmployeeRepository.save(airlineEmployee);
+        String description = "FAA admin created airline admin with user id " + newUser.getId() + " for airline with id " + airlineId;
+        auditLogService.addAuditLog(user, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, newUser.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
         request.setSecurityQuestionAnswer(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(request);
     }
@@ -154,6 +163,10 @@ public class AirlineEmployeeService {
         flight = flightRepository.save(flight);
         flight.setFlightNumber(flight.getAirline().getAirlineCode() + flight.getId());
         flightRepository.save(flight);
+
+        String description = "Airline admin created flight with id " + flight.getId();
+        auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_CREATED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new AddFlightResponse(
                 flight.getFlightNumber(), airplane.getRegistrationNumber(),

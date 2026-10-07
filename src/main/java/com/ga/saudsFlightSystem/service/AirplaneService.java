@@ -5,6 +5,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.AirlineEmployee;
 import com.ga.saudsFlightSystem.model.Airplane;
+import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.Flight;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 @Service
 @AllArgsConstructor
@@ -28,6 +30,9 @@ public class AirplaneService {
     private AirplaneRequestRepository airplaneRequestRepository;
     private NotificationService notificationService;
     private EmailService emailService;
+    private AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(AirplaneService.class.getName());
 
     @Transactional
     public ResponseEntity<?> requestActivation(Long airplaneId) {
@@ -60,6 +65,9 @@ public class AirplaneService {
         request.setRequestedBy(user);
         airplaneRequestRepository.save(request);
 
+        String description = "Airline admin requested activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
+        auditLogService.addAuditLog(user, AuditLog.Action.AIRPLANE_ACTIVATION_REQUESTED, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
+
         emailService.sendEmail(user.getEmailAddress(), "Activation Request Submitted", String.format(
                 """
                         Your airplane activation request has been submitted for FAA review.
@@ -75,6 +83,7 @@ public class AirplaneService {
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
                 request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt());
         notificationService.sendToRole(User.Role.FAA_ADMIN, "airplane-activation-requested", response);
+        logger.info(description + " (user id: " + user.getId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -92,6 +101,7 @@ public class AirplaneService {
         }
     }
 
+    @Transactional
     public ResponseEntity<?> addAirplane(String registrationNumber, String model, int standardSeatCapacity, int firstClassSeatCapacity, Long maxMileage) {
         User user = UserService.getCurrentLoggedInUser();
         if(!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()) ) {
@@ -105,10 +115,15 @@ public class AirplaneService {
                 model == null || model.isBlank() ||
                 firstClassSeatCapacity <= 0 || standardSeatCapacity <= 0 ||
                 maxMileage == null ||maxMileage <= 0
-        ) return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body("Failed. please check that all properties are entered and correct");
+        ) {
+            logger.warning("Airplane creation rejected because the supplied information was invalid");
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body("Failed. please check that all properties are entered and correct");
+        }
 
-        if (airplaneRepository.existsByRegistrationNumber(registrationNumber)) return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body("Failed. A Plane with the same registration number already exists.");
+        if (airplaneRepository.existsByRegistrationNumber(registrationNumber)) {
+            logger.warning("Airplane creation rejected because the registration number already exists");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Failed. A Plane with the same registration number already exists.");
+        }
 
         Airplane airplane = new Airplane();
         airplane.setAirline(airlineEmployee.getAirline());
@@ -120,6 +135,9 @@ public class AirplaneService {
 
         airplaneRepository.save(airplane);
 
+        String description = "Airline admin added airplane with id " + airplane.getId();
+        auditLogService.addAuditLog(user, AuditLog.Action.AIRPLANE_CREATED, AuditLog.EntityType.AIRPLANE, airplane.getId(), description);
+
         emailService.sendEmail(user.getEmailAddress(), "Airplane Added", String.format(
                 "Your airplane has been added successfully." +
                         "\nRegistration number: %s" +
@@ -130,6 +148,7 @@ public class AirplaneService {
                 airplane.getModel()
         ));
 
+        logger.info(description + " (user id: " + user.getId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), user.getAirlineEmployee().getCpr(), airplane.getStatus()));
     }

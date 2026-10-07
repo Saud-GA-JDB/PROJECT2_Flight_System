@@ -4,6 +4,7 @@ import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airplane;
+import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.FAAAdmin;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
@@ -15,10 +16,12 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 @Service
 @AllArgsConstructor
@@ -27,6 +30,9 @@ public class FAAAdminService {
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
     private EmailService emailService;
+    private AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(FAAAdminService.class.getName());
 
     public ResponseEntity<?> getPendingAirplaneRequests() {
         User user = UserService.getCurrentLoggedInUser();
@@ -43,6 +49,7 @@ public class FAAAdminService {
         return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
 
+    @Transactional
     public ResponseEntity<?> reviewAirplaneRequest(Long requestId, ReviewAirplaneRequest review) {
         User user = UserService.getCurrentLoggedInUser();
         if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()) || user.getFaaAdmin() == null) {
@@ -79,6 +86,17 @@ public class FAAAdminService {
         airplaneRepository.save(airplane);
         airplaneRequestRepository.save(request);
 
+        String description;
+        AuditLog.Action action;
+        if (review.getStatus() == AirplaneRequest.ApprovalStatus.ACCEPTED) {
+            description = "FAA admin approved activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
+            action = AuditLog.Action.AIRPLANE_ACTIVATION_ACCEPTED;
+        } else {
+            description = "FAA admin denied activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
+            action = AuditLog.Action.AIRPLANE_ACTIVATION_DENIED;
+        }
+        auditLogService.addAuditLog(user, action, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
+
         emailService.sendEmail(request.getRequestedBy().getEmailAddress(),
                 "Activation Request " + request.getStatus(), String.format(
                         """
@@ -95,6 +113,7 @@ public class FAAAdminService {
                         request.getReviewReason()
                 ));
 
+        logger.info(description + " (user id: " + user.getId() + ")");
         return ResponseEntity.status(HttpStatus.OK).body(new AirplaneRequestResponse(
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
                 request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt()));

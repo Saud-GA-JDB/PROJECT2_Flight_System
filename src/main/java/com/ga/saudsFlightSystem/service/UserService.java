@@ -85,6 +85,7 @@ public class UserService {
         this.auditLogService = auditLogService;
     }
 
+    @Transactional
     public User finishSetup(RegistrationRequest request) {
         User user = getCurrentLoggedInUser();
 
@@ -143,6 +144,9 @@ public class UserService {
         User savedUser = userRepository.save(user);
         // Only delete pending after the user saves successfully.
         pendingRegistrationRepository.delete(pending);
+        String description = "User completed their account setup";
+        auditLogService.addAuditLog(user, AuditLog.Action.USER_SETUP_COMPLETED, AuditLog.EntityType.USER, savedUser.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
         return savedUser;
     }
 
@@ -171,17 +175,22 @@ public class UserService {
         return ResponseEntity.ok(new LoginResponse(jwt));
     }
 
+    @Transactional
     public ResponseEntity<?> forgetPassword(String email, String securityQuestionAnswer) {
         /*TODO: Continue here----------------------*/
-        if (!userRepository.existsByEmailAddress(email))
+        if (!userRepository.existsByEmailAddress(email)) {
+            logger.warning("Password reset failed because the account was not found");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ForgetPasswordResponse("Error: Email does not exist."));
+        }
 
         User user = findUserByEmailAddress(email);
         String hashedSecurityQuestionAnswer = user.getSecurityQuestionAnswer();
-        if (securityQuestionAnswer == null || !passwordEncoder.matches(securityQuestionAnswer.trim().toLowerCase(), hashedSecurityQuestionAnswer))
+        if (securityQuestionAnswer == null || !passwordEncoder.matches(securityQuestionAnswer.trim().toLowerCase(), hashedSecurityQuestionAnswer)) {
+            logger.warning("Password reset failed because the security answer was incorrect");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ForgetPasswordResponse("Error: Email or security question answer is incorrect"));
+        }
 
         user.setPassword(passwordEncoder.encode(user.getCustomer().getCpr())); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
         // TODO: Should i handle an exception here with try catch? bc sending an email may fail
@@ -195,18 +204,29 @@ public class UserService {
                 ));
         userRepository.save(user);
 
+        User currentUser = getCurrentLoggedInUser();
+        String description = "User reset the password for user with id " + user.getId();
+        auditLogService.addAuditLog(currentUser, AuditLog.Action.PASSWORD_RESET, AuditLog.EntityType.USER, user.getId(), description);
+        logger.info(description + " (user id: " + currentUser.getId() + ")");
+
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new ForgetPasswordResponse("You're Password has been reset. Please check you're mail"));
     }
 
+    @Transactional
     public ResponseEntity<?> changePassword(String newPassword) {
-        if (!passwordService.isValidPassword(newPassword))
+        if (!passwordService.isValidPassword(newPassword)) {
+            logger.warning("Password change rejected because the new password did not meet the requirements");
             return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
                     .body("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
+        }
 
         User user = getCurrentLoggedInUser();
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+        String description = "User changed their own password";
+        auditLogService.addAuditLog(user, AuditLog.Action.PASSWORD_CHANGED, AuditLog.EntityType.USER, user.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
         return ResponseEntity.status(HttpStatus.OK).body("Success! New Password Has Been Set");
     }
 

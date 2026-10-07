@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.model.Flight;
+import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.request.response.FlightResponse;
 import com.ga.saudsFlightSystem.model.request.response.FlightSearchResponse;
@@ -8,16 +9,21 @@ import com.ga.saudsFlightSystem.repository.FlightRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
 @Service
 @AllArgsConstructor
 public class FlightService {
     private FlightRepository flightRepository;
+    private AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
     public FlightSearchResponse searchFlights(String date, String airlineCode, String originAirport,
                                                String destinationAirport, String originCity, String destinationCity,
@@ -89,6 +95,7 @@ public class FlightService {
     }
 
     @Scheduled(cron = "0 */5 * * * *")
+    @Transactional
     public void updateFlightStatus() {
         LocalDateTime now = LocalDateTime.now();
 
@@ -96,6 +103,9 @@ public class FlightService {
             if (flight.getActualDeparture() != null && !flight.getActualDeparture().isAfter(now)) {
                 flight.setStatus(Flight.FlightStatus.IN_AIR);
                 flightRepository.save(flight);
+                String description = "System changed flight with id " + flight.getId() + " from ACTIVE to IN_AIR";
+                auditLogService.addAuditLog(null, AuditLog.Action.FLIGHT_STATUS_CHANGED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
+                logger.info(description);
             }
         }
 
@@ -103,6 +113,9 @@ public class FlightService {
             if (flight.getActualArrival() != null && !flight.getActualArrival().isAfter(now)) {
                 flight.setStatus(Flight.FlightStatus.CLOSED);
                 flightRepository.save(flight);
+                String description = "System changed flight with id " + flight.getId() + " from IN_AIR to CLOSED";
+                auditLogService.addAuditLog(null, AuditLog.Action.FLIGHT_STATUS_CHANGED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
+                logger.info(description);
             }
         }
     }

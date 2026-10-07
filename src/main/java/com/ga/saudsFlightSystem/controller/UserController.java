@@ -28,7 +28,6 @@ public class UserController {
 
     @PostMapping("/verification")
     public ResponseEntity<?> verifyCustomer(@RequestBody VerifyEmailRequest request) {
-        System.out.println("called verify customer controller"); /*         TODO: DEBUGGING         */
         return pendingRegistrationService.verify(request.getEmail(), request.getCode());
     }
 
