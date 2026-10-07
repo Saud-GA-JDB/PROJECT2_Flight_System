@@ -109,9 +109,11 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes/{airplaneId}/requestActivation` | Creates a pending activation request and returns an `AirplaneRequestResponse` with status 201. | `airplaneId` (path) | No body. |
+| POST | `/airlineAdmin/airplanes/{airplaneId}/requestActivation` | Creates a pending activation request, records the logged-in admin as its requester, sends a confirmation email, and returns an `AirplaneRequestResponse` with status 201. | `airplaneId` (path) | No body. |
 
 The airplane must belong to the admin's airline and must not already be active. An existing pending request blocks submission; seven days must pass after the last request before requesting again. Connected FAA admins receive the `airplane-activation-requested` SSE event after the transaction commits. The airplane stays grounded until FAA approval.
+
+The confirmation email is sent to the requesting admin's email address with subject `Activation Request Submitted` and includes the airplane's registration number and model. The requester is taken from the authenticated account, with no additional request fields needed.
 
 Add flight endpoint
 ---
