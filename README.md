@@ -23,8 +23,10 @@ Use these endpoints in order. Send JSON with `Content-Type: application/json`. O
 | --- | --- | --- | --- | --- |
 | POST | `/auth/users/register/email` | Checks email and CPR availability, saves a pending registration, and requests a verification email. | `email`, `cpr` | `{"email":"you@example.com","cpr":"123456789"}` |
 | POST | `/auth/users/verification` | Verifies the code, creates an inactive customer account with status `SETUP_REQUIRED`, and returns a success message instructing the user to log in with CPR as their initial password. | `email`, `code` | `{"email":"you@example.com","code":"482193"}` |
-| POST | `/auth/users/login` | Logs in using email and CPR as the initial password. Returns the JWT in the response's `message` field. | `email`, `password` | `{"email":"you@example.com","password":"123456789"}` |
+| POST | `/auth/users/login` | Logs in using email and the current password (CPR is the initial password). Returns status 200 with the JWT in the response's `message` field. | `email`, `password` | `{"email":"you@example.com","password":"123456789"}` |
 | POST | `/auth/users/setup` | Completes the logged-in customer's details, changes the password, activates the account, then deletes pending after saving successfully. | `password`, `fName`, `lName`, `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
+
+Login does not require a Bearer token. Accounts with status `DEACTIVATED` cannot log in; inactive accounts can log in only while their status is `SETUP_REQUIRED`. Authentication failures return status 401 with the global error response fields `timestamp`, `status`, `error`, `message`, and `path`. The error is `UNAUTHORIZED`, and the message is `Error: Email or password is incorrect, or the account is inactive.`
 
 Codes expire after 10 minutes and allow three incorrect attempts. Request a new code after expiry if verification has not been completed. After verification, setup does not require the code or pending ID and is not limited by the code's expiry.
 
