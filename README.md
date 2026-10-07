@@ -616,3 +616,61 @@ chatgpt suggested the code cpr.matches("[0-9]{9} in PendingRegistrationService s
 
 StackOverFlow for phone number validation
 https://stackoverflow.com/questions/71654287/how-to-validate-phone-number-using-spring-boot
+## Database seeding
+
+The optional startup seeder supplies demo data and the fixtures required by the service tests.
+Create an empty PostgreSQL database, configure the datasource in `application.properties`
+or through `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
+`SPRING_DATASOURCE_PASSWORD`, then run from PowerShell:
+
+```powershell
+$env:APP_SEED_ENABLED = "true"
+.\mvnw.cmd spring-boot:run
+```
+
+Hibernate creates/updates the tables before the seeder runs. After the first successful
+startup, stop the application and use `$env:APP_SEED_ENABLED = "false"` for normal runs.
+Seeding is disabled by default. Use these known credentials only in a local demo/test database.
+
+All seven seeded accounts use password **`TestPassword1`**, encoded by the application's
+BCrypt `PasswordEncoder`. They start active, with zero failed login attempts and linked
+profiles. The demo security question is “What is your demo city?” with answer `manama`
+(also stored encoded).
+
+| Email | Role | Airline |
+| --- | --- | --- |
+| flighttest.customer@mailsac.com | Customer | — |
+| flighttest.faa@mailsac.com | FAA admin | — |
+| flighttest.airline@mailsac.com | Airline admin | Test Seed Airline |
+| sara.customer@example.com | Customer | — |
+| omar.customer@example.com | Customer | — |
+| layla.customer@example.com | Customer | — |
+| admin.demo@example.com | Airline admin | Demo Airways |
+
+An empty database receives two airlines, three airports (BAH, DXB, DOH), five airplanes,
+five future flights, four bookings (three booked, one cancelled), and one pending
+airplane activation request. Flight dates are relative to the initial seed run, starting
+three days ahead. Available-seat counts exclude active bookings.
+
+Test fixtures include booking **900001** (`TEST-BOOKING-900001`, seat `standard-1`),
+pending request **900002** on a separate grounded airplane, and active airplane
+**900003** (`TEST-FREE-PLANE`) with no flights. PostgreSQL identity sequences advance
+past explicit IDs without moving backwards. `Test Created Airline`, `TCA`, and
+`TEST-NEW-PLANE` are left for the tests to create.
+
+Rerunning adds missing records without resetting passwords, bookings, seat counts,
+flight dates, or approvals. Reserved IDs belonging to unrelated records cause startup
+to fail instead of overwriting them. Unique-value conflicts also fail the transaction.
+Seed inserts run in one transaction and send no emails; PostgreSQL sequence advances
+are not rolled back. Use a fresh database to restore the original demonstration or
+test fixtures after modifying them. Restarting does not refresh old flight dates.
+
+To run the existing tests, configure a dedicated test database and seed it first.
+The full service tests require working mail configuration: cancellation, airplane
+addition, and approval tests send real emails to the Mailsac accounts, even though
+their database transactions roll back. Stop the demo server before running them.
+
+```powershell
+$env:APP_SEED_ENABLED = "false"
+.\mvnw.cmd "-Dtest=PasswordServiceTest,AuthenticationTest,BookingServiceTest,FAAAdminServiceTest,AirlineEmployeeServiceTest,FlightServiceTest" test
+```
