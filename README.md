@@ -96,9 +96,11 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes` | Adds a grounded airplane to the logged-in admin's airline and returns an `AddAirplaneResponse` with status 201. | `registrationNumber`, `model`, `standardSeatCapacity`, `firstClassSeatCapacity`, `maxMileage` | `{"registrationNumber":"A9C-ABC","model":"Airbus A320","standardSeatCapacity":150,"firstClassSeatCapacity":12,"maxMileage":6000}` |
+| POST | `/airlineAdmin/airplanes` | Adds a grounded airplane to the logged-in admin's airline, sends the admin a confirmation email, and returns an `AddAirplaneResponse` with status 201. | `registrationNumber`, `model`, `standardSeatCapacity`, `firstClassSeatCapacity`, `maxMileage` | `{"registrationNumber":"A9C-ABC","model":"Airbus A320","standardSeatCapacity":150,"firstClassSeatCapacity":12,"maxMileage":6000}` |
 
 Registration number must be unique. Both seat capacities and max mileage must be greater than zero. Missing or invalid fields return 422; a duplicate registration number returns 404. Activation requires FAA approval.
+
+The confirmation email is sent to the logged-in admin's email address with subject `Airplane Added` and includes the airplane's registration number and model.
 
 Request airplane activation endpoint
 ---
