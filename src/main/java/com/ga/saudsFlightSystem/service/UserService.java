@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.saudsFlightSystem.exception.LoginLimitExceededException;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
@@ -26,6 +27,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -40,12 +43,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Locale;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 import java.util.logging.Logger;
 
 @Service
 public class UserService {
     private static final Logger logger = Logger.getLogger(UserService.class.getName());
+    private static final int MAX_DAILY_LOGIN_FAILURES = 3;
+    private static final ZoneId LOGIN_TIME_ZONE = ZoneId.of("Asia/Bahrain");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -154,16 +161,45 @@ public class UserService {
         return userRepository.findUserByEmailAddress(email);
     }
 
+    @Transactional(noRollbackFor = AuthenticationException.class)
     public ResponseEntity<?> loginUser(LoginRequest loginRequest) {
         logger.info("Login attempted");
+
+        User user = userRepository.findUserForLogin(loginRequest.getEmail());
+        LocalDate today = LocalDate.now(LOGIN_TIME_ZONE);
+        if (user != null) {
+            if (!today.equals(user.getLoginAttemptsDate())) {
+                user.setFailedLoginAttempts(0);
+                user.setLoginAttemptsDate(today);
+                userRepository.save(user);
+            }
+            if (user.getFailedLoginAttempts() >= MAX_DAILY_LOGIN_FAILURES) {
+                throw new LoginLimitExceededException();
+            }
+        }
 
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
+        } catch (BadCredentialsException e) {
+            logger.warning("Login failed because the credentials were incorrect");
+            if (user != null) {
+                user.setFailedLoginAttempts(user.getFailedLoginAttempts() + 1);
+                userRepository.save(user);
+                if (user.getFailedLoginAttempts() >= MAX_DAILY_LOGIN_FAILURES) {
+                    throw new LoginLimitExceededException();
+                }
+            }
+            throw e;
         } catch (AuthenticationException e) {
             logger.warning("Login failed because the credentials were incorrect or the account was unavailable");
             throw e;
+        }
+
+        if (user != null) {
+            user.setFailedLoginAttempts(0);
+            userRepository.save(user);
         }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -175,9 +211,13 @@ public class UserService {
         return ResponseEntity.ok(new LoginResponse(jwt));
     }
 
+    @Scheduled(cron = "0 0 0 * * *", zone = "Asia/Bahrain")
+    public void resetDailyLoginAttempts() {
+        userRepository.resetDailyLoginAttempts(LocalDate.now(LOGIN_TIME_ZONE));
+    }
+
     @Transactional
     public ResponseEntity<?> forgetPassword(String email, String securityQuestionAnswer) {
-        /*TODO: Continue here----------------------*/
         if (!userRepository.existsByEmailAddress(email)) {
             logger.warning("Password reset failed because the account was not found");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

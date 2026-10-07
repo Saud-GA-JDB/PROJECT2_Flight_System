@@ -44,6 +44,12 @@ public class GlobalExceptionHandler {
         return build(ex.getMessage(), HttpStatus.FORBIDDEN, request);
     }
 
+    @ExceptionHandler(LoginLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleLoginLimit(
+            LoginLimitExceededException ex, HttpServletRequest request) {
+        return build(ex.getMessage(), HttpStatus.TOO_MANY_REQUESTS, request);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(
             AuthenticationException ex, HttpServletRequest request) {

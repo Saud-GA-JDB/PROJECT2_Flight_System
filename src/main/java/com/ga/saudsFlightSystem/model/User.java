@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @Data
 @Entity
@@ -40,6 +41,13 @@ public class User {
 
     @Column
     private Status status;
+
+    @JsonIgnore
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int failedLoginAttempts;
+
+    @JsonIgnore
+    private LocalDate loginAttemptsDate;
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", unique = true)
