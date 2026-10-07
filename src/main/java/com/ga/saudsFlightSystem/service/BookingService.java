@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 @Service
 @AllArgsConstructor
@@ -28,6 +29,9 @@ public class BookingService {
     private UserRepository userRepository;
     private AirlineRepository airlineRepository;
     private EmailService emailService;
+    private AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(BookingService.class.getName());
 
     public List<Booking> getBookings() {
         User user = UserService.getCurrentLoggedInUser();
@@ -77,6 +81,7 @@ public class BookingService {
             if (!LocalDateTime.now().isAfter(booking.getFlight().getScheduledDeparture().minusHours(48))) {
                 booking.setStatus(Booking.BookingStatus.CANCELLED);
             } else {
+                logger.warning("User with id " + user.getId() + " could not cancel booking with id " + bookingId + " because departure is less than 48 hours away");
                 return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
                         .body("Sorry, Bookings must be cancelled 48 hours before flight departure. You can contact the airline customer service if you have special circumstances.");
             }
@@ -89,6 +94,15 @@ public class BookingService {
         }
         flightRepository.save(flight);
         Booking savedBooking = bookingRepository.save(booking);
+        String description;
+        if (isAirlineAdmin)
+            description = "Airline admin cancelled booking with id " + savedBooking.getId() + " for user with id " + savedBooking.getUser().getId();
+        else
+            description = "User cancelled booking with id " + savedBooking.getId() + " for their own account";
+
+
+        auditLogService.addAuditLog(user, AuditLog.Action.BOOKING_CANCELLED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
+
         emailService.sendEmail(savedBooking.getUser().getEmailAddress(), "Booking Cancelled", String.format(
                 """
                         Your booking %s for flight %s has been cancelled.
@@ -97,6 +111,7 @@ public class BookingService {
                 savedBooking.getBookingRef(),
                 flight.getFlightNumber()
         ));
+        logger.info(description + " (user id: " + user.getId() + ")");
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new BookingResponse(
                         savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUser().getId(),
@@ -104,6 +119,7 @@ public class BookingService {
                         savedBooking.getBookedAt()));
     }
 
+    @Transactional
     public ResponseEntity<BookingResponse> bookFlight(Long userId, Long flightId, String seatType, Long seatId) {
         //validate input
         User bookingOwner = userRepository.findById(userId)
@@ -160,6 +176,15 @@ public class BookingService {
         flightRepository.save(flight);
         Booking savedBooking = bookingRepository.save(booking);
 
+        String description;
+        if (Objects.equals(user.getId(), bookingOwner.getId()))
+            description = "User created booking with id " + savedBooking.getId() + " for their own account";
+        else
+            description = "Airline admin created booking with id " + savedBooking.getId() + " for user with id " + bookingOwner.getId();
+
+
+        auditLogService.addAuditLog(user, AuditLog.Action.BOOKING_CREATED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
+
         emailService.sendEmail(bookingOwner.getEmailAddress(), "Booking Confirmation", String.format(
                 """
                         Your flight has been booked successfully.
@@ -178,6 +203,7 @@ public class BookingService {
                 flight.getDestinationAirport().getIataCode(),
                 flight.getScheduledDeparture()
         ));
+        logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.status(201).body(new BookingResponse(
                 savedBooking.getId(), savedBooking.getBookingRef(), bookingOwner.getId(),

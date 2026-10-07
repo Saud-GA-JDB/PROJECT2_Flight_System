@@ -14,9 +14,7 @@ import java.time.ZoneOffset;
 public class AuditLogService {
     private AuditLogRepository auditLogRepository;
 
-    public void addAuditLog(User user, AuditLog.Action action,
-                            AuditLog.EntityType entityType, Long entityId,
-                            String description) {
+    public void addAuditLog(User user, AuditLog.Action action, AuditLog.EntityType entityType, Long entityId, String description) {
         AuditLog auditLog = new AuditLog();
         auditLog.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
