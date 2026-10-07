@@ -36,16 +36,9 @@ public class AirlineService {
      */
     @Transactional
     public Airline addAirline(String name, String airlineCode, String headquartersCountry) {
-        if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()) ) {
+        if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()) )
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
-        }
-        // TODO: Delete Later
-//        airlineRepository.findByAirlineCode(airline.getAirlineCode()).orElseThrow( () ->
-//                new InformationExistException("Airline with Code: " + airline.getAirlineCode() + " already exists.")
-//                );
-//        airlineRepository.findByName(airline.getName()).orElseThrow( () ->
-//                new InformationExistException("Airline with Code: " + airline.getName() + " already exists.")
-//                );
+
         Airline temp1 = airlineRepository.findByAirlineCode(airlineCode).orElse(null);
         Airline temp2 = airlineRepository.findByName(name).orElse(null);
 
