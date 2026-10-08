@@ -1,0 +1,95 @@
+{
+  "info": {
+    "name": "09 - Notifications - Open alongside collection 02",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{faaToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as faa [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"flighttest.faa@mailsac.com\",\n  \"password\": \"TestPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save faaToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"faaToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Open FAA event stream - keep tab open [200]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": "http://localhost:8080/notifications",
+        "description": "Open before sending activation request in collection 02. Expect connected event, keep-alive comments every 25 seconds and airplane-activation-requested after successful commit. Stream times out after five minutes; reconnect if needed. Run manually, outside a collection runner.\nExpected HTTP 200."
+      },
+      "event": []
+    },
+    {
+      "name": "03 | Reject unauthenticated subscription [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/notifications",
+        "description": "\nExpected HTTP 403.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

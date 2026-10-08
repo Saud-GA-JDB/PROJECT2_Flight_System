@@ -1,0 +1,514 @@
+{
+  "info": {
+    "name": "01 - FAA - Airline and administrator",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{faaToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as faa [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"flighttest.faa@mailsac.com\",\n  \"password\": \"TestPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save faaToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"faaToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Reject missing airline name [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Service rejects null or blank name, code or country before saving.\nExpected HTTP 400.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "name",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "airlineCode",
+              "value": "PX",
+              "type": "text"
+            },
+            {
+              "key": "headquartersCountry",
+              "value": "Bahrain",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required fields\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Create Presentation Airways [200]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Controller binds form parameters, not a JSON body. Airline name and code must each be unique.\nExpected HTTP 200.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "name",
+              "value": "Presentation Airways",
+              "type": "text"
+            },
+            {
+              "key": "airlineCode",
+              "value": "PX",
+              "type": "text"
+            },
+            {
+              "key": "headquartersCountry",
+              "value": "Bahrain",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().id; pm.test(\"Save airlineId\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"airlineId\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject duplicate airline [409]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "\nExpected HTTP 409.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "name",
+              "value": "Presentation Airways",
+              "type": "text"
+            },
+            {
+              "key": "airlineCode",
+              "value": "PX",
+              "type": "text"
+            },
+            {
+              "key": "headquartersCountry",
+              "value": "Bahrain",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Already Exists\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | List airlines [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "FAA role required. Includes airplane IDs for later steps.\nExpected HTTP 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Reject admin cpr [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"12\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"9 digits\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | Reject admin emailAddress [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"bad\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Email Format\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject admin fName [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Reject admin phoneNumber [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"1\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Invalid phone\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Reject admin salary [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 0,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"greater than zero\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Reject admin hireDate [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"not-a-date\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"yyyy-MM-dd\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Reject admin securityQuestionAnswer [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Only one field is invalid; other fields match the valid administrator request.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 | Assign airline administrator [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Creates an active airline ADMIN with CPR as initial password. Validates CPR, email, names, phone via libphonenumber, salary > 0, ISO hire date, security question and answer, unique email/CPR, and existing airline.\nExpected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 | Reject duplicate administrator [409]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "\nExpected HTTP 409.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"already exists\"));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

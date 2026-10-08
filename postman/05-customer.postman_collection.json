@@ -1,0 +1,598 @@
+{
+  "info": {
+    "name": "05 - Customer - Registration and setup",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{customerToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Reject invalid email [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "\nExpected HTTP 400.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"bad\",\n  \"cpr\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Email Format\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Reject invalid CPR [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "\nExpected HTTP 400.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"cpr\": \"123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"9 digits\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Request verification email - then open inbox [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "Code expires in ten minutes. Copy it from the demo customer inbox into environment verificationCode. Pause here; do not blindly run the whole collection.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"cpr\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject duplicate pending registration [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "\nExpected HTTP 400.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"cpr\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"already pending\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Reject one wrong verification code [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/verification",
+        "description": "Run once only. Three failures exhaust verification attempts; 000000 cannot be generated by this server.\nExpected HTTP 400.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"code\": \"000000\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Incorrect verification code\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Verify email - enter code first [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/verification",
+        "description": "\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"code\": \"{{verificationCode}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get('verificationCode')) throw new Error('Enter the email verificationCode in the selected environment first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | Login before setup using CPR [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject protected access before setup [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search",
+        "description": "SecurityConfiguration requires ACCOUNT_ACTIVE; verified account still has SETUP_REQUIRED status.\nExpected HTTP 403."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Reject setup password [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"weak\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"36002002\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Invalid Password\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Reject setup fName [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"DemoPassword1\",\n  \"fName\": \"\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"36002002\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Reject setup phoneNumber [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"DemoPassword1\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"1\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Invalid phone\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Reject setup securityQuestionAnswer [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"DemoPassword1\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"36002002\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 | Complete setup and save customer ID [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "Activates account, hashes password and security answer, saves customer profile and removes pending registration.\nExpected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"DemoPassword1\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"36002002\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().id; pm.test(\"Save customerId\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerId\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 | Reject repeating setup [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"DemoPassword1\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"36002002\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"does not require setup\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 | Reject registered email and CPR [409]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "\nExpected HTTP 409.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"cpr\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"already exists\"));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

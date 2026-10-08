@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
+import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.User;
@@ -38,6 +39,9 @@ public class AirlineService {
     public Airline addAirline(String name, String airlineCode, String headquartersCountry) {
         if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()) )
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
+
+        if (name == null || name.isBlank() || airlineCode == null || airlineCode.isBlank() || headquartersCountry == null || headquartersCountry.isBlank())
+            throw new InvalidInformationException("Please fill out all the required fields");
 
         Airline temp1 = airlineRepository.findByAirlineCode(airlineCode).orElse(null);
         Airline temp2 = airlineRepository.findByName(name).orElse(null);

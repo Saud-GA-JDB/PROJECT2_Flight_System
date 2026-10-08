@@ -140,7 +140,7 @@ public class AirplaneService {
 
         if (airplaneRepository.existsByRegistrationNumber(registrationNumber)) {
             logger.warning("Airplane creation rejected because the registration number already exists");
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Failed. A Plane with the same registration number already exists.");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Failed. A Plane with the same registration number already exists.");
         }
 
         Airplane airplane = new Airplane();
@@ -157,11 +157,12 @@ public class AirplaneService {
         auditLogService.addAuditLog(user, AuditLog.Action.AIRPLANE_CREATED, AuditLog.EntityType.AIRPLANE, airplane.getId(), description);
 
         emailService.sendEmail(user.getEmailAddress(), "Airplane Added", String.format(
-                "Your airplane has been added successfully." +
-                        "\nRegistration number: %s" +
-                        "\nModel: %s" +
-                        "\nBest Regards," +
-                        "\nSaud Flight System.",
+                """
+                        Your airplane has been added successfully.
+                        Registration number: %s
+                        Model: %s
+                        Best Regards,
+                        Saud Flight System.""",
                 airplane.getRegistrationNumber(),
                 airplane.getModel()
         ));

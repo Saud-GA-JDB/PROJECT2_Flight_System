@@ -24,13 +24,6 @@ public class FAAAdminController {
 
     private static final Logger logger = Logger.getLogger(FAAAdminController.class.getName());
 
-    @GetMapping
-    public String test() {
-        emailService.sendEmail("saud11alkh@gmail.com", "Ticket", "Hello Saud Enjoy");
-        logger.info("FAA test endpoint sent its test email");
-        return "hello test";
-    }
-
     @PostMapping("/airlines")
     public Airline createAirline(String name, String airlineCode, String headquartersCountry) {
         return airlineService.addAirline(name, airlineCode, headquartersCountry);

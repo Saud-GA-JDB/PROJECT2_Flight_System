@@ -1,0 +1,36 @@
+{
+  "purpose": "Persistent identification of rehearsal records for a later user-requested reset",
+  "baselineCheckedDate": "2026-10-08",
+  "database": "localhost:5432/aviation",
+  "createdByAssistant": false,
+  "demoAirline": {"name": "Presentation Airways", "airlineCode": "PX"},
+  "demoUsers": [
+    {"email": "sauds.presentation.admin@mailsac.com", "cpr": "980100001", "role": "AIRLINE_EMPLOYEE"},
+    {"email": "sauds.presentation.customer@mailsac.com", "cpr": "980100002", "role": "CUSTOMER"}
+  ],
+  "demoAirplanes": ["A9C-DEMO01", "A9C-DEMO02"],
+  "baseline": {
+    "demoAirlineNamesOrCodesFound": 0,
+    "demoEmailsFound": 0,
+    "demoCprsAcrossPersonTablesFound": 0,
+    "demoPendingRegistrationsFound": 0,
+    "demoAirplaneRegistrationsFound": 0,
+    "existingUserIdsToPreserve": [1, 2, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21],
+    "existingAirlineIdsToPreserve": [1, 2, 3, 6],
+    "existingAirplaneIdsToPreserve": [1, 2, 900003, 900008, 900009, 900010, 900011],
+    "faaLoginUserId": 16,
+    "foreignAirplaneIdForRejection": 900003,
+    "otherUserIdForRejection": 15,
+    "routeAirports": ["BAH", "DXB"]
+  },
+  "futureCleanupInstructions": [
+    "Wait for the user's request to reset. This file is a manifest, not a deletion script.",
+    "Read current rows and confirm exact identities and ownership against this manifest. Stop if unrelated rows depend on the demo records.",
+    "Resolve demo user and profile IDs by exact email/CPR and airline ID by exact name/code, then airplanes by registration plus airline ownership.",
+    "Identify all demo airline flights, their bookings, airplane activation requests, pending registrations and associated audit entries. Preserve all unrelated rows, including audit entries made by the same FAA account for other entities.",
+    "Delete only confirmed demo dependents and parent records in foreign-key-safe order in a transaction. Inspect real constraints first; audit user references also matter.",
+    "If profile images were uploaded manually, inspect referenced file paths and remove only confirmed demo files when requested.",
+    "Do not reset global ID sequences or delete seeded data. New numeric IDs and booking references may differ on the next run.",
+    "Reimport the original environment after cleanup to clear generated state and regenerate future dates. Delivered mail remains outside the database."
+  ]
+}

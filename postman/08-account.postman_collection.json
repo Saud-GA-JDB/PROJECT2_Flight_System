@@ -1,0 +1,677 @@
+{
+  "info": {
+    "name": "08 - Account - Profile passwords and deactivation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{customerToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Reject invalid phone [400]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"phoneNumber\": \"1\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Invalid phone\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Reject unpaired security question [400]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"securityQuestion\": \"City?\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required together\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject editing protected name [403]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile",
+        "description": "\nExpected HTTP 403.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"fName\": \"Other\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Only FAA admins\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Update own phone [200]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile",
+        "description": "Multipart request part has application/json content type. Optional image is disabled; choose a local file to demonstrate uploads separately.\nExpected HTTP 200.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"phoneNumber\": \"36002003\",\n  \"phoneNumberOpeningCode\": \"+973\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Reject customer updating another profile [403]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile?userId=15",
+        "description": "\nExpected HTTP 403.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"phoneNumber\": \"36002003\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Only FAA admins\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | FAA updates demo customer name [200]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile?userId={{customerId}}",
+        "description": "\nExpected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"fName\": \"Presentation\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject reactivation through profile route [400]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile?userId={{customerId}}",
+        "description": "\nExpected HTTP 400.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"active\": true\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"only allows account deactivation\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Reject weak new password [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/changePassword",
+        "description": "Actual Passay rules: 8\u201330 characters, at least one uppercase and digit, no whitespace. Error message incorrectly says maximum 20.\nExpected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"newPassword\": \"weak\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Invalid Password\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Change demo password [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/changePassword",
+        "description": "\nExpected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"newPassword\": \"DemoChanged2\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {\npm.environment.set('customerPassword','DemoChanged2');\n}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoChanged2\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Reject wrong reset answer [401]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/forgetPassword",
+        "description": "\nExpected HTTP 401.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"securityQuestionAnswer\": \"wrong\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"incorrect\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 | Reset demo customer password to CPR [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/forgetPassword",
+        "description": "Requires bearer authentication. Answer is trimmed, lowercased and checked with BCrypt. Sends password reset email.\nExpected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"securityQuestionAnswer\": \" MANAMA \"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {\npm.environment.set('customerPassword',pm.environment.get('customerCpr'));\n}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 | Restore demo password [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/changePassword",
+        "description": "\nExpected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"newPassword\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {\npm.environment.set('customerPassword','DemoPassword1');\n}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 | FAA deactivates demo customer - run last [200]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile?userId={{customerId}}",
+        "description": "Do this after customer demonstrations. No reactivation endpoint exists; cleanup/recreation is needed.\nExpected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"active\": false\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 | Reject login for deactivated account [401]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "\nExpected HTTP 401.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"inactive\"));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

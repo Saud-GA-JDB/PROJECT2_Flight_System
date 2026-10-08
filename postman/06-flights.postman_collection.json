@@ -1,0 +1,289 @@
+{
+  "info": {
+    "name": "06 - Flights - Search and validation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{customerToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Search demo airline flights [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?airlineCode=PX&originAirport=BAH&destinationAirport=DXB&seatType=standard&page=1&size=10&sort=scheduledDeparture,asc",
+        "description": "Returns active flights on active airplanes with seats and departure over five minutes away. Other optional filters: date (yyyy-MM-dd), originCity, destinationCity, originCountry, destinationCountry.\nExpected HTTP 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Reject date=invalid [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?date=invalid",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"valid date\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject date=2020-01-01 [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?date=2020-01-01",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"future date\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Reject seatType=economy [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?seatType=economy",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"firstClass or standard\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Reject page=abc [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?page=abc",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"whole numbers\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | Reject page=0 [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?page=0",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"at least 1\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject size=101 [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?size=101",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"between 1 and 100\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Reject sort=price,asc [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?sort=price,asc",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"sort by\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Reject sort=flightNumber,up [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?sort=flightNumber,up",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"asc or desc\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Reject sort=flightNumber [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?sort=flightNumber",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"sort=field\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Reject unauthenticated search [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search",
+        "description": "Search is protected in the current security configuration.\nExpected HTTP 403.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

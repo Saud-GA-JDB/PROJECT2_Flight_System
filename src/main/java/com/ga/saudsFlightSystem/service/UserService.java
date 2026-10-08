@@ -121,15 +121,14 @@ public class UserService {
             throw new InvalidInformationException(
                     "Phone number and opening code are required.");
         }
-        if (phoneValidationService.isValidPhoneNumber(request.getPhoneNumber(), request.getPhoneNumberOpeningCode()))
+        if (!phoneValidationService.isValidPhoneNumber(request.getPhoneNumber(), request.getPhoneNumberOpeningCode()))
             throw new InvalidInformationException(
                     "Invalid phone number or country code.");
         if (request.getSecurityQuestion() == null
                 || request.getSecurityQuestion().isBlank()
                 || request.getSecurityQuestionAnswer() == null
                 || request.getSecurityQuestionAnswer().isBlank()) {
-            throw new InvalidInformationException(
-                    "Security question and answer are required.");
+            throw new InvalidInformationException("Security question and answer are required.");
         }
 
         PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(

@@ -1,0 +1,428 @@
+{
+  "info": {
+    "name": "04 - Airline - Schedule flights",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{adminToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as admin [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.admin@mailsac.com\",\n  \"password\": \"980100001\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save adminToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"adminToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Reject missing airport [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"required fields\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Reject past departure [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"2020-01-01T12:00:00\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"future\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject unknown airport [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"ZZZ\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"valid arrival airport\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Reject arrival before departure [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"2020-01-01T12:00:00\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"before Departure\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Reject equal times [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{departure}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"same as Departure\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | Reject same airports [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"BAH\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"can't be the same\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject another airline airplane [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/900003/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"owned by the airline\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Create main flight - seven days ahead [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const value = pm.response.json().flightNumber; pm.test(\"Save flightNumber\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"flightNumber\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Reject overlapping schedule [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "Non-cancelled flights need a two-hour gap before or after another flight.\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"at least 2 hours\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Create flight for 48-hour cancellation example [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{nearDeparture}}\",\n  \"scheduledArrival\": \"{{nearArrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const value = pm.response.json().flightNumber; pm.test(\"Save nearFlightNumber\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"nearFlightNumber\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Find demo flights and save IDs [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?airlineCode=PX&size=100",
+        "description": "\nExpected HTTP 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {\nfor (const [number,key] of [['flightNumber','flightId'],['nearFlightNumber','nearFlightId']]) {\n const f=pm.response.json().content.find(x=>x.flightNumber===pm.environment.get(number));\n pm.test('Find '+key,()=>pm.expect(f).to.be.an('object')); if(f) pm.environment.set(key,f.id);\n}\n}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -61,7 +61,7 @@ public class User {
     @JoinColumn(name = "faa_admin_id", referencedColumnName = "id", unique = true)
     private FAAAdmin faaAdmin;
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "user", fetch = FetchType.EAGER)
     @JsonIgnore
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

@@ -1,0 +1,346 @@
+{
+  "info": {
+    "name": "07 - Bookings - Reserve view and cancel",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{customerToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save customerToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"customerToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Reject invalid seat class [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{flightId}}/economy/1/book",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"firstClass or standard\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Reject seat outside capacity [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{flightId}}/standard/11/book",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"valid seat number\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject customer booking for someone else [403]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/15/flights/{{flightId}}/standard/2/book",
+        "description": "\nExpected HTTP 403."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"only airline admin\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Book standard seat 1 [201]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{flightId}}/standard/1/book",
+        "description": "Uses path parameters, no JSON. Checks user/flight existence, flight state, five-minute cutoff, class, seat bounds/capacity/occupancy, airplane state, ownership and role. Sends email and decrements available seats.\nExpected HTTP 201."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const value = pm.response.json().id; pm.test(\"Save bookingId\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"bookingId\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Reject already booked seat [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{flightId}}/standard/1/book",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"already booked\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | View own bookings [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/bookings",
+        "description": "\nExpected HTTP 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject customer using airline booking search [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/bookings/search",
+        "description": "\nExpected HTTP 403."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"not allowed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Airline admin searches bookings [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/bookings/search?userId={{customerId}}&flightId={{flightId}}&status=BOOKED",
+        "description": "Results are restricted to the logged-in administrator airline.\nExpected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Cancel main booking [200]",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "http://localhost:8080/bookings/{{bookingId}}",
+        "description": "Customer is more than 48 hours from departure. Sets CANCELLED, restores seat, sends email.\nExpected HTTP 200."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Reject repeated cancellation [400]",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "http://localhost:8080/bookings/{{bookingId}}",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"only cancel active bookings\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Book flight leaving tomorrow [201]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{nearFlightId}}/standard/1/book",
+        "description": "\nExpected HTTP 201."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const value = pm.response.json().id; pm.test(\"Save nearBookingId\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"nearBookingId\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 | Reject customer cancellation within 48 hours [417]",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "http://localhost:8080/bookings/{{nearBookingId}}",
+        "description": "\nExpected HTTP 417."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 417\", () => pm.response.to.have.status(417));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"48 hours\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 | Airline admin cancels within 48 hours [200]",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "http://localhost:8080/bookings/{{nearBookingId}}",
+        "description": "Owning airline administrator can cancel for customers without the customer 48-hour limit.\nExpected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

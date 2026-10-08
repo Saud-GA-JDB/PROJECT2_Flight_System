@@ -1,0 +1,522 @@
+{
+  "info": {
+    "name": "02 - Airline - Fleet and activation requests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests top to bottom with the Presentation environment selected. Expected outcomes are source-derived; read PRESENTATION.md. State-changing examples create only identified demo records."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{adminToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01 | Login as admin [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Authentication checks credentials and account state. JWT is returned in message and stored in the shared environment.\nExpected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.admin@mailsac.com\",\n  \"password\": \"980100001\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) { const value = pm.response.json().message; pm.test(\"Save adminToken\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"adminToken\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Reject airline admin using FAA route [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "\nExpected HTTP 403."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"not allowed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Reject airplane registrationNumber [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Both seat classes and mileage must be positive; model and registration cannot be blank.\nExpected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Reject airplane model [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Both seat classes and mileage must be positive; model and registration cannot be blank.\nExpected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Reject airplane standardSeatCapacity [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Both seat classes and mileage must be positive; model and registration cannot be blank.\nExpected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 0,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Reject airplane firstClassSeatCapacity [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Both seat classes and mileage must be positive; model and registration cannot be blank.\nExpected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 0,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | Reject airplane maxMileage [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Both seat classes and mileage must be positive; model and registration cannot be blank.\nExpected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Add airplane for approval [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "New airplane belongs to the logged-in admin airline and starts GROUNDED. Sends email.\nExpected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Reject duplicate registration [409]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "\nExpected HTTP 409.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"already exists\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Add airplane for denial [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "\nExpected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO02\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | FAA lookup - save airplane IDs [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Creation response omits airplane ID. FAA airline listing exposes airplanesList with IDs; resolve by exact demo registration.\nExpected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {\nconst airline = pm.response.json().find(a => String(a.id) === String(pm.environment.get('airlineId')));\nfor (const [registration, key] of [['approvedRegistration','airplaneId'],['deniedRegistration','deniedAirplaneId']]) {\n const plane = airline && airline.airplanesList.find(p => p.registrationNumber === pm.environment.get(registration));\n pm.test('Find '+key, () => pm.expect(plane).to.be.an('object'));\n if (plane) pm.environment.set(key, plane.id);\n}\n}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Reject flight on grounded airplane [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "\nExpected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"{{departure}}\",\n  \"scheduledArrival\": \"{{arrival}}\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get('departure')) {",
+              " const d = new Date(); d.setUTCDate(d.getUTCDate()+7); d.setUTCHours(12,0,0,0);",
+              " pm.environment.set('departure',d.toISOString().slice(0,19));",
+              " pm.environment.set('arrival',new Date(d.getTime()+3600000).toISOString().slice(0,19));",
+              " const n = new Date(); n.setUTCDate(n.getUTCDate()+1); n.setUTCHours(12,0,0,0);",
+              " pm.environment.set('nearDeparture',n.toISOString().slice(0,19));",
+              " pm.environment.set('nearArrival',new Date(n.getTime()+3600000).toISOString().slice(0,19));",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"grounded\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 | Reject activation of another airline airplane [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/900003/requestActivation",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"owned by the airline\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 | Request activation - approval example [201]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/requestActivation",
+        "description": "\nExpected HTTP 201."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const value = pm.response.json().requestId; pm.test(\"Save requestId\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"requestId\", value); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 | Reject duplicate pending request [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/requestActivation",
+        "description": "\nExpected HTTP 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"pending activation request\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 | Request activation - denial example [201]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{deniedAirplaneId}}/requestActivation",
+        "description": "\nExpected HTTP 201."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) { const value = pm.response.json().requestId; pm.test(\"Save deniedRequestId\", () => pm.expect(value).to.not.equal(undefined)); if (value !== undefined) pm.environment.set(\"deniedRequestId\", value); }"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
