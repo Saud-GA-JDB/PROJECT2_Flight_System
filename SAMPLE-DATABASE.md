@@ -211,4 +211,4 @@ The tests create `Test Created Airline`, airline code `TCA`, and registration
 `TEST-NEW-PLANE`; leave these values unused. Use a separate freshly seeded database
 for automated tests if manual testing has changed the fixtures.
 
-For more endpoints and accepted request fields, see [README.md](README.md).
+For more endpoints and accepted request fields, see [Detailed API guide](docs/API-GUIDE.md).

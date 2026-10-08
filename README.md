@@ -1,320 +1,252 @@
-THE IDEA
----
-basically a flight system, there will be two parts. the first part is a basic flight booking system. the second (if i finish early) is a flight control and security system like the FAA and service center, etc...
+# Saud's Flight System
 
-------------------------------------------------------------------------------------------------------------------------
+Saud's Flight System is a Java REST API for flight booking, airline administration, and FAA-style airplane approval. The idea grew out of an earlier frontend project that used the Amadeus API: this project explores building the backend behind an aviation application. The current backend manages its own PostgreSQL data; it does not integrate with Amadeus.
 
-Cron Jobs
----
+The purpose is to connect three main users: customers who search and book flights, airline administrators who manage airplanes and schedules, and FAA administrators who review airplane activation requests. It is an educational project, with a wider aviation workflow planned in the ERD.
 
-**Flight status update:** `FlightService.updateFlightStatus()` runs every 5 minutes using `@Scheduled(cron = "0 */5 * * * *")`.
+## Main features
 
-- Changes `ACTIVE` to `IN_AIR` when `actualDeparture` is not null and its time has been reached.
-- Changes `IN_AIR` to `CLOSED` when `actualArrival` is not null and its time has been reached.
+- Customer registration with email verification, account setup, JWT login, password management, and profile updates with optional images.
+- Role and ownership checks for customer, airline administrator, and FAA administrator operations; temporary lockout after repeated failed logins.
+- Flight search with route, date, airline, and seat-class filters, pagination, and sorting.
+- Seat booking and cancellation, seat availability updates, and email confirmations.
+- Airline and airline administrator creation, airplane registration, and FAA activation approval or rejection.
+- Flight scheduling with airplane availability checks and scheduled flight-status updates.
+- Server-Sent Events (SSE) notifying connected FAA administrators about airplane activation requests.
+- Database audit records, centralized error handling, demo data seeding, and Postman collections.
+- Interactive Swagger UI and a generated OpenAPI specification.
 
-Null actual times leave the status unchanged, allowing for delayed flights. Time checks use the server's local time.
+## Technologies
 
-Customer registration endpoints
----
+| Technology | Use |
+| --- | --- |
+| Java 17 and Spring Boot 4.1.1 | Application runtime and REST backend |
+| Spring MVC | Controllers, HTTP requests, and SSE through `SseEmitter` |
+| Spring Security, JWT (JJWT), BCrypt | Authentication, authorization, password and security-answer hashing |
+| Spring Data JPA / Hibernate and PostgreSQL | Entity relationships, repositories, and persistence |
+| Maven and Maven Wrapper | Dependencies, compilation, and running tests |
+| Spring Mail / SMTP | Verification and transactional email |
+| springdoc-openapi 3.1.1 / Swagger UI | Generated API documentation and interactive requests |
+| Lombok | Reducing Java boilerplate |
+| Apache Commons Validator, Passay, libphonenumber | Email, password, and phone validation |
+| JUnit and Spring Boot Test | Automated testing |
+| Postman, Git, and GitHub | Manual API testing, version control, and repository hosting |
 
-Use these endpoints in order. Send JSON with `Content-Type: application/json`. Only setup requires the Bearer token returned by login.
+## Architecture
 
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/auth/users/register/email` | Checks email and CPR availability, saves a pending registration, and requests a verification email. | `email`, `cpr` | `{"email":"you@example.com","cpr":"123456789"}` |
-| POST | `/auth/users/verification` | Verifies the code, creates an inactive customer account with status `SETUP_REQUIRED`, and returns a success message instructing the user to log in with CPR as their initial password. | `email`, `code` | `{"email":"you@example.com","code":"482193"}` |
-| POST | `/auth/users/login` | Logs in using email and the current password (CPR is the initial password). Returns status 200 with the JWT in the response's `message` field. | `email`, `password` | `{"email":"you@example.com","password":"123456789"}` |
-| POST | `/auth/users/setup` | Completes the logged-in customer's details, changes the password, activates the account, then deletes pending after saving successfully. | `password`, `fName`, `lName`, `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
+The application is a single Spring Boot backend organized into layers:
 
-For `/auth/users/register/email`, use a valid email address and a CPR containing exactly nine digits. Success returns status 200 with `{"message":"Verification email requested."}`. Invalid input or an unexpired pending registration returns 400; an email or CPR already registered to an account returns 409. Email sending failures return 500 with message `Could not send the email.`. These errors use the global response fields `timestamp`, `status`, `error`, `message`, and `path`. The pending registration is saved before sending the email, so a failed send can leave a pending registration that blocks another request until it expires.
-
-Login does not require a Bearer token. Accounts with status `DEACTIVATED` cannot log in; inactive accounts can log in only while their status is `SETUP_REQUIRED`. Authentication failures return status 401 with the global error response fields `timestamp`, `status`, `error`, `message`, and `path`. The error is `UNAUTHORIZED`, and the message is `Error: Email or password is incorrect, or the account is inactive.`
-
-Codes expire after 10 minutes and allow three incorrect attempts. Request a new code after expiry if verification has not been completed. After verification, setup does not require the code or pending ID and is not limited by the code's expiry.
-
-For `/auth/users/verification`, success returns status 200 with a `message` instructing the user to log in and finish setup. Missing email or code, an expired registration, an incorrect code, or exhausted attempts returns 400. No pending registration returns 404; conflicting existing account details return 409. These errors use the global response fields `timestamp`, `status`, `error`, `message`, and `path`. Repeating verification with a valid, unexpired code preserves the existing password when the account still has status `SETUP_REQUIRED` and its customer CPR matches the pending registration.
-
-Setup-required accounts can log in and finish setup but cannot access other protected endpoints. Send `Authorization: Bearer <token>` when calling `/auth/users/setup`. The account and email come from the authenticated user; no email field is required in the request body. The account must have status `SETUP_REQUIRED` and a verified pending registration. Choose a new password different from the CPR. Successful setup sets `isActive` to true and status to `ACTIVE`.
-
-All fields in this setup example are required:
-
-```json
-{
-  "password": "your-new-password",
-  "fName": "Saud",
-  "lName": "Example",
-  "phoneNumber": "12345678",
-  "phoneNumberOpeningCode": "+973",
-  "securityQuestion": "Your question",
-  "securityQuestionAnswer": "Your answer"
-}
+```text
+Swagger UI / Postman / API client
+              |
+     Spring Security + JWT filter
+              |
+         Controllers
+              |
+           Services ----> SMTP email / SSE connections
+              |
+      JPA repositories
+              |
+          PostgreSQL
 ```
 
-Password reset endpoint
----
+| Package | Responsibility |
+| --- | --- |
+| `controller` | HTTP endpoints for accounts, customers, bookings, flights, airlines, FAA administration, and notifications |
+| `service` | Business rules, validation, transactions, email, notifications, and audit logging |
+| `repository` | Database access through Spring Data JPA |
+| `model` | Persistent entities, request objects, and response DTOs |
+| `security` | JWT processing, user details, password encoding, and route access |
+| `exception` | Application exceptions and centralized HTTP error responses |
+| `config` | Optional database seeding and OpenAPI configuration |
 
-Requires an active account and `Authorization: Bearer <token>`, including for this reset route. Send JSON with `Content-Type: application/json`.
+Authentication uses a shared `User` entity linked to the relevant customer, airline employee, or FAA administrator profile. Controllers delegate to services, which enforce business rules and access repositories. Business changes and audit entries share transactions. Scheduled jobs update flight statuses, while SSE keeps an HTTP connection open for server-to-client events. The SSE implementation stores active connections in memory and sends transactional events after a successful commit.
 
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/auth/users/forgetPassword` | Checks the customer's security answer, resets their password to CPR, sends an email, and returns a confirmation message. | `email`, `securityQuestionAnswer` | `{"email":"you@example.com","securityQuestionAnswer":"Your answer"}` |
+## General approach
 
-The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401. These responses and the successful 200 response contain a `message` field. The security answer is trimmed and converted to lowercase before checking it against the stored hash.
+I began with the broader aviation system idea and designed the entities around the ERD. The early work focused on airlines, airplanes, airports, flights, bookings, and user profiles. As authentication developed, I changed the model to separate shared login details into a `User` entity linked to the different profile types. This let authentication use one account structure while keeping each role's details in its own model.
 
-The reset email is sent to the target customer's email address with subject `Reset Password`. Email sending failures return 500 through the global error handler, with fields `timestamp`, `status`, `error`, `message`, and `path`, and message `Could not send the email.`. The explicit password save occurs after the email is sent.
+I then built the application in stages: registration and email verification, validation and password management, airline and FAA workflows, flight scheduling, and booking. I organized the code into controllers, services, and repositories, keeping the main validation and business rules in services. Later work added flight search, SSE notifications, audit logging, account lockout, tests, and sample data. Because the original plan was larger than the available time, I reduced the scope to complete the booking and airplane-approval workflows before the deadline.
 
-Change password endpoint
----
+## User stories
 
-Requires an active account and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
+See [User stories](docs/USER-STORIES.md) for the current customer, airline administrator, and FAA administrator workflows, plus deferred stories from the wider design. These stories were documented retrospectively from the implementation and original scope.
 
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/auth/users/changePassword` | Changes the logged-in user's password and returns a success message. | `newPassword` | `{"newPassword":"NewPassword123"}` |
+## ERD
 
-The validator requires 8 to 30 characters, at least one uppercase letter and one digit, and no whitespace. Invalid passwords return 422; the current error message incorrectly says the maximum is 20.
+See the [implemented system ERD](docs/ERD-IMPLEMENTED.md) for the current entities, fields, and relationships based on the JPA models.
 
-Update profile endpoint
----
+The [original ERD below](#erd-diagram) is preserved unchanged as the broader design. It is not fully accurate and includes planned functionality; use the implemented ERD for the current system.
 
-Requires an active account and `Authorization: Bearer <token>`. Send `multipart/form-data` with a required JSON part named `request` using `Content-Type: application/json`, and an optional file part named `image`.
+## Planning
 
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| PUT | `/auth/users/updateProfile` | Updates profile details and returns `Profile updated successfully` with status 200. | `request` (JSON multipart part). Optional: `userId` (query parameter), `image` (file part). | `{"phoneNumber":"36001234","phoneNumberOpeningCode":"+973"}` (content of the `request` part) |
+See [Planning and progress](docs/PLANNING.md) for deliverables, scope, a development timeline, and remaining work. This is a retrospective record based on Git history, not a claim that a planning board existed during development.
 
-Without `userId`, updates the logged-in user's profile. Allowed JSON fields are `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, and `securityQuestionAnswer`. The security question and answer must be provided together and must not be blank. Either phone field can be supplied on its own; the resulting number and country code must be valid together. Omitted fields remain unchanged.
+## API documentation
 
-Supplying `userId`, for example `/auth/users/updateProfile?userId=2`, requires an `FAA_ADMIN` account with a linked FAA admin profile. This allows updates to the target user's phone details, image, `fName`, `lName`, `cpr`, `emailAddress`, and `active`. Security question and answer cannot be changed when `userId` is supplied. Even FAA admins must supply `userId` to change names, CPR, email, or account activation state.
+After starting the application:
 
-Names must not be blank. CPR must contain exactly nine digits and be available; email must have a valid format and be available. Changing email or CPR requires the target account to have completed setup. Set `active` to `false` to deactivate the account and set its status to `DEACTIVATED`; `true` is rejected. Profile details and image updates require a linked customer, airline employee, or FAA admin profile.
+- API base URL: `http://localhost:8080`
+- [Swagger UI](http://localhost:8080/swagger-ui/index.html)
+- [OpenAPI JSON](http://localhost:8080/v3/api-docs)
+- [OpenAPI YAML](http://localhost:8080/v3/api-docs.yaml)
+- [Detailed endpoint guide](docs/API-GUIDE.md), including request examples, business rules, SSE usage, audit logging, and test setup.
+- [Postman presentation guide](postman/PRESENTATION.md) and [sample database reference](SAMPLE-DATABASE.md).
 
-To upload an image, save the JSON example to `profile.json` and send it as the `request` part:
+Swagger UI is a browser interface for exploring the API. OpenAPI is the structured specification that powers it. The documentation routes are public; business endpoints retain their authentication and role checks. The integration uses [springdoc-openapi](https://springdoc.org/).
+
+In Swagger UI, expand `POST /auth/users/login`, choose **Try it out**, and log in with a seeded account. Copy the JWT from the response's `message` field. Click **Authorize**, paste just the token (without `Bearer `), and authorize. Swagger then includes the bearer header in protected requests. Use the account role appropriate to the endpoint. Login, registration-email requests, and verification do not require a token. Account setup requires login; other protected endpoints require an active account.
+
+The specification is generated from controller signatures. Some endpoints return generic response types, so the detailed guide remains useful for exact response shapes and business validation. For the long-running SSE stream, use the authenticated `curl.exe -N` example in the guide.
+
+## Installation
+
+### 1. Prerequisites and clone
+
+Install JDK 17 or later, PostgreSQL, and Git. A Maven wrapper is included; an installed Maven 3.6.3 or later is an alternative. Use an SMTP account for features that send email.
 
 ```powershell
-curl.exe -X PUT "http://localhost:8080/auth/users/updateProfile" -H "Authorization: Bearer YOUR_TOKEN" -F "request=@profile.json;type=application/json" -F "image=@profile.jpg"
+git clone https://github.com/Saud-GA-JDB/PROJECT2_Flight_System.git
+cd PROJECT2_Flight_System
 ```
 
-Omit the `image` part to keep the current image. A nonempty uploaded file is saved under `uploads/` with a generated filename, and its path is stored in the profile's `imageUrl`.
+The following commands use PowerShell. On macOS/Linux, use `./mvnw` and `export NAME=value` for environment variables.
 
-Add airplane endpoint
----
+### 2. Configure PostgreSQL
 
-Requires an active airline employee with airline role `ADMIN` and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
+Start PostgreSQL and connect through pgAdmin or `psql` using an account allowed to create databases:
 
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes` | Adds a grounded airplane to the logged-in admin's airline, sends the admin a confirmation email, and returns an `AddAirplaneResponse` with status 201. | `registrationNumber`, `model`, `standardSeatCapacity`, `firstClassSeatCapacity`, `maxMileage` | `{"registrationNumber":"A9C-ABC","model":"Airbus A320","standardSeatCapacity":150,"firstClassSeatCapacity":12,"maxMileage":6000}` |
-
-Registration number must be unique. Both seat capacities and max mileage must be greater than zero. Missing or invalid fields return 422; a duplicate registration number returns 404. Activation requires FAA approval.
-
-The confirmation email is sent to the logged-in admin's email address with subject `Airplane Added` and includes the airplane's registration number and model.
-
-Request airplane activation endpoint
----
-
-Requires an active airline employee with airline role `ADMIN` and `Authorization: Bearer <token>`.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes/{airplaneId}/requestActivation` | Creates a pending activation request, records the logged-in admin as its requester, sends a confirmation email, and returns an `AirplaneRequestResponse` with status 201. | `airplaneId` (path) | No body. |
-
-The airplane must belong to the admin's airline and must not already be active. An existing pending request blocks submission; seven days must pass after the last request before requesting again. Connected FAA admins receive the `airplane-activation-requested` SSE event after the transaction commits. The airplane stays grounded until FAA approval.
-
-The confirmation email is sent to the requesting admin's email address with subject `Activation Request Submitted` and includes the airplane's registration number and model. The requester is taken from the authenticated account, with no additional request fields needed.
-
-Add flight endpoint
----
-
-Requires an active airline employee with airline role `ADMIN` and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates an active flight for the admin's airline and returns an `AddFlightResponse` with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00"}` |
-
-Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities.
-
-Search flights endpoint
----
-
-Requires an active account and `Authorization: Bearer <token>`. Supply filters as query parameters.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| GET | `/flights/search` | Returns a page of available flights matching the supplied filters. | None. Optional query parameters: `date`, `airlineCode`, `originAirport`, `destinationAirport`, `originCity`, `destinationCity`, `originCountry`, `destinationCountry`, `seatType`, `page`, `size`, `sort`. | No body. |
-
-For example, `/flights/search?date=2027-01-10&originAirport=BAH&destinationAirport=DXB&seatType=standard&page=1&size=10&sort=scheduledDeparture,asc`.
-
-Only flights with status `ACTIVE`, an active airplane, available seats, and scheduled departure more than five minutes away are returned. Filters can be combined; all supplied filters must match. Airline codes, airport IATA codes, cities, and countries use exact matches ignoring case. `date` filters scheduled departure by calendar day in `yyyy-MM-dd` format and must be today or later, using the server's local time. `seatType` must be exactly `standard` or `firstClass` and requires availability in that class; omitting it allows either class.
-
-Pagination starts at `page=1` and defaults to `size=10`. Page must be at least 1, and size must be between 1 and 100. The default sort is `scheduledDeparture,asc`; supported fields are `scheduledDeparture`, `scheduledArrival`, and `flightNumber`, with direction `asc` or `desc`. Ties are ordered by flight ID ascending.
-
-The response contains `content` (flight details), `page`, `size`, `totalElements`, and `totalPages`. Each flight includes its ID, flight number, airline code, origin and destination airport codes, cities and countries, scheduled times, and available seat counts for both classes. A page with no results returns an empty `content` list.
-
-Book flight endpoint
----
-
-Requires an active account and `Authorization: Bearer <token>`. Users can book for themselves; only an airline employee with airline role `ADMIN` can book for another user, and only on their own airline.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/customer/{userId}/flights/{flightId}/{seatType}/{seatId}/book` | Books the selected seat, reduces the available seat count, sends the booking owner a confirmation email, and returns a `BookingResponse` with status 201. | `userId`, `flightId`, `seatType`, `seatId` (all path parameters) | No body. |
-
-For example, `/customer/1/flights/2/standard/3/book`. The user and flight must exist. `seatType` must be exactly `standard` or `firstClass`; `seatId` starts at 1 and must be within that class's capacity. The seat must be available, both flight and airplane must be active, and departure must be more than five minutes away. A successful booking has status `BOOKED` and a generated booking reference.
-
-The email is sent to the booking owner's email address, including when an airline admin books on their behalf. Its subject is `Booking Confirmation`, and it includes the booking reference, flight number, seat, origin and destination airport IATA codes, and scheduled departure.
-
-View bookings endpoint
----
-
-Requires an active account and `Authorization: Bearer <token>`.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| GET | `/bookings` | Returns the logged-in user's bookings, or all bookings for the logged-in airline admin's airline ordered by booking time descending. | None. | No body. |
-
-Airline employees must have airline role `ADMIN` to use this endpoint. Other account roles receive their own booking list. The response is a list of booking objects.
-
-Cancel booking endpoint
----
-
-Requires an active account and `Authorization: Bearer <token>`. Only the booking owner or an airline employee with airline role `ADMIN` for the booking's airline can cancel it.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| DELETE | `/bookings/{bookingId}` | Marks a booking as `CANCELLED`, restores the available seat count for its class, emails the booking owner, and returns a `BookingResponse` with status 200. | `bookingId` (path) | No body. |
-
-The booking must exist and have status `BOOKED`. Owners must cancel at least 48 hours before departure or receive 417; an admin of the booking's airline is exempt from this time limit. The booking record is retained.
-
-The cancellation email is sent to the booking owner's email address, including when an airline admin cancels on their behalf. Its subject is `Booking Cancelled`, and it includes the booking reference and flight number.
-
-Search bookings endpoint
----
-
-Requires an active airline employee with airline role `ADMIN` and `Authorization: Bearer <token>`. Results are restricted to the logged-in admin's airline.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| GET | `/bookings/search` | Returns bookings matching the supplied filters, ordered by booking time descending. | None. Optional query parameters: `userId`, `flightId`, `status`. | No body. |
-
-For example, `/bookings/search?userId=1&flightId=2&status=BOOKED`. Status must be `BOOKED`, `CANCELLED`, or `FINISHED`. Filters can be used individually or together; results must match all supplied filters. Omit all filters to retrieve every booking for the admin's airline.
-
-Create airline endpoint
----
-
-Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`. Supply query parameters or form fields; this controller does not accept a JSON request body.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/faaadmin/airlines` | Creates and returns an airline. | `name`, `airlineCode`, `headquartersCountry` (query parameters or form fields) | No JSON body. |
-
-For example, `POST /faaadmin/airlines?name=Example%20Air&airlineCode=EA&headquartersCountry=Bahrain`. The name and airline code must be unique. The current service does not validate missing or blank fields.
-
-View airlines endpoint
----
-
-Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| GET | `/faaadmin/airlines` | Returns the list of all airlines. | None. | No body. |
-
-Add airline admin endpoint
----
-
-Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| POST | `/faaadmin/airlines/{airlineId}/addAirlineAdmin` | Creates an airline employee with airline role `ADMIN` and CPR as the initial password. Returns the submitted details with the security answer cleared, with status 201. | `airlineId` (path), `emailAddress`, `cpr`, `fName`, `lName`, `phoneNumberOpeningCode`, `phoneNumber`, `hireDate`, `salary`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
-
-The airline must exist, and email and CPR must be available. CPR must contain exactly nine digits, the email must have a valid format, and the phone number must be valid for its country code. Salary must be greater than zero; hire date uses `yyyy-MM-dd`. Names, security question, and security answer must not be blank.
-
-All fields in this example are required:
-
-```json
-{
-  "emailAddress": "admin@example.com",
-  "cpr": "123456789",
-  "fName": "Saud",
-  "lName": "Example",
-  "phoneNumberOpeningCode": "+973",
-  "phoneNumber": "36001234",
-  "hireDate": "2026-10-01",
-  "salary": 1200,
-  "securityQuestion": "Your question",
-  "securityQuestionAnswer": "Your answer"
-}
+```sql
+CREATE DATABASE aviation;
 ```
 
-Pending airplane requests endpoint
----
+The application database user must be able to create and update tables in this database. Hibernate uses `ddl-auto=update` to create/update the schema on startup; there are no migration scripts to run.
 
-Requires an active `FAA_ADMIN` account with a linked FAA admin profile and `Authorization: Bearer <token>`.
+### 3. Configure the application
 
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| GET | `/faaadmin/airplaneRequests` | Returns a list of `AirplaneRequestResponse` objects for activation requests with status `PENDING`, with status 200. | None. | No body. |
-
-Requests are returned across all airlines. An empty list is returned when no requests are pending. Fetch this endpoint after connecting or reconnecting to notifications to recover outstanding requests, and deduplicate by `requestId`.
-
-Review airplane request endpoint
----
-
-Requires an active `FAA_ADMIN` account with a linked FAA admin profile and `Authorization: Bearer <token>`. Send JSON with `Content-Type: application/json`.
-
-| Method | Endpoint | What it does | Required fields | Sample JSON body |
-| --- | --- | --- | --- | --- |
-| PUT | `/faaadmin/airplaneRequests/{requestId}` | Accepts or denies a pending activation request, records the reviewer and review time, emails the original requester, and returns an `AirplaneRequestResponse` with status 200. | `requestId` (path), `status`; `reviewReason` is required when denying. | `{"status":"ACCEPTED","reviewReason":"Safety checks passed"}` |
-
-Status must be `ACCEPTED` or `DENIED`. Accepting sets the airplane to `ACTIVE`; denying sets it to `GROUNDED`. A denial requires a nonblank reason; acceptance defaults to `approve` when the reason is missing or blank. Reasons must not exceed 500 characters. The request must exist and still have status `PENDING`.
-
-The review email is sent to the user stored as the request's `requestedBy`, with subject `Activation Request ACCEPTED` or `Activation Request DENIED`. It includes the airplane's registration number, model, decision, and review reason. The request must have a linked requester for this email step.
-
-Live notifications (SSE)
----
-
-An active, authenticated user opens `GET /notifications` with `Authorization: Bearer <JWT>`.
-The response is `text/event-stream` and stays open. User ID and role come from the JWT-authenticated
-account, never from client-supplied parameters. Each tab/device gets its own connection.
-
-Try it in PowerShell (replace the token with an FAA admin token):
+For a fresh clone, copy the checked-in template:
 
 ```powershell
-curl.exe -N -H "Authorization: Bearer YOUR_FAA_TOKEN" http://localhost:8080/notifications
+Copy-Item src/main/resources/application-example.properties src/main/resources/application.properties
 ```
 
-The first event is `connected`. While this command is running, use an airline admin token to call
-`POST /airlineAdmin/airplanes/{airplaneId}/requestActivation` for a valid airplane. After the request
-transaction commits, all connected FAA admins receive `airplane-activation-requested`. Its JSON
-payload is the same `AirplaneRequestResponse` DTO returned to the requesting airline admin.
-Customers and airline employees do not receive this event. A rejected or rolled-back request sends nothing.
+If you already have a local `application.properties`, keep it and compare it with the template instead of overwriting it. The local file is ignored by Git. The template contains placeholders rather than account credentials.
 
-Reuse `NotificationService` from other business services:
+### 4. Set environment variables
 
-```java
-notificationService.sendToUser(userId, "booking-updated", bookingResponse);
-notificationService.sendToRole(User.Role.FAA_ADMIN, "airplane-activation-requested", requestResponse);
+Set these in the same terminal where you start the application. Replace the placeholder values with your own:
+
+```powershell
+$env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5432/aviation"
+$env:SPRING_DATASOURCE_USERNAME = "postgres"
+$env:SPRING_DATASOURCE_PASSWORD = "YOUR_DATABASE_PASSWORD"
+$env:SPRING_MAIL_HOST = "smtp.gmail.com"
+$env:SPRING_MAIL_PORT = "587"
+$env:SPRING_MAIL_USERNAME = "YOUR_SMTP_USERNAME"
+$env:SPRING_MAIL_PASSWORD = "YOUR_SMTP_PASSWORD_OR_APP_PASSWORD"
+$env:JWT_EXPIRATION_MS = "86400000"
+
+# Generate a Base64-encoded 32-byte signing key for local development.
+$jwtKeyBytes = New-Object byte[] 32
+$jwtRandom = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$jwtRandom.GetBytes($jwtKeyBytes)
+$jwtRandom.Dispose()
+$env:JWT_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
 ```
 
-Choose recipients on the backend. Use user delivery for private updates; role delivery reaches
-every connected member of that role, so it is not suitable for airline-specific private information.
-Payloads should be DTO snapshots, not JPA entities. Calls made inside a Spring transaction are
-deferred until successful commit; calls outside a transaction send immediately.
+Keep the same JWT secret across restarts if existing tokens should remain valid. Gmail SMTP requires an appropriate app password; use your provider's settings if using another SMTP service. The app does not automatically load a `.env` file. When launching through an IDE, configure these variables in its run configuration.
 
-The server sends a comment heartbeat every 25 seconds and closes streams after five minutes.
-Clients must reconnect with a valid token; each new connection repeats authentication and account
-checks. Role/account changes are reflected on reconnection, not immediately within an existing stream.
-Disconnect the stream on logout. The SSE `retry` hint is three seconds, but a streaming `fetch`
-client must implement its own reconnect loop and event parsing. Native browser `EventSource`
-cannot set the required Authorization header; use a header-capable SSE client or streaming `fetch`.
-The frontend handles named events to show toasts or update its notification UI.
+### 5. Seed the database and start
 
-Delivery is live and best-effort within one backend instance. There is no stored notification inbox,
-event replay, or multi-server fan-out. After connecting/reconnecting, FAA clients should also fetch
-`GET /faaadmin/airplaneRequests` to recover outstanding work and deduplicate by `requestId`.
-Network writes use Spring MVC's blocking emitter API; a slow client can delay broadcasting.
-For multiple backend instances or larger traffic, add a shared broker and bounded asynchronous delivery.
+```powershell
+$env:APP_SEED_ENABLED = "true"
+.\mvnw.cmd spring-boot:run
+```
+
+If the wrapper cannot start, use `mvn spring-boot:run` with installed Maven. The first run downloads dependencies and needs internet access.
+
+Wait for the application to start and report `Database seed completed; existing records were preserved.` The seeder creates seven demo accounts, two airlines, three airports, five airplanes, five flights, four bookings, and an airplane activation request in an empty database. Seeding itself sends no email.
+
+After the first successful seed, stop with **Ctrl+C** and start normally:
+
+```powershell
+$env:APP_SEED_ENABLED = "false"
+.\mvnw.cmd spring-boot:run
+```
+
+Seeding is optional and disabled by default. Rerunning it adds missing data but does not reset existing records or refresh old flight dates. Sample departures start three days after the initial seed. See [Sample database reference](SAMPLE-DATABASE.md) for details; generated IDs may differ between databases.
+
+### 6. Access the API and Swagger
+
+Open [Swagger UI](http://localhost:8080/swagger-ui/index.html), then use one of these local demo accounts:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Customer | flighttest.customer@mailsac.com | TestPassword1 |
+| Airline administrator | flighttest.airline@mailsac.com | TestPassword1 |
+| FAA administrator | flighttest.faa@mailsac.com | TestPassword1 |
+
+These are demonstration credentials. To log in directly from PowerShell:
+
+```powershell
+$body = @{ email = "flighttest.customer@mailsac.com"; password = "TestPassword1" } | ConvertTo-Json
+$login = Invoke-RestMethod -Method Post -Uri "http://localhost:8080/auth/users/login" -ContentType "application/json" -Body $body
+$headers = @{ Authorization = "Bearer $($login.message)" }
+Invoke-RestMethod -Uri "http://localhost:8080/flights/search" -Headers $headers
+```
+
+Use the same token in Swagger's **Authorize** dialog. Raw documentation is available at [OpenAPI JSON](http://localhost:8080/v3/api-docs). The project is an API backend; it does not include a customer-facing frontend.
+
+### Testing
+
+Existing service tests depend on seeded PostgreSQL fixtures, and some send real email. Use a dedicated seeded test database and working SMTP settings. Follow the [test setup and fixture notes](docs/API-GUIDE.md#database-seeding) before running the service suite. Manual changes to fixtures can affect results.
+
+## Unsolved problems and current limitations
+
+- The full aviation workflow is unfinished. Airport operations, crew assignments, ground services, maintenance, and air traffic control remain outside the implemented scope.
+- The original ERD still needs a manual accuracy update; the separate implemented ERD documents the current models.
+- SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
+- Flight times use local date-times without offsets, and time-based checks use server-local time. Full airport time-zone handling remains future work.
+- A failed verification email can leave a pending registration until expiry. Email and database transactions are not fully coordinated: a delivered email cannot be rolled back if a later database commit fails.
+
+
+## Major challenges
+
+**Time management and scope.** The original ERD described a much larger system than I could implement in the available time. I narrowed the delivery to customer booking, airline administration, and FAA airplane approvals. This made it possible to finish the core workflows, but the wider operational system remains unfinished.
+
+**Learning SSE.** SSE was especially difficult because we had not been taught how to implement it, and I did not have enough time for a deep dive. The online examples I found were not very helpful for understanding and applying the concept. The implementation now uses Spring MVC's `SseEmitter`, tracks authenticated connections, removes disconnected clients, sends heartbeats, and delivers airplane-request events to connected FAA administrators after the database transaction commits. This provided a working notification path within the project's limited scope.
+
+**Structuring authentication across roles.** During development, I changed the database design so authentication could use a shared `User` entity, with separate links to customer, airline employee, and FAA administrator profiles. This separated common login information from role-specific details and supported the different application workflows.
+
+## Future improvements
+
+The main priority is completing the wider workflow in the ERD: airport operators and employees, crew and ground-service assignments, maintenance providers and records, and air traffic control facilities and flight events. These would connect booking and scheduling to the operational side of a flight.
+
+Further improvements include a frontend, reliable notification storage and delivery, consistent response DTOs and validation, a reset-token password recovery flow, time-zone-aware scheduling, schema migrations, and tests that run independently of manually seeded data and external email services.
+
+## AI usage
+
+I used AI during the project for code generation, documentation, discussion, and review:
+
+- **Database seeding:** The database seeding implementation was generated by AI.
+- **Postman:** The contents of the `postman/` folder were generated by AI.
+- **README:** This `README.md` was generated by AI using the project code, Git history, assignment requirements, and my answers about the project.
+- **Unit tests:** The unit tests were created by AI.
+- **Audit and logging:** I started the audit and logging implementation manually, including the models and services, and applied it to a few operations. I then asked AI to complete the repetitive work by following my existing approach and patterns.
+- **Filtering queries:** The custom `@Query` queries used for filtering were generated by AI.
+- **SSE:** I implemented Server-Sent Events manually with AI assistance and guidance from [Baeldung](https://www.baeldung.com/spring-server-sent-events), [Alexander Obregon's tutorial on Medium](https://medium.com/@AlexanderObregon/how-to-implement-server-sent-events-sse-in-spring-boot-620024272ccb), and [GeeksforGeeks](https://www.geeksforgeeks.org/advance-java/server-sent-events-in-spring/).
+- **Exploring solutions:** I discussed some problems with AI to explore possible approaches and options.
+- **Logic review:** I also used AI to check whether the logic was correct. For those reviews, I asked it to identify issues without editing the logic.
+
+## Resources and acknowledgements
+
+- [Baeldung: email validation in Java](https://www.baeldung.com/java-email-validation-regex)
+- [GeeksforGeeks: sending email through Spring Boot SMTP](https://www.geeksforgeeks.org/springboot/spring-boot-sending-email-via-smtp/)
+- [Stack Overflow: phone-number validation in Spring Boot](https://stackoverflow.com/questions/71654287/how-to-validate-phone-number-using-spring-boot)
+- [springdoc-openapi documentation](https://springdoc.org/)
+- ChatGPT assistance included the nine-digit CPR validation expression used in `PendingRegistrationService`.
+
+---
 
 ERD Diagram
 ---
@@ -581,101 +513,3 @@ string headquartersCountry
     ATC_EMPLOYEE ||--o{ FLIGHT_CONTROL_EVENT : handles
     FLIGHT ||--o{ FLIGHT_CONTROL_EVENT : has
 ```
--------------------------------------------------------------------------------------------
-Logging and audit logs
----
-
-Application logs record login attempts and outcomes, verification events, important business operations, rejected requests, and errors. They use normal logger calls: `INFO` for operations, `WARNING` for rejected requests, and `SEVERE` for server errors. Unexpected errors use a generic message without a stack trace.
-
-Audit entries are stored in the `audit_logs` table. Each entry contains `id`, `createdAt` (UTC), `userId`, `userRole`, `action`, `entityType`, `entityId`, and a readable `description`. `userId` identifies who performed the action; `entityId` identifies the affected record. Scheduled system actions have no user ID or role. Registration records the newly verified user as the person registering.
-
-Audited actions include registration, account setup, profile updates, deactivation, password changes/resets, booking creation/cancellation, airline and airline admin creation, airplane creation, activation requests and reviews, flight creation, and automatic flight status changes. Repeating successful verification does not create another registration entry. Profile updates record accepted nonempty submissions, including values that were resubmitted unchanged.
-
-Business database changes and their audit entries share a transaction. Email failures roll back the changes for booking creation/cancellation, password resets, airplane creation, and activation requests/reviews. An email already delivered cannot be rolled back, and uploaded profile images are outside the database transaction. Verification keeps incorrect-attempt counts when validation fails. Requesting a verification email retains its existing behavior: the pending registration can remain if sending fails.
-
-Application success messages are written before the transaction commits, so a later commit failure can leave a success message in the application log. Audit entries roll back with the database changes. A scheduled flight-status run saves all its changes and audit entries in one transaction.
-
-Logs and audit descriptions exclude passwords, JWTs/secrets, verification codes, CPRs, security answers, email bodies, and complete request/entity objects. Application timestamps follow the logging configuration; audit timestamps are explicitly UTC.
-
-The existing `spring.jpa.hibernate.ddl-auto=update` setting creates the audit table when the application starts. There is no audit HTTP endpoint. Inspect recent entries in the database with:
-
-```sql
-SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 50;
-```
-
--------------------------------------------------------------------------------------------
-Used Resources
----
-Baeldung email varification methods post
-https://www.baeldung.com/java-email-validation-regex
-
-GeekForGeeks Spring boot sending email via SMTP tutorial
-https://www.geeksforgeeks.org/springboot/spring-boot-sending-email-via-smtp/
-
-chatgpt suggested the code cpr.matches("[0-9]{9} in PendingRegistrationService sendCode() method
-
-StackOverFlow for phone number validation
-https://stackoverflow.com/questions/71654287/how-to-validate-phone-number-using-spring-boot
-## Database seeding
-
-See [Sample database reference](SAMPLE-DATABASE.md) for login credentials, current
-record IDs, airplane and flight details, bookings, and step-by-step manual tests.
-
-The optional startup seeder supplies demo data and the fixtures required by the service tests.
-Create an empty PostgreSQL database, configure the datasource in `application.properties`
-or through `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and
-`SPRING_DATASOURCE_PASSWORD`, then run from PowerShell:
-
-```powershell
-$env:APP_SEED_ENABLED = "true"
-.\mvnw.cmd spring-boot:run
-```
-
-Hibernate creates/updates the tables before the seeder runs. After the first successful
-startup, stop the application and use `$env:APP_SEED_ENABLED = "false"` for normal runs.
-Seeding is disabled by default. Use these known credentials only in a local demo/test database.
-
-All seven seeded accounts use password **`TestPassword1`**, encoded by the application's
-BCrypt `PasswordEncoder`. They start active, with zero failed login attempts and linked
-profiles. The security question is “In which city were you born?” with answer `manama`
-(also stored encoded).
-
-| Email | Role | Airline |
-| --- | --- | --- |
-| flighttest.customer@mailsac.com | Customer | — |
-| flighttest.faa@mailsac.com | FAA admin | — |
-| flighttest.airline@mailsac.com | Airline admin | Gulf Air |
-| sara.customer@mailsac.com | Customer | — |
-| omar.customer@mailsac.com | Customer | — |
-| layla.customer@mailsac.com | Customer | — |
-| noor.airline@mailsac.com | Airline admin | Emirates |
-
-An empty database receives two airlines, three airports (BAH, DXB, DOH), five airplanes,
-five future flights, four bookings (three booked, one cancelled), and one pending
-airplane activation request. Flight dates are relative to the initial seed run, starting
-three days ahead. Available-seat counts exclude active bookings.
-
-Test fixtures include booking **900001** (`TEST-BOOKING-900001`, seat `standard-1`),
-pending request **900002** on a separate grounded airplane, and active airplane
-**900003** (`TEST-FREE-PLANE`) with no flights. PostgreSQL identity sequences advance
-past explicit IDs without moving backwards. `Test Created Airline`, `TCA`, and
-`TEST-NEW-PLANE` are left for the tests to create.
-
-Rerunning adds missing records without resetting passwords, bookings, seat counts,
-flight dates, or approvals. Reserved IDs belonging to unrelated records cause startup
-to fail instead of overwriting them. Unique-value conflicts also fail the transaction.
-Seed inserts run in one transaction and send no emails; PostgreSQL sequence advances
-are not rolled back. Use a fresh database to restore the original demonstration or
-test fixtures after modifying them. Restarting does not refresh old flight dates.
-
-To run the existing tests, configure a dedicated test database and seed it first.
-The full service tests require working mail configuration: cancellation, airplane
-addition, and approval tests send real emails to the Mailsac accounts, even though
-their database transactions roll back. Stop the demo server before running them.
-
-```powershell
-$env:APP_SEED_ENABLED = "false"
-.\mvnw.cmd "-Dtest=PasswordServiceTest,AuthenticationTest,BookingServiceTest,FAAAdminServiceTest,AirlineEmployeeServiceTest,FlightServiceTest" test
-```
-
-Aircraft use Airbus A320-200, Airbus A321neo, Boeing 787-9, and Boeing 777-300ER model names. Registrations, seat layouts, flight numbers, and schedules are illustrative sample data, not a representation of current airline fleets or timetables. The required TEST-FREE-PLANE and TEST-BOOKING-900001 identifiers remain for test compatibility.

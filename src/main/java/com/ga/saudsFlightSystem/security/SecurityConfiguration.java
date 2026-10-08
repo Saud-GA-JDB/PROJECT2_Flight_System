@@ -43,6 +43,8 @@ public class SecurityConfiguration {
                         .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ASYNC
                                 && request.getServletPath().equals("/notifications")).permitAll()
                         .requestMatchers( // allow these
+                                "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                                "/swagger-ui.html", "/swagger-ui/**",
                                 "/auth/users/login",
                                 "/auth/users/register/email",
                                 "/auth/users/verification"
