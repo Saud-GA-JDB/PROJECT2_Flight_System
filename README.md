@@ -86,6 +86,8 @@ See [Planning and progress](docs/PLANNING.md) for deliverables, scope, a develop
 
 After starting the application:
 
+These are local development links, not hosted documentation. `localhost` means the computer opening the link, so the backend must be running on that computer at port 8080. If the browser reports a refused connection, start the application using the installation steps below and keep it running. GitHub does not host these pages; another developer must run their own local instance. The YAML endpoint may download a file instead of displaying a page.
+
 - API base URL: `http://localhost:8080`
 - [Swagger UI](http://localhost:8080/swagger-ui/index.html)
 - [OpenAPI JSON](http://localhost:8080/v3/api-docs)

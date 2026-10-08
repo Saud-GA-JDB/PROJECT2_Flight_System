@@ -1,0 +1,1678 @@
+{
+  "info": {
+    "name": "Requirements presentation - Manual IDs and tokens",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run in order on a clean demo dataset. Uses the existing demo identities recorded in DEMO-MANIFEST.json. All inputs and flight dates are literal. Set only IDs and tokens in collection Variables; select No environment to avoid old environment values overriding them. Copy user ID from setup, airline ID from creation, airplane ID from FAA airline listing, request ID from activation, flight ID from search, and booking ID from booking. Flight date is 15 November 2026; change it manually if presenting after that date. Enter the actual emailed verification code in the verification JSON and select a local picture for upload. Open SSE separately while submitting activation. No automatic token/ID capture or date generation."
+  },
+  "item": [
+    {
+      "name": "01 | Reject invalid CPR [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"cpr\": \"123\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"9 digits\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 | Request verification email - then open inbox [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/register/email",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"cpr\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 | Verify email - enter code first [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/verification",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200. Replace sample code 123456 in the JSON body with the actual code received by email.",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"code\": \"123456\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 | Login before setup using CPR [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [200]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 | Reject protected access before setup [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 403.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 | Complete setup and view customer ID [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/setup",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"DemoPassword1\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Customer\",\n  \"phoneNumber\": \"36002002\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 | Login as customer [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [200]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 | Reject unauthenticated search [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 403.",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 | Customer cannot access FAA endpoint [403]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 403.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"not allowed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 | Update own profile and upload picture [200]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200. Select your picture in Body > form-data > image before sending.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"phoneNumber\": \"36002003\",\n  \"phoneNumberOpeningCode\": \"+973\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": false
+            }
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 | Reject customer updating another profile [403]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile?userId=15",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 403.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"phoneNumber\": \"36002003\"\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", () => pm.response.to.have.status(403));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Only FAA admins\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 | Login as faa [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [200]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"flighttest.faa@mailsac.com\",\n  \"password\": \"TestPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 | Create Presentation Airways [200]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "name",
+              "value": "Presentation Airways",
+              "type": "text"
+            },
+            {
+              "key": "airlineCode",
+              "value": "PX",
+              "type": "text"
+            },
+            {
+              "key": "headquartersCountry",
+              "value": "Bahrain",
+              "type": "text"
+            }
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 | Reject duplicate airline [409]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 409.",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "name",
+              "value": "Presentation Airways",
+              "type": "text"
+            },
+            {
+              "key": "airlineCode",
+              "value": "PX",
+              "type": "text"
+            },
+            {
+              "key": "headquartersCountry",
+              "value": "Bahrain",
+              "type": "text"
+            }
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Already Exists\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 | Assign airline administrator [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airlines/{{airlineId}}/addAirlineAdmin",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emailAddress\": \"sauds.presentation.admin@mailsac.com\",\n  \"cpr\": \"980100001\",\n  \"fName\": \"Demo\",\n  \"lName\": \"Admin\",\n  \"phoneNumberOpeningCode\": \"+973\",\n  \"phoneNumber\": \"36002001\",\n  \"hireDate\": \"2026-01-01\",\n  \"salary\": 1500,\n  \"securityQuestion\": \"Birth city?\",\n  \"securityQuestionAnswer\": \"manama\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 | Login as admin [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [200]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.admin@mailsac.com\",\n  \"password\": \"980100001\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 | Reject airplane standardSeatCapacity [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 0,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Failed\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 | Add airplane for approval [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"registrationNumber\": \"A9C-DEMO01\",\n  \"model\": \"Airbus A320-200\",\n  \"standardSeatCapacity\": 10,\n  \"firstClassSeatCapacity\": 2,\n  \"maxMileage\": 6000\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 | FAA lookup - view airplane IDs [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airlines",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 | Open FAA event stream - keep tab open [200]",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": "http://localhost:8080/notifications",
+        "description": "Open in a separate tab and leave connected while sending the next activation request. Expect connected and then airplane-activation-requested. Reconnect after five minutes if necessary.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 | Request activation - approval example [201]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/requestActivation",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 201.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 | List pending requests [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/faaadmin/airplaneRequests",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 | Reject denial without reason [400]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airplaneRequests/{{requestId}}",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"DENIED\",\n  \"reviewReason\": \"\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"reason is required\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "24 | Accept airplane [200]",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/faaadmin/airplaneRequests/{{requestId}}",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"ACCEPTED\",\n  \"reviewReason\": \"Presentation safety checks passed.\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25 | Reject past departure [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"2020-01-01T12:00:00\",\n  \"scheduledArrival\": \"2026-11-15T13:00:00\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"future\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26 | Create main flight - 15 November 2026 [201]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 201.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"2026-11-15T12:00:00\",\n  \"scheduledArrival\": \"2026-11-15T13:00:00\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27 | Reject overlapping schedule [400]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/airlineAdmin/airplanes/{{airplaneId}}/addFlight",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scheduledDeparture\": \"2026-11-15T12:00:00\",\n  \"scheduledArrival\": \"2026-11-15T13:00:00\",\n  \"originAirportIataCode\": \"BAH\",\n  \"arrivalAirportIataCode\": \"DXB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"at least 2 hours\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28 | Search demo airline flights [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?airlineCode=PX&originAirport=BAH&destinationAirport=DXB&seatType=standard&page=1&size=10&sort=scheduledDeparture,asc",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 | Reject page=0 [400]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?page=0",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"at least 1\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "30 | Book standard seat 1 [201]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{flightId}}/standard/1/book",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 201.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "31 | Reject already booked seat [400]",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "http://localhost:8080/customer/{{customerId}}/flights/{{flightId}}/standard/1/book",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"already booked\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "32 | View own bookings [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/bookings",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "33 | Cancel main booking [200]",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "http://localhost:8080/bookings/{{bookingId}}",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "34 | Reject repeated cancellation [400]",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "http://localhost:8080/bookings/{{bookingId}}",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 400.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"only cancel active bookings\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "35 | Search again - cancelled seat is available [200]",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "http://localhost:8080/flights/search?airlineCode=PX&originAirport=BAH&destinationAirport=DXB&seatType=standard&page=1&size=10&sort=scheduledDeparture,asc",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "36 | Reject weak new password [422]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/changePassword",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 422.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"newPassword\": \"weak\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"Invalid Password\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "37 | Change demo password [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/changePassword",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"newPassword\": \"DemoChanged2\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "38 | Login with changed password [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [200]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoChanged2\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": []
+    },
+    {
+      "name": "39 | Reset demo customer password to CPR [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/forgetPassword",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"securityQuestionAnswer\": \" MANAMA \"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "40 | Login after recovery using CPR [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [200]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"980100002\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": []
+    },
+    {
+      "name": "41 | Restore demo password [200]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/changePassword",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"newPassword\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{customerToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "42 | FAA deactivates demo customer - run last [200]",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "url": "http://localhost:8080/auth/users/updateProfile?userId={{customerId}}",
+        "description": "Send manually. Fill IDs and bearer tokens yourself. Expected HTTP 200.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{faaToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "request",
+              "value": "{\n  \"active\": false\n}",
+              "type": "text",
+              "contentType": "application/json"
+            },
+            {
+              "key": "image",
+              "type": "file",
+              "src": [],
+              "disabled": true
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "43 | Reject login for deactivated account [401]",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "http://localhost:8080/auth/users/login",
+        "description": "Use the literal credentials shown. Copy the returned message JWT into the matching token variable manually. [401]",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"sauds.presentation.customer@mailsac.com\",\n  \"password\": \"DemoPassword1\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", () => pm.response.to.have.status(401));",
+              "pm.test(\"Validation reason\", () => pm.expect(pm.response.text()).to.include(\"inactive\"));"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "airlineId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "airplaneId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "faaToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flightId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "requestId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

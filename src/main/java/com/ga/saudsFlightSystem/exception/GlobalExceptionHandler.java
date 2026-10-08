@@ -4,6 +4,7 @@ import com.ga.saudsFlightSystem.model.request.response.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mail.MailException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +29,14 @@ public class GlobalExceptionHandler {
             InvalidInformationException ex, HttpServletRequest request) {
         logger.warning("Request rejected because the supplied information was invalid");
         return build(ex.getMessage(), HttpStatus.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the request body could not be read");
+        return build("Request body is missing or contains invalid JSON or field values.",
+                HttpStatus.BAD_REQUEST, request);
     }
 
     @ExceptionHandler(InformationExistException.class)
