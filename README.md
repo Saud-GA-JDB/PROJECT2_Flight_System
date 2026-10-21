@@ -76,8 +76,6 @@ See [User stories](docs/USER-STORIES.md) for the current customer, airline admin
 
 See the [implemented system ERD](docs/ERD-IMPLEMENTED.md) for the current entities, fields, and relationships based on the JPA models.
 
-The [original ERD below](#erd-diagram) is preserved unchanged as the broader design. It is not fully accurate and includes planned functionality; use the implemented ERD for the current system.
-
 ## Planning
 
 See [Planning and progress](docs/PLANNING.md) for deliverables, scope, a development timeline, and remaining work. This is a retrospective record based on Git history, not a claim that a planning board existed during development.
@@ -515,3 +513,17 @@ string headquartersCountry
     ATC_EMPLOYEE ||--o{ FLIGHT_CONTROL_EVENT : handles
     FLIGHT ||--o{ FLIGHT_CONTROL_EVENT : has
 ```
+## Project 3 - Concurrency:
+- Trello Link: `https://trello.com/b/b63eU4qX/project-3-concurrency`
+
+
+## Planning:
+- Day 1: Planning, adding the new models from the erd to data models. Read more on concurrency API such as Future etc...
+
+
+## Resources
+- https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html
+- https://www.baeldung.com/java-stripe-api
+
+# AI Usage
+- Discussed where I can implement concurrency.
