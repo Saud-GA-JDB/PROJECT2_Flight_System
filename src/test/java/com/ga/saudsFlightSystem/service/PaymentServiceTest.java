@@ -234,6 +234,7 @@ public class PaymentServiceTest {
         TestTransaction.end();
         committedFixtures = true;
 
+        // Simulate two requests calling the service at the same time.
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);

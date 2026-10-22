@@ -163,9 +163,11 @@ There is no webhook listener or automatic background reconciliation. After payin
 
 #### Concurrency and multithreading
 
-Stripe API calls use the application's shared five-thread `ExecutorService` through `submit()`. Each task is a `Callable`, and `Future.get()` waits for its result. Other services can inject the same pool. This uses worker threads but does not make the HTTP response asynchronous.
+Stripe API calls run directly on the request thread. The web server handles multiple requests concurrently, so separate users can run payment workflows at the same time, subject to available threads, database connections, and locks. The shared five-thread `ExecutorService` in `ExecutorConfiguration` remains available for other tasks, but the payment workflow does not use it.
 
 Payment preparation and updates use a pessimistic booking lock. Payments also use optimistic versioning, a unique booking relationship, and Stripe idempotency keys. Stripe network calls run outside the database transactions.
+
+`PaymentServiceTest` keeps its own two-thread executor to simulate simultaneous requests and check duplicate-payment prevention and competing payment updates. These tests verify database concurrency protection, not the removed Stripe task wrapper. They require a configured test database and the fixtures described in `TESTING-NOTES-TEMP.md`. Run them with `./mvnw -Dtest=PaymentServiceTest test` (or `.\mvnw.cmd -Dtest=PaymentServiceTest test` on Windows).
 
 ### Changed existing endpoints
 
