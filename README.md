@@ -99,6 +99,107 @@ In Swagger UI, expand `POST /auth/users/login`, choose **Try it out**, and log i
 
 The specification is generated from controller signatures. Some endpoints return generic response types, so the detailed guide remains useful for exact response shapes and business validation. For the long-running SSE stream, use the authenticated `curl.exe -N` example in the guide.
 
+### Payment endpoints
+
+Payment endpoints require an active account and a bearer JWT unless marked public. Only the booking owner can start checkout or check payment status.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/payments/bookings/{bookingId}/checkout` | Create or reuse a Stripe sandbox Checkout Session |
+| GET | `/payments/bookings/{bookingId}` | Retrieve the session from Stripe, update the stored payment, and return its status |
+| GET | `/payments/success` | Public informational page after checkout |
+| GET | `/payments/cancel` | Public informational page when leaving checkout |
+
+#### Start checkout
+
+`POST /payments/bookings/{bookingId}/checkout`
+
+No request body is required. The backend selects the price from the booking's flight and seat class.
+
+Example response (`200 OK`):
+
+```json
+{
+  "paymentId": 1,
+  "checkoutUrl": "https://checkout.stripe.com/..."
+}
+```
+
+Open `checkoutUrl` in a browser to pay. The URL can be `null` when the session is no longer open or the booking/payment is no longer eligible.
+
+Checkout requires an active booking and flight, configured positive pricing, and departure more than five minutes away. Already-paid or expired payments are rejected.
+
+#### Verify payment
+
+`GET /payments/bookings/{bookingId}`
+
+Example response (`200 OK`):
+
+```json
+{
+  "id": 1,
+  "amount": 15000,
+  "currency": "USD",
+  "status": "PAID"
+}
+```
+
+Statuses are `PENDING`, `PAID`, and `EXPIRED`. Amounts are integers in the currency's smallest unit; `15000` USD means USD 150.00.
+
+This endpoint contacts Stripe before returning the payment status. Visiting `/payments/success` does not confirm payment, and visiting `/payments/cancel` does not cancel the booking or expire the session.
+
+There is no webhook listener or automatic background reconciliation. After paying, call the payment-status endpoint to update the database. If no session ID was saved, the endpoint asks you to retry checkout.
+
+#### Payment errors
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Invalid booking/payment state, missing pricing, or unavailable checkout |
+| 403 | The logged-in user does not own the booking/payment |
+| 404 | Booking or payment not found |
+| 409 | Conflicting checkout, payment requiring verification, or cancellation blocked by payment |
+| 502 | Stripe API request failed |
+| 503 | Stripe connection failure or rate limit |
+
+#### Concurrency and multithreading
+
+Stripe API calls use the application's shared five-thread `ExecutorService` through `submit()`. Each task is a `Callable`, and `Future.get()` waits for its result. Other services can inject the same pool. This uses worker threads but does not make the HTTP response asynchronous.
+
+Payment preparation and updates use a pessimistic booking lock. Payments also use optimistic versioning, a unique booking relationship, and Stripe idempotency keys. Stripe network calls run outside the database transactions.
+
+### Changed existing endpoints
+
+#### Create a flight
+
+`POST /airlineAdmin/airplanes/{airplaneId}/addFlight`
+
+Airline administrators must now supply positive `firstClassPrice` and `standardPrice` values. Currency accepts `BHD` or `USD`; omitting it defaults to `BHD`, while explicit `null` is rejected.
+
+```json
+{
+  "scheduledDeparture": "2027-01-15T10:00:00",
+  "scheduledArrival": "2027-01-15T12:00:00",
+  "originAirportIataCode": "BAH",
+  "arrivalAirportIataCode": "DXB",
+  "firstClassPrice": 30000,
+  "standardPrice": 15000,
+  "currency": "USD"
+}
+```
+
+Use future dates and existing airport codes. Existing or seeded flights without prices cannot be paid for until valid pricing is configured.
+
+#### Cancel a booking
+
+`DELETE /bookings/{bookingId}`
+
+Existing ownership, airline-admin permissions, and cancellation-time rules remain. Cancellation now locks the booking and returns `409 Conflict` when its payment is:
+
+- `PENDING`: checkout must expire and the stored status must be refreshed before cancellation.
+- `PAID`: a refund is required before cancellation; refunds are not implemented.
+
+Bookings without a payment, or with an `EXPIRED` payment, continue through the existing cancellation rules.
+
 ## Installation
 
 ### 1. Prerequisites and clone
@@ -145,6 +246,9 @@ $env:SPRING_MAIL_PORT = "587"
 $env:SPRING_MAIL_USERNAME = "YOUR_SMTP_USERNAME"
 $env:SPRING_MAIL_PASSWORD = "YOUR_SMTP_PASSWORD_OR_APP_PASSWORD"
 $env:JWT_EXPIRATION_MS = "86400000"
+$env:STRIPE_SECRET_KEY = "YOUR_STRIPE_SANDBOX_SECRET_KEY"
+$env:STRIPE_SUCCESS_URL = "http://localhost:8080/payments/success"
+$env:STRIPE_CANCEL_URL = "http://localhost:8080/payments/cancel"
 
 # Generate a Base64-encoded 32-byte signing key for local development.
 $jwtKeyBytes = New-Object byte[] 32
@@ -155,6 +259,8 @@ $env:JWT_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
 ```
 
 Keep the same JWT secret across restarts if existing tokens should remain valid. Gmail SMTP requires an appropriate app password; use your provider's settings if using another SMTP service. The app does not automatically load a `.env` file. When launching through an IDE, configure these variables in its run configuration.
+
+Use a Stripe sandbox secret key beginning with `sk_test_` or `rk_test_`. When launching through an IDE, set these variables in its run configuration. Stripe CLI and `STRIPE_WEBHOOK_SECRET` are not required.
 
 ### 5. Seed the database and start
 

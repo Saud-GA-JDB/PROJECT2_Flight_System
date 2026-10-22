@@ -81,7 +81,10 @@ public class AirlineEmployeeServiceTest {
         LocalDateTime arrival = departure.plusHours(2);
         AddFlightRequest request = jsonMapper.readValue(
                 "{\"originAirportIataCode\":\"BAH\",\"arrivalAirportIataCode\":\"DXB\","
-                        + "\"scheduledDeparture\":\"" + departure + "\",\"scheduledArrival\":\"" + arrival + "\"}",
+                        + "\"scheduledDeparture\":\"" + departure + "\","
+                        + "\"scheduledArrival\":\"" + arrival + "\","
+                        + "\"firstClassPrice\":30000,\"standardPrice\":15000,"
+                        + "\"currency\":\"USD\"}",
                 AddFlightRequest.class);
         long flightCount = flightRepository.count();
 
