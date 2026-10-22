@@ -524,6 +524,10 @@ string headquartersCountry
 ## Resources
 - https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html
 - https://www.baeldung.com/java-stripe-api
+- https://github.com/stripe/stripe-java
+- https://docs.stripe.com/api?lang=java
 
 # AI Usage
 - Discussed where I can implement concurrency.
+- StripeCheckoutService is fully AI generated
+- Stripe Exception handling in the global exception handler

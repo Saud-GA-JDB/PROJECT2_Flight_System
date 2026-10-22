@@ -1,6 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.saudsFlightSystem.exception.InformationExistException;
+import com.ga.saudsFlightSystem.repository.PaymentRepository;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
@@ -30,6 +32,7 @@ public class BookingService {
     private AirlineRepository airlineRepository;
     private EmailService emailService;
     private AuditLogService auditLogService;
+    private PaymentRepository paymentRepository;
 
     private static final Logger logger = Logger.getLogger(BookingService.class.getName());
 
@@ -65,7 +68,7 @@ public class BookingService {
     @Transactional
     public ResponseEntity<?> cancelBooking(Long bookingId) {
         User user = UserService.getCurrentLoggedInUser();
-        Booking booking = bookingRepository.findById(bookingId).orElseThrow( () -> {
+        Booking booking = bookingRepository.findByIdForPayment(bookingId).orElseThrow( () -> {
             throw new InvalidInformationException("No Booking with that id found");
         });
         if (user.getRole() == User.Role.AIRLINE_EMPLOYEE &&
@@ -81,6 +84,16 @@ public class BookingService {
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
             throw new InvalidInformationException("booking is already done. you can only cancel active bookings");
 
+
+        Payment payment = paymentRepository.findByBooking_Id(bookingId).orElse(null);
+
+        if (payment != null && payment.getStatus() == Payment.PaymentStatus.PENDING)
+            throw new InformationExistException(
+                    "Payment is pending. Checkout must expire before cancelling");
+
+        if (payment != null && payment.getStatus() == Payment.PaymentStatus.PAID)
+            throw new InformationExistException(
+                    "This booking is paid and requires a refund before cancellation");
 
         // the 48 hour cancellation limit only applies when the user is not an airline admin
         if (isAirlineAdmin) {

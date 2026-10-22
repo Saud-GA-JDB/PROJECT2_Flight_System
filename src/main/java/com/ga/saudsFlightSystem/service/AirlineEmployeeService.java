@@ -156,7 +156,17 @@ public class AirlineEmployeeService {
             throw new InvalidInformationException("Origin and Arrival Airports can't be the same");
 
 
+        if (request.getFirstClassPrice() == null || request.getFirstClassPrice() <= 0 ||
+                request.getStandardPrice() == null || request.getStandardPrice() <= 0)
+            throw new InvalidInformationException("Please enter positive prices for both seat classes");
+
+        if (request.getCurrency() == null)
+            throw new InvalidInformationException("Please choose a currency");
+
         Flight flight = new Flight();
+        flight.setFirstClassPrice(request.getFirstClassPrice());
+        flight.setStandardPrice(request.getStandardPrice());
+        flight.setCurrency(request.getCurrency());
         flight.setAirline(user.getAirlineEmployee().getAirline());
         flight.setStatus(ACTIVE);
         Airplane airplane = airplaneRepository.findById(airplaneId).orElseThrow(()-> new InformationNotFoundException("couldn't find airplane with this id"));

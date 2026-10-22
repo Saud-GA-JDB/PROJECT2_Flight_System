@@ -1,6 +1,9 @@
 package com.ga.saudsFlightSystem.exception;
 
 import com.ga.saudsFlightSystem.model.request.response.ErrorResponse;
+import com.stripe.exception.ApiConnectionException;
+import com.stripe.exception.RateLimitException;
+import com.stripe.exception.StripeException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -76,6 +79,33 @@ public class GlobalExceptionHandler {
         return build(
                 "Could not send the email.",
                 HttpStatus.INTERNAL_SERVER_ERROR,
+                request
+        );
+    }
+
+    @ExceptionHandler(StripeException.class)
+    public ResponseEntity<ErrorResponse> handleStripe(
+            StripeException ex, HttpServletRequest request) {
+        logger.warning("Stripe request failed. Exception type: "
+                + ex.getClass().getSimpleName());
+
+        if ("idempotency_key_in_use".equals(ex.getCode()))
+            return build(
+                    "Checkout is already being prepared. Please retry shortly.",
+                    HttpStatus.CONFLICT,
+                    request
+            );
+
+        if (ex instanceof ApiConnectionException || ex instanceof RateLimitException)
+            return build(
+                    "The payment provider is temporarily unavailable. Please retry shortly.",
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    request
+            );
+
+        return build(
+                "Could not complete the checkout request.",
+                HttpStatus.BAD_GATEWAY,
                 request
         );
     }

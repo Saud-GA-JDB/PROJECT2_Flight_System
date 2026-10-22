@@ -40,6 +40,16 @@ public class Flight {
     @Enumerated(EnumType.STRING)
     private FlightStatus status;
 
+    @Column
+    private Long firstClassPrice;
+
+    @Column
+    private Long standardPrice;
+
+    @Column(length = 3)
+    @Enumerated(EnumType.STRING)
+    private Currency currency = Currency.BHD;
+
     @ManyToOne
     @JoinColumn(name = "airline_id")
     @JsonIgnore
