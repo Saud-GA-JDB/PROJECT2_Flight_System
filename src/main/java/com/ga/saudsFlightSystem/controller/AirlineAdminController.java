@@ -1,9 +1,11 @@
 package com.ga.saudsFlightSystem.controller;
 
+import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.AddAirplaneRequest;
 import com.ga.saudsFlightSystem.service.AirlineEmployeeService;
 import com.ga.saudsFlightSystem.service.AirplaneService;
+import com.ga.saudsFlightSystem.service.CrewAssignmentService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class AirlineAdminController {
     AirlineEmployeeService airlineEmployeeService;
     AirplaneService airplaneService;
+    CrewAssignmentService crewAssignmentService;
 
     @PostMapping("/airplanes") // Adds the airplane; activation requires FAA approval.
     public ResponseEntity<?> addAirplane(@RequestBody AddAirplaneRequest request) {
@@ -28,5 +31,10 @@ public class AirlineAdminController {
     @PostMapping("airplanes/{airplaneId}/addFlight")
     public ResponseEntity<?> addFlight(@PathVariable(name = "airplaneId") Long id, @RequestBody AddFlightRequest request) {
         return airlineEmployeeService.addFlight(id, request); //TODO: SHOULDN'T it be in flight service?
+    }
+
+    @PostMapping("flights/{flightId}/addCrewAssignment")
+    public ResponseEntity<?> addCrewAssignment(@PathVariable(name = "flightId") Long flightId, @RequestBody AddCrewAssignmentRequest request) {
+        return crewAssignmentService.addCrewAssignment(flightId, request);
     }
 }
