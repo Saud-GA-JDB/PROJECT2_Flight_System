@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 @Service
 @AllArgsConstructor
@@ -27,12 +28,17 @@ public class CrewAssignmentService {
     private CrewAssignmentRepository crewAssignmentRepository;
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private FlightRepository flightRepository;
+    private AuditLogService auditLogService;
+
+    private static final Logger logger = Logger.getLogger(CrewAssignmentService.class.getName());
 
     public void checkAvailability(AirlineEmployee employee, LocalDateTime scheduledDeparture, LocalDateTime scheduledArrival) {
         boolean hasOverlappingAssignment = crewAssignmentRepository.hasOverlappingAssignment(employee.getId(), scheduledDeparture, scheduledArrival, Flight.FlightStatus.CANCELLED);
 
-        if (hasOverlappingAssignment)
+        if (hasOverlappingAssignment) {
+            logger.warning("Crew assignment rejected for employee with id " + employee.getId() + " because flight times overlap");
             throw new InvalidInformationException("Assignment Time Conflict. This employee is assigned to another flight that overlap with this one.");
+        }
     }
 
     @Transactional
@@ -84,6 +90,10 @@ public class CrewAssignmentService {
 
         crewAssignmentRepository.save(assignment);
 
+        String description = "Airline admin assigned employee with id " + employee.getId() + " to flight with id " + flightId + " with duty " + assignment.getDuty();
+        auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_CREATED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
+
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new CrewAssignmentResponse(assignment.getId(), flight.getId(), employee.getId(), assignment.getDuty(), assignment.getAssignedAt())
         );
@@ -117,6 +127,10 @@ public class CrewAssignmentService {
             );
         }
 
+        String description = "Airline admin viewed " + assignmentsResponseList.size() + " crew assignments for flight with id " + flightId;
+        auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENTS_VIEWED, AuditLog.EntityType.FLIGHT, flightId, description);
+        logger.info(description + " (user id: " + user.getId() + ")");
+
         return ResponseEntity.status(HttpStatus.OK).body(assignmentsResponseList);
     }
 
@@ -148,6 +162,10 @@ public class CrewAssignmentService {
                 .orElseThrow(() -> new InformationNotFoundException("This employee is not assigned to this flight."));
 
         crewAssignmentRepository.delete(assignment);
+
+        String description = "Airline admin removed employee with id " + employeeId + " from flight with id " + flightId + " with duty " + assignment.getDuty();
+        auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_REMOVED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.noContent().build();
     }

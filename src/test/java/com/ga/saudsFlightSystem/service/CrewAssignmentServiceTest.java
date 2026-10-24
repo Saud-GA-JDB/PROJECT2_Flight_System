@@ -36,6 +36,8 @@ public class CrewAssignmentServiceTest {
     @Autowired
     CrewAssignmentRepository crewAssignmentRepository;
     @Autowired
+    AuditLogRepository auditLogRepository;
+    @Autowired
     AirlineEmployeeRepository airlineEmployeeRepository;
     @Autowired
     FlightRepository flightRepository;
@@ -96,6 +98,8 @@ public class CrewAssignmentServiceTest {
         Assert.assertNotNull(assignment);
         Assert.assertEquals(pilot.getId(), assignment.getEmployeeId());
         Assert.assertTrue(crewAssignmentRepository.existsById(assignment.getId()));
+        assertAuditLogged(AuditLog.Action.CREW_ASSIGNMENT_CREATED,
+                AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId());
 
         ResponseEntity<?> listed = crewAssignmentService.getCrewAssignments(flight.getId());
         List<?> assignments = (List<?>) listed.getBody();
@@ -106,12 +110,29 @@ public class CrewAssignmentServiceTest {
         getCrewAssignmentsResponse crew = (getCrewAssignmentsResponse) assignments.get(0);
         Assert.assertEquals(pilot.getId(), crew.getEmployeeId());
         Assert.assertEquals(Duty.PILOT, crew.getDuty());
+        assertAuditLogged(AuditLog.Action.CREW_ASSIGNMENTS_VIEWED,
+                AuditLog.EntityType.FLIGHT, flight.getId());
 
         ResponseEntity<?> removed = crewAssignmentService.removeCrewAssignment(
                 flight.getId(), pilot.getId());
 
         Assert.assertEquals(HttpStatus.NO_CONTENT, removed.getStatusCode());
         Assert.assertFalse(crewAssignmentRepository.existsById(assignment.getId()));
+        assertAuditLogged(AuditLog.Action.CREW_ASSIGNMENT_REMOVED,
+                AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId());
+    }
+
+    private void assertAuditLogged(AuditLog.Action action, AuditLog.EntityType entityType, Long entityId) {
+        List<AuditLog> logs = auditLogRepository.findAll().stream()
+                .filter(log -> log.getAction() == action && log.getEntityType() == entityType
+                        && log.getEntityId().equals(entityId))
+                .toList();
+
+        Assert.assertEquals(1, logs.size());
+        Assert.assertEquals(UserService.getCurrentLoggedInUser().getId(), logs.get(0).getUserId());
+        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE, logs.get(0).getUserRole());
+        Assert.assertNotNull(logs.get(0).getCreatedAt());
+        Assert.assertFalse(logs.get(0).getDescription().isBlank());
     }
 
     @Test(expected = InvalidInformationException.class)

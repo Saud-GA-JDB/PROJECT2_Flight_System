@@ -1,0 +1,23 @@
+-- Run once on existing databases before using crew assignment auditing.
+-- Hibernate ddl-auto=update does not update these existing enum checks.
+BEGIN;
+
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_action_check;
+ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_action_check CHECK (action IN (
+    'BOOKING_CREATED', 'BOOKING_CANCELLED',
+    'USER_REGISTERED', 'USER_SETUP_COMPLETED',
+    'PROFILE_UPDATED', 'USER_DEACTIVATED',
+    'PASSWORD_CHANGED', 'PASSWORD_RESET',
+    'AIRLINE_CREATED', 'AIRLINE_ADMIN_CREATED',
+    'AIRPLANE_CREATED', 'AIRPLANE_ACTIVATION_REQUESTED',
+    'AIRPLANE_ACTIVATION_ACCEPTED', 'AIRPLANE_ACTIVATION_DENIED',
+    'FLIGHT_CREATED', 'FLIGHT_STATUS_CHANGED',
+    'CREW_ASSIGNMENT_CREATED', 'CREW_ASSIGNMENTS_VIEWED', 'CREW_ASSIGNMENT_REMOVED'
+));
+
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_entity_type_check;
+ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_entity_type_check CHECK (entity_type IN (
+    'BOOKING', 'USER', 'AIRLINE', 'AIRPLANE', 'AIRPLANE_REQUEST', 'FLIGHT', 'CREW_ASSIGNMENT'
+));
+
+COMMIT;
