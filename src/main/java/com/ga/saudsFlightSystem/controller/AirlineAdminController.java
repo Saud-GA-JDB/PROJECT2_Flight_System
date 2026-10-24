@@ -37,4 +37,9 @@ public class AirlineAdminController {
     public ResponseEntity<?> addCrewAssignment(@PathVariable(name = "flightId") Long flightId, @RequestBody AddCrewAssignmentRequest request) {
         return crewAssignmentService.addCrewAssignment(flightId, request);
     }
+
+    @GetMapping("flights/{flightId}/crewAssignments")
+    public ResponseEntity<?> getCrewAssignments(@PathVariable(name = "flightId") Long flightId) {
+        return crewAssignmentService.getCrewAssignments(flightId);
+    }
 }

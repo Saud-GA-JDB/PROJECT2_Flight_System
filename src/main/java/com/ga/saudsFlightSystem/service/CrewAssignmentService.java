@@ -5,6 +5,8 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
+import com.ga.saudsFlightSystem.model.request.response.CrewAssignmentResponse;
+import com.ga.saudsFlightSystem.model.request.response.getCrewAssignmentsResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -15,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -45,7 +49,7 @@ public class CrewAssignmentService {
         if (request.getEmployeeId() == null || request.getDuty() == null)
             throw new InvalidInformationException("Please fill in all the fields.");
 
-        Flight flight = flightRepository.findById(flightId)
+        Flight flight = flightRepository.findByIdForCrewWrite(flightId)
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find a flight with this ID."));
 
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
@@ -80,6 +84,71 @@ public class CrewAssignmentService {
 
         crewAssignmentRepository.save(assignment);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(assignment);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new CrewAssignmentResponse(assignment.getId(), flight.getId(), employee.getId(), assignment.getDuty(), assignment.getAssignedAt())
+        );
+    }
+
+    @Transactional
+    public ResponseEntity<?> getCrewAssignments(Long flightId) {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
+
+        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        Flight flight = flightRepository.findByIdForCrewRead(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find flight with this id."));
+
+        if (!Objects.equals(airlineAdmin.getAirline().getId(), flight.getAirline().getId()))
+            throw new InvalidInformationException("You arent allowed to view other airlines assignments!");
+
+        List<getCrewAssignmentsResponse> assignmentsResponseList = new ArrayList<>();
+
+        List<CrewAssignment> crewAssignmentList = crewAssignmentRepository.findByFlightId(flightId);
+
+        for (CrewAssignment assignment: crewAssignmentList) {
+            assignmentsResponseList.add(
+                    new getCrewAssignmentsResponse(assignment.getAirlineEmployee().getId(), assignment.getDuty(), assignment.getAssignedAt())
+            );
+        }
+
+        return ResponseEntity.status(HttpStatus.OK).body(assignmentsResponseList);
+    }
+
+    @Transactional
+    public ResponseEntity<?> removeCrewAssignment(Long flightId, Long employeeId) {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
+        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        Flight flight = flightRepository.findByIdForCrewWrite(flightId)
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find flight with this id."));
+
+        if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
+            throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
+
+        if (flight.getStatus() != Flight.FlightStatus.ACTIVE || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
+            throw new InvalidInformationException("Crew can only be removed from active flights.");
+
+        airlineEmployeeRepository.findByIdForAssignment(employeeId)
+                .orElseThrow(() -> new InformationNotFoundException(
+                        "Couldn't find employee with this id."));
+
+        CrewAssignment assignment = crewAssignmentRepository.findByFlightIdAndAirlineEmployeeId(flightId, employeeId)
+                .orElseThrow(() -> new InformationNotFoundException("This employee is not assigned to this flight."));
+
+        crewAssignmentRepository.delete(assignment);
+
+        return ResponseEntity.noContent().build();
     }
 }

@@ -1,15 +1,26 @@
 package com.ga.saudsFlightSystem.repository;
 
 import com.ga.saudsFlightSystem.model.Flight;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface FlightRepository extends JpaRepository<Flight, Long> {
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("SELECT f FROM Flight f WHERE f.id = :flightId")
+    Optional<Flight> findByIdForCrewRead(@Param("flightId") Long flightId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT f FROM Flight f WHERE f.id = :flightId")
+    Optional<Flight> findByIdForCrewWrite(@Param("flightId") Long flightId);
+
     List<Flight> findByStatus(Flight.FlightStatus status);
 
     @Query(value = """

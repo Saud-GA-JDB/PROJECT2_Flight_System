@@ -32,4 +32,6 @@ public interface CrewAssignmentRepository extends JpaRepository<CrewAssignment, 
             @Param("excludedStatus") Flight.FlightStatus excludedStatus
     );
 
+    Optional<CrewAssignment> findByFlightIdAndAirlineEmployeeId(Long flightId, Long employeeId);
+
 }
