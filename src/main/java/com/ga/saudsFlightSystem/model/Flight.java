@@ -73,6 +73,6 @@ public class Flight {
     @OneToMany(mappedBy = "flight", fetch = FetchType.LAZY)
     private List<Booking> bookingsList;
 
-    public enum FlightStatus{ACTIVE, IN_AIR, CLOSED, CANCELLED}
+    public enum FlightStatus{PENDING_CREW, ACTIVE, IN_AIR, CLOSED, CANCELLED}
 
 }

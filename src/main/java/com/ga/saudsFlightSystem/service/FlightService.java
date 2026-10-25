@@ -1,12 +1,14 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.model.Flight;
-import com.ga.saudsFlightSystem.model.AuditLog;
+import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
+import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.request.response.FlightResponse;
 import com.ga.saudsFlightSystem.model.request.response.FlightSearchResponse;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import lombok.AllArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.logging.Logger;
 
 @Service
@@ -22,6 +25,7 @@ import java.util.logging.Logger;
 public class FlightService {
     private FlightRepository flightRepository;
     private AuditLogService auditLogService;
+    private CrewAssignmentService crewAssignmentService;
 
     private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
@@ -110,6 +114,42 @@ public class FlightService {
         if (totalElements % pageSize != 0)
             totalPages++;
         return new FlightSearchResponse(content, pageNumber, pageSize, totalElements, totalPages);
+    }
+
+    @Transactional // TODO: i should also lock it
+    public ResponseEntity<?> activateFlight(Long flightId) {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
+        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        Flight flight = flightRepository.findByIdForCrewWrite(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find a flight with this ID."));
+
+        if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
+            throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
+
+        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
+            throw new InvalidInformationException("Activating flights cam only be done to future pending crew flights.");
+
+        if (!crewAssignmentService.hasRequiredCrew(flightId))
+            throw new InvalidInformationException("Make sure the flight has all the required crew assignments.");
+
+        flight.setStatus(Flight.FlightStatus.ACTIVE);
+        flightRepository.save(flight);
+
+        String description = "Airline admin activated flight with id " + flightId;
+        auditLogService.addAuditLog(user,
+                AuditLog.Action.FLIGHT_STATUS_CHANGED,
+                AuditLog.EntityType.FLIGHT,
+                flightId, description);
+        logger.info(description + " (user id: " + user.getId() + ")");
+
+        return ResponseEntity.ok("Flight activated successfully.");
     }
 
     /**

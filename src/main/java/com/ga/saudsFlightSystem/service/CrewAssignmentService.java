@@ -65,8 +65,9 @@ public class CrewAssignmentService {
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
             throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
 
-        if (flight.getStatus() != Flight.FlightStatus.ACTIVE || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
-            throw new InvalidInformationException("Crew assignments can only be done to open flights.");
+        if (!(flight.getStatus() == Flight.FlightStatus.ACTIVE || flight.getStatus() == Flight.FlightStatus.PENDING_CREW) ||
+                !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
+            throw new InvalidInformationException("Crew assignments can only be done to pending or active flights.");
 
         AirlineEmployee employee = airlineEmployeeRepository.findByIdForAssignment(request.getEmployeeId())
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find employee with this id."));
@@ -164,23 +165,44 @@ public class CrewAssignmentService {
 
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
             throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
+        // TODO: should make so that if the flight is active first check that we have sufficient other crew assignment, else allow it
+        if (!(flight.getStatus() == Flight.FlightStatus.ACTIVE ||  flight.getStatus() == Flight.FlightStatus.PENDING_CREW) || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
+            throw new InvalidInformationException("Crew can only be removed from active or pending crew flights.");
 
-        if (flight.getStatus() != Flight.FlightStatus.ACTIVE || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
-            throw new InvalidInformationException("Crew can only be removed from active flights.");
+
 
         airlineEmployeeRepository.findByIdForAssignment(employeeId)
-                .orElseThrow(() -> new InformationNotFoundException(
-                        "Couldn't find employee with this id."));
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find employee with this id."));
 
         CrewAssignment assignment = crewAssignmentRepository.findByFlightIdAndAirlineEmployeeId(flightId, employeeId)
-                .orElseThrow(() -> new InformationNotFoundException("This employee is not assigned to this flight."));
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find employee with this id associated with this flight!"));
 
-        crewAssignmentRepository.delete(assignment);
+        if (flight.getStatus() == Flight.FlightStatus.ACTIVE) {
+            crewAssignmentRepository.delete(assignment);
+            List<CrewAssignment> list = crewAssignmentRepository.findByFlightId(flightId);
+            if (!hasRequiredCrew(list))
+                throw new InvalidInformationException("You can't remove this employee from the flight. please add an alternative employee before attempting to remove again.");
+        } else {
+            crewAssignmentRepository.delete(assignment);
+        }
 
         String description = "Airline admin removed employee with id " + employeeId + " from flight with id " + flightId + " with duty " + assignment.getDuty();
         auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_REMOVED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.noContent().build();
+    }
+
+    // helper methods
+    protected boolean hasRequiredCrew(List<CrewAssignment> assignments) {
+        boolean hasPilot = assignments.stream().anyMatch(a -> a.getDuty() == Duty.PILOT);
+        boolean hasCopilot = assignments.stream().anyMatch(a -> a.getDuty() == Duty.SECONDARY_PILOT);
+        boolean hasAttendant = assignments.stream().anyMatch(a -> a.getDuty() == Duty.FLIGHT_ATTENDANT);
+
+        return hasPilot && hasCopilot && hasAttendant;
+    }
+
+    public boolean hasRequiredCrew(Long flightId) {
+        return hasRequiredCrew(crewAssignmentRepository.findByFlightId(flightId));
     }
 }

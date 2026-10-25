@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.logging.Logger;
 
 import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.ACTIVE;
+import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.PENDING_CREW;
 
 @Service
 @AllArgsConstructor
@@ -168,7 +169,7 @@ public class AirlineEmployeeService {
         flight.setStandardPrice(request.getStandardPrice());
         flight.setCurrency(request.getCurrency());
         flight.setAirline(user.getAirlineEmployee().getAirline());
-        flight.setStatus(ACTIVE);
+        flight.setStatus(PENDING_CREW);
         Airplane airplane = airplaneRepository.findById(airplaneId).orElseThrow(()-> new InformationNotFoundException("couldn't find airplane with this id"));
         flight.setAirplane(airplane);
         flight.setFirstClassSeatsCount(airplane.getFirstClassSeatsCapacity());
