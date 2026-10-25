@@ -10,8 +10,10 @@ import com.ga.saudsFlightSystem.model.request.response.getCrewAssignmentsRespons
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
+import com.ga.saudsFlightSystem.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,8 @@ public class CrewAssignmentService {
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private FlightRepository flightRepository;
     private AuditLogService auditLogService;
+    private UserRepository userRepository;
+    private ApplicationEventPublisher eventPublisher;
 
     private static final Logger logger = Logger.getLogger(CrewAssignmentService.class.getName());
 
@@ -89,6 +93,16 @@ public class CrewAssignmentService {
         assignment.setDuty(request.getDuty());
 
         crewAssignmentRepository.save(assignment);
+
+        User employeeUser = userRepository.findByAirlineEmployeeId(employee.getId());
+        if (employeeUser != null) {
+            eventPublisher.publishEvent(new Email(
+                    employeeUser.getEmailAddress(),
+                    "New Crew Assignment",
+                    "You have been assigned to flight " + flight.getFlightNumber()
+                            + " with duty " + assignment.getDuty()));
+        }
+
 
         String description = "Airline admin assigned employee with id " + employee.getId() + " to flight with id " + flightId + " with duty " + assignment.getDuty();
         auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_CREATED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);

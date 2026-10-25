@@ -15,6 +15,7 @@ import java.time.LocalDate;
 public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailAddress(String emailAddress);
     User findUserByEmailAddress(String emailAddress);
+    User findByAirlineEmployeeId(Long employeeId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.emailAddress = :email")
