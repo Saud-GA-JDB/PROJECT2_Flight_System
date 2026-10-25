@@ -12,6 +12,7 @@ The purpose is to connect three main users: customers who search and book flight
 - Seat booking and cancellation, seat availability updates, and email confirmations.
 - Airline and airline administrator creation, airplane registration, and FAA activation approval or rejection.
 - Flight scheduling with airplane availability checks and scheduled flight-status updates.
+- Crew assignment creation, listing, and removal, with duty validation, scheduling conflict checks, database locks, and audit logging.
 - Server-Sent Events (SSE) notifying connected FAA administrators about airplane activation requests.
 - Database audit records, centralized error handling, demo data seeding, and Postman collections.
 - Interactive Swagger UI and a generated OpenAPI specification.
@@ -169,6 +170,73 @@ Payment preparation and updates use a pessimistic booking lock. Payments also us
 
 `PaymentServiceTest` keeps its own two-thread executor to simulate simultaneous requests and check duplicate-payment prevention and competing payment updates. These tests verify database concurrency protection, not the removed Stripe task wrapper. They require a configured test database and the fixtures described in `TESTING-NOTES-TEMP.md`. Run them with `./mvnw -Dtest=PaymentServiceTest test` (or `.\mvnw.cmd -Dtest=PaymentServiceTest test` on Windows).
 
+### Crew assignment endpoints
+
+These endpoints require an active account and a bearer JWT belonging to an airline employee with the `ADMIN` airline role. The flight must belong to that admin's airline.
+
+| Method | Endpoint | Result |
+| --- | --- | --- |
+| POST | `/airlineAdmin/flights/{flightId}/addCrewAssignment` | Assign an employee to a flight; returns `201 Created` |
+| GET | `/airlineAdmin/flights/{flightId}/crewAssignments` | List the flight's crew; returns `200 OK` |
+| DELETE | `/airlineAdmin/flights/{flightId}/crewAssignments/{employeeId}` | Remove an employee from the flight; returns `204 No Content` |
+
+#### Assign crew
+
+`POST /airlineAdmin/flights/1/addCrewAssignment`
+
+```json
+{
+  "employeeId": 2,
+  "duty": "PILOT"
+}
+```
+
+Use existing flight and employee IDs. Both request fields are required. The employee must belong to the admin's airline, and the flight must be `ACTIVE` with a future scheduled departure.
+
+Allowed duties are `PILOT`, `SECONDARY_PILOT`, and `FLIGHT_ATTENDANT`. Both pilot duties require an employee whose airline role is `PILOT`; attendant duty requires `FLIGHT_ATTENDANT`.
+
+Duplicate assignments and overlapping scheduled flights are rejected. Cancelled flights do not count as conflicts. Back-to-back flights are allowed; no gap between flights is enforced.
+
+Example response:
+
+```json
+{
+  "id": 1,
+  "flightId": 1,
+  "employeeId": 2,
+  "duty": "PILOT",
+  "assignedAt": "2026-10-24T12:00:00"
+}
+```
+
+#### List crew
+
+`GET /airlineAdmin/flights/1/crewAssignments`
+
+```json
+[
+  {
+    "employeeId": 2,
+    "duty": "PILOT",
+    "assignedAt": "2026-10-24T12:00:00"
+  }
+]
+```
+
+A flight with no assignments returns `[]`. Listing does not require the flight to be upcoming or active.
+
+#### Remove crew
+
+`DELETE /airlineAdmin/flights/1/crewAssignments/2`
+
+Removes employee `2` from flight `1`. No request body is required. The flight must belong to the admin's airline, be `ACTIVE`, and have a future scheduled departure. A missing assignment returns `404 Not Found`; success returns `204 No Content` with an empty response body.
+
+Validation failures, including airline ownership mismatches and scheduling conflicts, return `400 Bad Request`. An authenticated user without the required admin role receives `403 Forbidden`; missing flights or employees return `404 Not Found`.
+
+Crew listing takes a shared flight read lock; assignment creation and removal take a flight write lock followed by an employee write lock. Transactions hold these locks until completion, allowing concurrent crew readers while making conflicting reads and writes wait. Successful creation, listing, and removal produce Logger messages and database audit records.
+
+There is no assignment-update endpoint. Remove an assignment and add it again to change its duty.
+
 ### Changed existing endpoints
 
 #### Create a flight
@@ -223,7 +291,7 @@ Start PostgreSQL and connect through pgAdmin or `psql` using an account allowed 
 CREATE DATABASE aviation;
 ```
 
-The application database user must be able to create and update tables in this database. Hibernate uses `ddl-auto=update` to create/update the schema on startup; there are no migration scripts to run.
+The application database user must be able to create and update tables in this database. Hibernate uses `ddl-auto=update` to create/update the schema on startup. Existing databases created before crew auditing need [the crew audit constraint update](docs/sql/crew-assignment-audit.sql) applied once; Hibernate does not update those existing enum check constraints automatically.
 
 ### 3. Configure the application
 
@@ -311,7 +379,7 @@ Existing service tests depend on seeded PostgreSQL fixtures, and some send real 
 
 ## Unsolved problems and current limitations
 
-- The full aviation workflow is unfinished. Airport operations, crew assignments, ground services, maintenance, and air traffic control remain outside the implemented scope.
+- The full aviation workflow is unfinished. Airport operations, ground services, maintenance, and air traffic control remain outside the implemented scope. Crew assignment creation, listing, and removal endpoints are implemented.
 - The original ERD still needs a manual accuracy update; the separate implemented ERD documents the current models.
 - SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
 - Flight times use local date-times without offsets, and time-based checks use server-local time. Full airport time-zone handling remains future work.
@@ -328,7 +396,7 @@ Existing service tests depend on seeded PostgreSQL fixtures, and some send real 
 
 ## Future improvements
 
-The main priority is completing the wider workflow in the ERD: airport operators and employees, crew and ground-service assignments, maintenance providers and records, and air traffic control facilities and flight events. These would connect booking and scheduling to the operational side of a flight.
+The main priority is completing the wider workflow in the ERD: airport operators and employees, ground-service assignments, maintenance providers and records, and air traffic control facilities and flight events. Crew assignment creation, listing, and removal are now available; defining crew coverage requirements remains future work. These features connect booking and scheduling to the operational side of a flight.
 
 Further improvements include a frontend, reliable notification storage and delivery, consistent response DTOs and validation, a reset-token password recovery flow, time-zone-aware scheduling, schema migrations, and tests that run independently of manually seeded data and external email services.
 

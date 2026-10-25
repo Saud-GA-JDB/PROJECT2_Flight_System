@@ -42,4 +42,9 @@ public class AirlineAdminController {
     public ResponseEntity<?> getCrewAssignments(@PathVariable(name = "flightId") Long flightId) {
         return crewAssignmentService.getCrewAssignments(flightId);
     }
+
+    @DeleteMapping("flights/{flightId}/crewAssignments/{employeeId}")
+    public ResponseEntity<?> removeCrewAssignment(@PathVariable(name = "flightId") Long flightId, @PathVariable(name = "employeeId") Long employeeId) {
+        return crewAssignmentService.removeCrewAssignment(flightId, employeeId);
+    }
 }
