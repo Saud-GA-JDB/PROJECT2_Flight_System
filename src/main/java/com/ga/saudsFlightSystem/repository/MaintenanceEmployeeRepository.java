@@ -12,6 +12,7 @@ import java.util.Optional;
 
 public interface MaintenanceEmployeeRepository extends JpaRepository<MaintenanceEmployee, Long> {
     List<MaintenanceEmployee> findByProviderId(Long providerId);
+    boolean existsByCpr(String cpr);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM MaintenanceEmployee e WHERE e.id = :employeeId")

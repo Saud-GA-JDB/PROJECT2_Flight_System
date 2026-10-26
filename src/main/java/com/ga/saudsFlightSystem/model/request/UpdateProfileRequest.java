@@ -8,8 +8,6 @@ public class UpdateProfileRequest {
     private String phoneNumberOpeningCode;
     private String securityQuestion;
     private String securityQuestionAnswer;
-
-    // only FAA admin
     private String fName;
     private String lName;
     private String cpr;

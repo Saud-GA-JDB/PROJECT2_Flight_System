@@ -8,11 +8,7 @@ import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.Customer;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.RegistrationResponse;
-import com.ga.saudsFlightSystem.repository.PendingRegistrationRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
-import com.ga.saudsFlightSystem.repository.CustomerRepository;
-import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
-import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
+import com.ga.saudsFlightSystem.repository.*;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -33,6 +29,7 @@ public class PendingRegistrationService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final MaintenanceEmployeeRepository maintenanceEmployeeRepository;
 
     private static final Logger logger = Logger.getLogger(PendingRegistrationService.class.getName());
 
@@ -45,7 +42,8 @@ public class PendingRegistrationService {
         }
         if (customerRepository.existsByCpr(cpr)
                 || airlineEmployeeRepository.existsByCpr(cpr)
-                || faaAdminRepository.existsByCpr(cpr)) {
+                || faaAdminRepository.existsByCpr(cpr)
+                || maintenanceEmployeeRepository.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
         if (userRepository.existsByEmailAddress(email)) {
