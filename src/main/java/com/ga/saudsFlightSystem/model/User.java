@@ -34,6 +34,7 @@ public class User {
         private String securityQuestionAnswer;
 
     @Column
+    @Enumerated(EnumType.STRING)
     private Role role;
 
     @Column
@@ -67,7 +68,11 @@ public class User {
     @EqualsAndHashCode.Exclude
     private List<Booking> bookingsList;
 
-    public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN}
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "maintenance_employee_id", referencedColumnName = "id", unique = true)
+    private MaintenanceEmployee maintenanceEmployee;
+
+    public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE}
 
     public enum Status {SETUP_REQUIRED, ACTIVE, DEACTIVATED}
 }

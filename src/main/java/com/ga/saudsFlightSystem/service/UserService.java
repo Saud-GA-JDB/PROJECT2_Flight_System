@@ -333,6 +333,8 @@ public class UserService {
             person = profileOwner.getAirlineEmployee();
         } else if (profileOwner.getRole() == User.Role.FAA_ADMIN) {
             person = profileOwner.getFaaAdmin();
+        } else if (profileOwner.getRole() == User.Role.MAINTENANCE_EMPLOYEE) {
+            person = profileOwner.getMaintenanceEmployee();
         }
 
         boolean hasImage = image != null && !image.isEmpty();
@@ -534,6 +536,10 @@ public class UserService {
                 break;
             case AIRLINE_EMPLOYEE:
                 if (endpoint.trim().equalsIgnoreCase("airlineEmployee")) return true;
+                break;
+            case MAINTENANCE_EMPLOYEE:
+                if (endpoint.trim().equalsIgnoreCase("maintenanceEmployee"))
+                    return true;
                 break;
             default:
                 throw new InvalidInformationException("Role doesn't exits");

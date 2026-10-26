@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface MaintenanceProviderRepository extends JpaRepository<MaintenanceProvider, Long> {
+    boolean existsByIdAndAirlines_Id(Long providerId, Long airlineId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM MaintenanceProvider p WHERE p.id = :providerId")
     Optional<MaintenanceProvider> findByIdForUpdate(@Param("providerId") Long providerId);

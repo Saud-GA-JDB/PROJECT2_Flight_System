@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.controller;
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.Email;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
+import com.ga.saudsFlightSystem.model.request.AddMaintenanceProviderRequest;
 import com.ga.saudsFlightSystem.model.request.ReviewAirplaneRequest;
 import com.ga.saudsFlightSystem.service.*;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,7 @@ public class FAAAdminController {
     private AirlineService airlineService;
     private EmailService emailService;
     private AirlineEmployeeService airlineEmployeeService;
+    private MaintenanceProviderService maintenanceProviderService;
 
     private static final Logger logger = Logger.getLogger(FAAAdminController.class.getName());
 
@@ -49,5 +51,9 @@ public class FAAAdminController {
         return faaAdminService.reviewAirplaneRequest(requestId, request);
     }
 
+    @PostMapping("maintenanceProviders")
+    public ResponseEntity<?> addMaintenanceProvider(@RequestBody AddMaintenanceProviderRequest request) {
+        return maintenanceProviderService.addMaintenanceProvider(request);
+    }
 
 }
