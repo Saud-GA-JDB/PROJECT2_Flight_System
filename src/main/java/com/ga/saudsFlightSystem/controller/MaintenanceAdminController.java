@@ -23,4 +23,9 @@ public class MaintenanceAdminController {
     public ResponseEntity<?> getMaintenanceRequests() {
         return maintenanceRecordService.getMaintenanceRequests();
     }
+
+    @PostMapping("/maintenanceRequests/{requestId}")
+    public ResponseEntity<?> assignMaintenance(@PathVariable(name = "requestId") Long requestId, @RequestParam Long technicianId) {
+        return maintenanceRecordService.assignService(requestId, technicianId);
+    }
 }

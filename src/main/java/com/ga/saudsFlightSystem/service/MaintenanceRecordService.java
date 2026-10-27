@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
@@ -126,4 +127,73 @@ public class MaintenanceRecordService {
 
         return ResponseEntity.status(HttpStatus.OK).body(responses);
     }
+
+    @Transactional
+    public ResponseEntity<?> assignService(Long requestId, Long technicianId) {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("maintenanceEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        if (requestId == null || technicianId == null)
+            throw new InvalidInformationException("Please fill the fields");
+
+        MaintenanceEmployee admin = user.getMaintenanceEmployee();
+
+        if (admin == null || admin.getProvider() == null || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        MaintenanceRecord record = maintenanceRecordRepository.findByIdForUpdate(requestId)
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find maintenance record with this id"));
+
+        if (!Objects.equals(record.getProvider().getId(), admin.getProvider().getId()))
+            throw new InvalidInformationException("This record does not belong to your organization");
+
+        if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING)
+            throw new InvalidInformationException("Can't assign because this record status is not PENDING.");
+
+        if (record.getTechnician() != null)
+            throw new InformationExistException("This request already has an assigned technician.");
+
+        MaintenanceEmployee assignedEmployee = maintenanceEmployeeRepository.findByIdForUpdate(technicianId)
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find technician with this id"));
+
+        if (assignedEmployee.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.TECHNICIAN)
+            throw new InvalidInformationException("Can't assign non-technicians to maintenance jobs");
+
+        if (!Objects.equals(admin.getProvider().getId(), assignedEmployee.getProvider().getId()))
+            throw new InvalidInformationException("You arent allowed to assign employee that aren't from your company.");
+
+        record.setTechnician(assignedEmployee);
+        maintenanceRecordRepository.save(record);
+
+        String description = "Maintenance admin assigned technician with id "
+                + assignedEmployee.getId()
+                + " to maintenance record with id " + record.getId();
+
+        auditLogService.addAuditLog(
+                user,
+                AuditLog.Action.MAINTENANCE_TECHNICIAN_ASSIGNED,
+                AuditLog.EntityType.MAINTENANCE_RECORD,
+                record.getId(),
+                description
+        );
+
+        logger.info(description + " (user id: " + user.getId() + ")");
+
+        return ResponseEntity.ok(new MaintenanceRecordResponse(
+                record.getId(),
+                record.getAirplane().getId(),
+                record.getProvider().getId(),
+                assignedEmployee.getId(),
+                record.getDescription(),
+                record.getFindings(),
+                record.getStatus(),
+                record.getCreatedAt(),
+                record.getUpdatedAt(), // TODO: test later, could use .saveFlush() or pass LocalDateTime instead.
+                record.getCompletedAt()
+        ));
+    }
+
+
 }
