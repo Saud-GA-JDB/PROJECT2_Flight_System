@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -34,5 +35,10 @@ public class Airport {
 
     @OneToMany(mappedBy = "destinationAirport", fetch = FetchType.LAZY)
     private List<Flight> arrivingFlightsList;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "operator_id")
+    @JsonIgnore
+    private AirportOperator operator;
 
 }

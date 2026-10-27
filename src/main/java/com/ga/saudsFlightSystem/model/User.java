@@ -72,6 +72,10 @@ public class User {
     @JoinColumn(name = "maintenance_employee_id", referencedColumnName = "id", unique = true)
     private MaintenanceEmployee maintenanceEmployee;
 
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "airport_employee_id", referencedColumnName = "id", unique = true)
+    private AirportEmployee airportEmployee;
+
     public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE}
 
     public enum Status {SETUP_REQUIRED, ACTIVE, DEACTIVATED}
