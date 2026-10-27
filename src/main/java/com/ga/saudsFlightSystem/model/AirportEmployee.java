@@ -19,4 +19,9 @@ public class AirportEmployee extends Person{
     @JsonIgnore
     private Airport airport;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "operator_id", nullable = false)
+    @JsonIgnore
+    private AirportOperator operator;
+
 }
