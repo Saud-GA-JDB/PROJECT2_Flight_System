@@ -66,4 +66,8 @@ public class FAAAdminController {
         return airportOperatorService.addAirportOperator(request);
     }
 
+    @PutMapping("/airports/{airportId}/operator")
+    public ResponseEntity<?> assignAirportOperator(@PathVariable(name = "airportId") Long airportId, @RequestParam(name = "operatorId") Long operatorId) {
+        return airportOperatorService.assignAirportOperator(airportId, operatorId);
+    }
 }
