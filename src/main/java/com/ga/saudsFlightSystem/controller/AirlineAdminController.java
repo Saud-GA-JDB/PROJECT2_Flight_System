@@ -21,7 +21,7 @@ public class AirlineAdminController {
     private MaintenanceRecordService maintenanceRecordService;
     private MaintenanceProviderService maintenanceProviderService;
 
-    @PostMapping("/airplanes") // Adds the airplane; activation requires FAA approval.
+    @PostMapping("/airplanes")
     public ResponseEntity<?> addAirplane(@RequestBody AddAirplaneRequest request) {
         return airplaneService.addAirplane(request.getRegistrationNumber(), request.getModel(), request.getStandardSeatCapacity(), request.getFirstClassSeatCapacity(), request.getMaxMileage());
     }
