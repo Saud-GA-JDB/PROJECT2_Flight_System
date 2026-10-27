@@ -16,4 +16,5 @@ public interface MaintenanceRecordRepository extends JpaRepository<MaintenanceRe
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM MaintenanceRecord r WHERE r.id = :recordId")
     Optional<MaintenanceRecord> findByIdForUpdate(@Param("recordId") Long recordId);
+    List<MaintenanceRecord> findByProviderIdOrderByCreatedAtDesc(Long providerId);
 }

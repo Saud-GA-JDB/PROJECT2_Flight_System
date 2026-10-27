@@ -4,6 +4,6 @@ import lombok.Getter;
 
 @Getter
 public class AddMaintenanceRecordRequest {
-    private Long technicianId;
+    private Long providerId;
     private String description;
 }

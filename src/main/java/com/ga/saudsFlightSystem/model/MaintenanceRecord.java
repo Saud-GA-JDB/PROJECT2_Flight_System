@@ -29,9 +29,14 @@ public class MaintenanceRecord {
     private Airplane airplane;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "technician_id", nullable = false)
+    @JoinColumn(name = "technician_id")
     @JsonIgnore
     private MaintenanceEmployee technician;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "provider_id", nullable = false)
+    @JsonIgnore
+    private MaintenanceProvider provider;
 
     @Column(length = 2000)
     private String description;

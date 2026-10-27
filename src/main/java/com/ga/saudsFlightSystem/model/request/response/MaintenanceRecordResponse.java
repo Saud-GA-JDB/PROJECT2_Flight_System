@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 public class MaintenanceRecordResponse {
     private Long id;
     private Long airplaneId;
+    private Long providerId;
     private Long technicianId;
     private String description;
     private String findings;
