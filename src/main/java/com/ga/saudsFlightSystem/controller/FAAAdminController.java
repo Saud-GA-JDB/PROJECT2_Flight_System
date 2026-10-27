@@ -2,10 +2,7 @@ package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.Email;
-import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
-import com.ga.saudsFlightSystem.model.request.AddMaintenanceEmployeeRequest;
-import com.ga.saudsFlightSystem.model.request.AddMaintenanceProviderRequest;
-import com.ga.saudsFlightSystem.model.request.ReviewAirplaneRequest;
+import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.*;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +22,7 @@ public class FAAAdminController {
     private AirlineEmployeeService airlineEmployeeService;
     private MaintenanceProviderService maintenanceProviderService;
     private MaintenanceEmployeeService maintenanceEmployeeService;
+    private AirportOperatorService airportOperatorService;
 
     private static final Logger logger = Logger.getLogger(FAAAdminController.class.getName());
 
@@ -61,6 +59,11 @@ public class FAAAdminController {
     @PostMapping("/maintenanceProviders/{providerId}/addMaintenanceAdmin")
     public ResponseEntity<?> addMaintenanceProviderAdmin(@PathVariable(name = "providerId") Long providerId, @RequestBody AddMaintenanceEmployeeRequest request) {
         return maintenanceEmployeeService.addMaintenanceAdmin(providerId, request);
+    }
+
+    @PostMapping("/airportOperators")
+    public ResponseEntity<?> addAirportOperator(@RequestBody AddAirportOperatorRequest request) {
+        return airportOperatorService.addAirportOperator(request);
     }
 
 }
