@@ -9,6 +9,7 @@ import com.ga.saudsFlightSystem.repository.FlightInspectionRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -148,5 +149,55 @@ public class FlightInspectionService {
         logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.ok("Inspection completed with result " + result + ".");
+    }
+
+    @Transactional
+    public ResponseEntity<?> requestReInspection(Long flightId) {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirlineEmployee admin = user.getAirlineEmployee();
+
+        if (admin == null || admin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN || admin.getAirline() == null)
+            throw new IllegalEndpoint("Only airline admins can request re-inspection.");
+
+        Flight flight = flightRepository.findByIdForUpdate(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find a flight with this ID."));
+
+        if (flight.getAirline() == null || !flight.getAirline().getId().equals(admin.getAirline().getId()))
+            throw new IllegalEndpoint("You can only request re-inspection for your airline's flights.");
+
+        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+            throw new InvalidInformationException("Re-inspection can only be requested before departure.");
+
+        FlightInspection previousInspection = flightInspectionRepository.findFirstByFlight_IdOrderByIdDesc(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("No inspection exists for this flight."));
+
+        if (previousInspection.getStatus() != FlightInspection.InspectionStatus.FAILED)
+            throw new InvalidInformationException("Re-inspection requires the latest inspection to have failed.");
+
+        Airport airport = flight.getOriginAirport();
+
+        if (airport == null || airport.getOperator() == null)
+            throw new InvalidInformationException("The departure airport must have an operator.");
+
+        FlightInspection inspection = new FlightInspection();
+        inspection.setFlight(flight);
+        inspection.setAirport(airport);
+
+        flightInspectionRepository.save(inspection);
+
+        String description = "Airline admin requested inspection " + inspection.getId() + " for flight " + flightId
+                + " after failed inspection " + previousInspection.getId();
+
+        auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_REINSPECTION_REQUESTED,
+                AuditLog.EntityType.FLIGHT_INSPECTION, inspection.getId(), description
+        );
+
+        logger.info(description + " (user id: " + user.getId() + ")");
+
+        return ResponseEntity.status(HttpStatus.CREATED).body("Re-inspection requested. Inspection ID: " + inspection.getId());
     }
 }

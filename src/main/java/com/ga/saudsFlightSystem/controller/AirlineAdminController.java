@@ -20,6 +20,7 @@ public class AirlineAdminController {
     private FlightService flightService;
     private MaintenanceRecordService maintenanceRecordService;
     private MaintenanceProviderService maintenanceProviderService;
+    private FlightInspectionService flightInspectionService;
 
     @PostMapping("/airplanes")
     public ResponseEntity<?> addAirplane(@RequestBody AddAirplaneRequest request) {
@@ -64,5 +65,10 @@ public class AirlineAdminController {
     @PostMapping("/airplanes/{airplaneId}/maintenanceRequests")
     public ResponseEntity<?> addMaintenanceRecord(@PathVariable(name = "airplaneId") Long airplaneId, @RequestBody AddMaintenanceRecordRequest request) {
         return maintenanceRecordService.addMaintenanceRecord(airplaneId, request);
+    }
+
+    @PostMapping("/flights/{flightId}/reinspection")
+    public ResponseEntity<?> requestReinspection(@PathVariable(name = "flightId") Long flightId) {
+        return flightInspectionService.requestReInspection(flightId);
     }
 }
