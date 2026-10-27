@@ -15,11 +15,7 @@ import com.ga.saudsFlightSystem.model.request.RegistrationRequest;
 import com.ga.saudsFlightSystem.model.request.UpdateProfileRequest;
 import com.ga.saudsFlightSystem.model.request.response.ForgetPasswordResponse;
 import com.ga.saudsFlightSystem.model.request.response.LoginResponse;
-import com.ga.saudsFlightSystem.repository.PendingRegistrationRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
-import com.ga.saudsFlightSystem.repository.CustomerRepository;
-import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
-import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
+import com.ga.saudsFlightSystem.repository.*;
 import com.ga.saudsFlightSystem.security.JWTUtils;
 import com.ga.saudsFlightSystem.security.MyUserDetails;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +62,8 @@ public class UserService {
     private final CustomerRepository customerRepository;
     private final AirlineEmployeeRepository airlineEmployeeRepository;
     private final FAAAdminRepository faaAdminRepository;
+    private final AirportEmployeeRepository airportEmployeeRepository;
+    private final MaintenanceEmployeeRepository maintenanceEmployeeRepository;
     private final AuditLogService auditLogService;
     private final String UPLOAD_DIR = "uploads/";
 
@@ -76,7 +74,7 @@ public class UserService {
                        PendingRegistrationRepository pendingRegistrationRepository,
                        PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
                        CustomerRepository customerRepository, AirlineEmployeeRepository airlineEmployeeRepository,
-                       FAAAdminRepository faaAdminRepository, AuditLogService auditLogService) {
+                       FAAAdminRepository faaAdminRepository, AirportEmployeeRepository airportEmployeeRepository, MaintenanceEmployeeRepository maintenanceEmployeeRepository, AuditLogService auditLogService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
@@ -89,6 +87,8 @@ public class UserService {
         this.customerRepository = customerRepository;
         this.airlineEmployeeRepository = airlineEmployeeRepository;
         this.faaAdminRepository = faaAdminRepository;
+        this.airportEmployeeRepository = airportEmployeeRepository;
+        this.maintenanceEmployeeRepository = maintenanceEmployeeRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -335,6 +335,8 @@ public class UserService {
             person = profileOwner.getFaaAdmin();
         } else if (profileOwner.getRole() == User.Role.MAINTENANCE_EMPLOYEE) {
             person = profileOwner.getMaintenanceEmployee();
+        } else if (profileOwner.getRole() == User.Role.AIRPORT_EMPLOYEE) {
+            person = profileOwner.getAirportEmployee();
         }
 
         boolean hasImage = image != null && !image.isEmpty();
@@ -491,7 +493,9 @@ public class UserService {
     private void checkCprAvailable(String cpr) {
         if (customerRepository.existsByCpr(cpr)
                 || airlineEmployeeRepository.existsByCpr(cpr)
-                || faaAdminRepository.existsByCpr(cpr)) {
+                || faaAdminRepository.existsByCpr(cpr)
+                || maintenanceEmployeeRepository.existsByCpr(cpr)
+                || airportEmployeeRepository.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
     }

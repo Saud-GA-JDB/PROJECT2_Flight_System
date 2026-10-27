@@ -23,6 +23,7 @@ public class FAAAdminController {
     private MaintenanceProviderService maintenanceProviderService;
     private MaintenanceEmployeeService maintenanceEmployeeService;
     private AirportOperatorService airportOperatorService;
+    private AirportEmployeeService airportEmployeeService;
 
     private static final Logger logger = Logger.getLogger(FAAAdminController.class.getName());
 
@@ -69,5 +70,10 @@ public class FAAAdminController {
     @PutMapping("/airports/{airportId}/operator")
     public ResponseEntity<?> assignAirportOperator(@PathVariable(name = "airportId") Long airportId, @RequestParam(name = "operatorId") Long operatorId) {
         return airportOperatorService.assignAirportOperator(airportId, operatorId);
+    }
+
+    @PostMapping("/airports/{airportId}/addAirportOperatorAdmin")
+    public ResponseEntity<?> addAirportAdmin(@PathVariable(name = "airportId") Long airportId, @RequestBody AddAirportEmployeeRequest request) {
+        return airportEmployeeService.addAirportOperatorAdmin(airportId, request);
     }
 }
