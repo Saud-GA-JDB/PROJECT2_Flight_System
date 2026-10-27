@@ -17,9 +17,13 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
     @Query("SELECT f FROM Flight f WHERE f.id = :flightId")
     Optional<Flight> findByIdForCrewRead(@Param("flightId") Long flightId);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Lock(LockModeType.PESSIMISTIC_WRITE) //TODO: should delete this and use the findByIdForUpdate()
     @Query("SELECT f FROM Flight f WHERE f.id = :flightId")
     Optional<Flight> findByIdForCrewWrite(@Param("flightId") Long flightId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT f FROM Flight f WHERE f.id = :flightId")
+    Optional<Flight> findByIdForUpdate(@Param("flightId") Long flightId);
 
     List<Flight> findByStatus(Flight.FlightStatus status);
 

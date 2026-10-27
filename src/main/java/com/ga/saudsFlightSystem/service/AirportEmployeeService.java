@@ -9,6 +9,7 @@ import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AddAirportEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirportEmployeeResponse;
+import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -27,6 +28,7 @@ public class AirportEmployeeService {
     private AirportRepository airportRepository;
     private UserRepository userRepository;
     private PendingRegistrationService pendingRegistrationService;
+    private AirportEmployeeRepository airportEmployeeRepository;
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
     private PasswordEncoder passwordEncoder;
@@ -51,12 +53,48 @@ public class AirportEmployeeService {
         if (airport.getOperator() == null)
             throw new InvalidInformationException("You need an operator before.");
 
+        return createAirportEmployee(user, airport, AirportEmployee.AirportRole.ADMIN, request);
+    }
+
+    @Transactional
+    public ResponseEntity<?> addAirportEmployee(AirportEmployee.AirportRole role, AddAirportEmployeeRequest request) {
+
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirportEmployee admin = user.getAirportEmployee();
+
+        if (admin == null || admin.getAirport() == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        if (role != AirportEmployee.AirportRole.INSPECTOR && role != AirportEmployee.AirportRole.BAGGAGE_HANDLER)
+            throw new InvalidInformationException("Choose INSPECTOR or BAGGAGE_HANDLER.");
+
+        validateAddAirportEmployeeRequest(request);
+
+        Airport airport = airportRepository.findByIdForUpdate(admin.getAirport().getId())
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find an airport with this ID."));
+
+        if (admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN || admin.getAirport() == null
+                || !admin.getAirport().getId().equals(airport.getId()) || admin.getOperator() == null
+                || airport.getOperator() == null || !admin.getOperator().getId().equals(airport.getOperator().getId()))
+            throw new IllegalEndpoint("Only an admin of this airport can create its employees.");
+
+        return createAirportEmployee(user, airport, role, request);
+    }
+
+    // helper methods
+    private ResponseEntity<?> createAirportEmployee(User user, Airport airport, AirportEmployee.AirportRole role, AddAirportEmployeeRequest request) {
+        Long airportId = airport.getId();
+
         pendingRegistrationService.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
 
         AirportEmployee employee = new AirportEmployee();
         employee.setAirport(airport);
         employee.setOperator(airport.getOperator());
-        employee.setAirportRole(AirportEmployee.AirportRole.ADMIN);
+        employee.setAirportRole(role);
         employee.setFName(request.getFName().trim());
         employee.setLName(request.getLName().trim());
         employee.setCpr(request.getCpr());
@@ -75,7 +113,7 @@ public class AirportEmployeeService {
 
         userRepository.save(employeeUser);
 
-        String description = "Created airport admin with id " + employee.getId()
+        String description = "Created airport employee with id " + employee.getId() + " and role " + role
                 + " for airport with id " + airportId + " and operator with id " + airport.getOperator().getId();
 
         auditLogService.addAuditLog(user,
