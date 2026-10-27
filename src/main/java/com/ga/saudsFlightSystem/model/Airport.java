@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -40,5 +41,9 @@ public class Airport {
     @JoinColumn(name = "operator_id")
     @JsonIgnore
     private AirportOperator operator;
+
+    @OneToMany(mappedBy = "airport", fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<AirportEmployee> employees = new ArrayList<>();
 
 }
