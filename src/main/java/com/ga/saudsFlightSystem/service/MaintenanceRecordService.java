@@ -6,6 +6,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceRecordRequest;
+import com.ga.saudsFlightSystem.model.request.CompleteMaintenanceRecordRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordResponse;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceEmployeeRepository;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -193,6 +195,87 @@ public class MaintenanceRecordService {
                 record.getUpdatedAt(), // TODO: test later, could use .saveFlush() or pass LocalDateTime instead.
                 record.getCompletedAt()
         ));
+    }
+
+
+    @Transactional
+    public ResponseEntity<?> getMyMaintenanceAssignments() {
+        MaintenanceEmployee technician = getCurrentTechnician();
+
+        List<MaintenanceRecord> records = maintenanceRecordRepository.findByTechnicianIdOrderByCreatedAtDesc(technician.getId());
+
+        List<MaintenanceRecordResponse> responses = new ArrayList<>();
+
+        for (MaintenanceRecord record : records) {
+            responses.add(new MaintenanceRecordResponse(
+                    record.getId(),
+                    record.getAirplane().getId(),
+                    record.getProvider().getId(),
+                    technician.getId(),
+                    record.getDescription(),
+                    record.getFindings(),
+                    record.getStatus(),
+                    record.getCreatedAt(),
+                    record.getUpdatedAt(),
+                    record.getCompletedAt()
+            ));
+        }
+
+        return ResponseEntity.ok(responses);
+    }
+
+    @Transactional
+    public ResponseEntity<?> completeMaintenance(Long recordId, String findings) {
+
+        MaintenanceEmployee technician = getCurrentTechnician();
+
+        if (findings != null && findings.trim().length() > 2000)
+            throw new InvalidInformationException("Findings can't be more than 2000 characters.");
+
+        MaintenanceRecord record = maintenanceRecordRepository.findByIdForUpdate(recordId)
+                        .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance record with this id."));
+
+        if (record.getTechnician() == null || !Objects.equals(record.getTechnician().getId(), technician.getId()))
+            throw new IllegalEndpoint("You can only complete maintenance assigned to you.");
+
+        if (!Objects.equals(record.getProvider().getId(), technician.getProvider().getId()))
+            throw new IllegalEndpoint("This record does not belong to your provider.");
+
+        if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING)
+            throw new InvalidInformationException("Only pending maintenance can be done.");
+
+        if (findings != null)
+            record.setFindings(findings.trim());
+        record.setStatus(MaintenanceRecord.MaintenanceStatus.COMPLETED);
+        record.setCompletedAt(LocalDateTime.now());
+
+        maintenanceRecordRepository.save(record);
+
+        User user = UserService.getCurrentLoggedInUser();
+
+        String description = "Technician with id " + technician.getId() + " completed maintenance record with id " + recordId;
+
+        auditLogService.addAuditLog(user,
+                AuditLog.Action.MAINTENANCE_RECORD_COMPLETED, AuditLog.EntityType.MAINTENANCE_RECORD, recordId, description
+        );
+
+        logger.info(description + " (user id: " + user.getId() + ")");
+
+        return ResponseEntity.ok("Maintenance completed successfully.");
+    }
+
+    private MaintenanceEmployee getCurrentTechnician() {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("maintenanceEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        MaintenanceEmployee technician = user.getMaintenanceEmployee();
+
+        if (technician == null || technician.getProvider() == null || technician.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.TECHNICIAN)
+            throw new IllegalEndpoint("Only maintenance technicians can access this endpoint.");
+
+        return technician;
     }
 
 

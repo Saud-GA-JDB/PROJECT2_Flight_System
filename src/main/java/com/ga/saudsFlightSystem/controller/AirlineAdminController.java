@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.controller;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.AddAirplaneRequest;
+import com.ga.saudsFlightSystem.model.request.AddMaintenanceRecordRequest;
 import com.ga.saudsFlightSystem.service.*;
 import com.sun.tools.javac.Main;
 import lombok.AllArgsConstructor;
@@ -13,10 +14,11 @@ import org.springframework.web.bind.annotation.*;
 @AllArgsConstructor
 @RequestMapping(path = "/airlineAdmin")
 public class AirlineAdminController {
-    AirlineEmployeeService airlineEmployeeService;
-    AirplaneService airplaneService;
-    CrewAssignmentService crewAssignmentService;
-    FlightService flightService;
+    private AirlineEmployeeService airlineEmployeeService;
+    private AirplaneService airplaneService;
+    private CrewAssignmentService crewAssignmentService;
+    private FlightService flightService;
+    private MaintenanceRecordService maintenanceRecordService;
     private MaintenanceProviderService maintenanceProviderService;
 
     @PostMapping("/airplanes") // Adds the airplane; activation requires FAA approval.
@@ -57,5 +59,10 @@ public class AirlineAdminController {
     @PostMapping("/maintenanceProviders/{providerId}/contract")
     public ResponseEntity<?> contractMaintenanceProvider(@PathVariable(name = "providerId") Long providerId) {
         return maintenanceProviderService.contractMaintenanceProvider(providerId);
+    }
+
+    @PostMapping("/airplanes/{airplaneId}/maintenanceRequests")
+    public ResponseEntity<?> addMaintenanceRecord(@PathVariable(name = "airplaneId") Long airplaneId, @RequestBody AddMaintenanceRecordRequest request) {
+        return maintenanceRecordService.addMaintenanceRecord(airplaneId, request);
     }
 }
