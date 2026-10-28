@@ -796,6 +796,13 @@ string headquartersCountry
 
 ## Planning:
 - Day 1: Planning, adding the new models from the erd to data models. Read more on concurrency API such as Future etc...
+- Day 2: Adding Stripe payments and tests for payment race conditions. Removed unnecessary multithreading and started the crew assignment model.
+- Day 3: Adding the crew assignment service and endpoint. Locking employee rows to prevent conflicting assignments.
+- Day 4: Adding crew assignment logic, listing, audit logging, and tests for concurrency locking.
+- Day 5: Adding crew removal, asynchronous emails, and retrying failed emails every 3 hours. Checking crew coverage before activating flights.
+- Day 6: Adding maintenance models, provider contracts, admin accounts, and technicians.
+- Day 7: Adding maintenance requests, technician assignment, completion, and tests. Adding airport accounts, flight inspections, and reinspection requests.
+- Day 8: Completing inspection lists and tests. Adding more SSE notifications, database locks, concurrency tests, and documentation.
 
 
 ## Resources
@@ -809,3 +816,4 @@ string headquartersCountry
 - StripeCheckoutService is fully AI generated
 - Stripe Exception handling in the global exception handler
 - handleDataIntegrity in the global exception handler
+- OpenApiConfiguration.java is AI generated
