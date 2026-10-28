@@ -171,7 +171,9 @@ public class AirplaneService {
 
         logger.info(description + " (user id: " + user.getId() + ")");
 
-        AddAirplaneResponse response = new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), user.getAirlineEmployee().getCpr(), airplane.getStatus());
+        String addedBy = user.getAirlineEmployee().getFName() + " " + user.getAirlineEmployee().getLName();
+
+        AddAirplaneResponse response = new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), addedBy, airplane.getStatus());
 
         notificationService.sendToUser(user.getId(), "airplane-added", response);
 

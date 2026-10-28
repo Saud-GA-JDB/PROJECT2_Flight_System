@@ -182,7 +182,7 @@ public class MaintenanceRecordServiceTest {
     @Test
     public void whenOtherProviderAssignsThenRequestIsUnchanged() {
         login(otherAdminEmail);
-        Assert.assertThrows(InvalidInformationException.class,
+        Assert.assertThrows(IllegalEndpoint.class,
                 () -> service.assignService(recordId, technicianId));
         Assert.assertNull(entityManager.find(MaintenanceRecord.class, recordId).getTechnician());
     }

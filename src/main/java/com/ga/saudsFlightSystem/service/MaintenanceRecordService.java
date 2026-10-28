@@ -149,7 +149,7 @@ public class MaintenanceRecordService {
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find maintenance record with this id"));
 
         if (!Objects.equals(record.getProvider().getId(), admin.getProvider().getId()))
-            throw new InvalidInformationException("This record does not belong to your organization");
+            throw new IllegalEndpoint("This record does not belong to your organization");
 
         if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING)
             throw new InvalidInformationException("Can't assign because this record status is not PENDING.");
@@ -164,7 +164,7 @@ public class MaintenanceRecordService {
             throw new InvalidInformationException("Can't assign non-technicians to maintenance jobs");
 
         if (!Objects.equals(admin.getProvider().getId(), assignedEmployee.getProvider().getId()))
-            throw new InvalidInformationException("You arent allowed to assign employee that aren't from your company.");
+            throw new IllegalEndpoint("You arent allowed to assign employee that aren't from your company.");
 
         record.setTechnician(assignedEmployee);
         maintenanceRecordRepository.save(record);

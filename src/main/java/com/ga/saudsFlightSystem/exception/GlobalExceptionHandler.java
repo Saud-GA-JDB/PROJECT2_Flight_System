@@ -11,8 +11,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mail.MailException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -128,6 +136,56 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_GATEWAY,
                 request
         );
+    }
+
+    @ExceptionHandler({
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class
+    })
+    public ResponseEntity<ErrorResponse> handleInvalidParameters(
+            Exception ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the parameters were missing or invalid");
+        return build("Please provide all required parameters with valid values.", HttpStatus.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler({
+            NoHandlerFoundException.class,
+            NoResourceFoundException.class
+    })
+    public ResponseEntity<ErrorResponse> handleUnknownRoute(
+            Exception ex, HttpServletRequest request) {
+        logger.warning("Request failed because the endpoint was not found");
+        return build("This endpoint does not exist.", HttpStatus.NOT_FOUND, request);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleLargeUpload(
+            MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the upload exceeded the size limit");
+        return build("The uploaded file exceeds the allowed size limit.", HttpStatus.PAYLOAD_TOO_LARGE, request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleWrongMethod(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the HTTP method is not supported");
+        ResponseEntity<ErrorResponse> response = build("This HTTP method is not allowed for this endpoint.", HttpStatus.METHOD_NOT_ALLOWED, request);
+
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .headers(ex.getHeaders())
+                .body(response.getBody());
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedContentType(
+            HttpMediaTypeNotSupportedException ex, HttpServletRequest request) {
+        logger.warning("Request rejected because the content type is not supported");
+        ResponseEntity<ErrorResponse> response = build("Please use a supported content type for this endpoint.", HttpStatus.UNSUPPORTED_MEDIA_TYPE, request);
+
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .headers(ex.getHeaders())
+                .body(response.getBody());
     }
 
     @ExceptionHandler(Exception.class)

@@ -3,11 +3,9 @@ package com.ga.saudsFlightSystem.model.request.response;
 import com.ga.saudsFlightSystem.model.Airplane;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 
-//@AllArgsConstructor
 @Getter
 @AllArgsConstructor
 public class AddAirplaneResponse {

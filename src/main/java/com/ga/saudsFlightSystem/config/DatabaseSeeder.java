@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
-/** Optional sample data for a local PostgreSQL database. Existing records are never reset. */
+/** Optional local sample data. Missing legacy fields are upgraded; workflow progress is never reset. */
 @Component
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 public class DatabaseSeeder implements CommandLineRunner {
@@ -69,6 +69,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         booking("SFA7K2", sara, outbound, "standard-1", Booking.BookingStatus.BOOKED);
         booking("SFB8L3", omar, dubai, "firstClass-1", Booking.BookingStatus.BOOKED);
         booking("SFC9M4", sara, dubai, "standard-2", Booking.BookingStatus.CANCELLED);
+        projectThree(test, bah, dxb, bookingPlane, omar, departure.plusDays(3));
         em.flush();
         logger.info("Database seed completed; existing records were preserved.");
     }
@@ -157,7 +158,12 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private Flight flight(String number, Airplane plane, Airport origin, Airport destination, LocalDateTime departure) {
-        return findOrCreate(Flight.class, "flightNumber", number, () -> {
+        return flight(number, plane, origin, destination, departure, true);
+    }
+
+    private Flight flight(String number, Airplane plane, Airport origin, Airport destination,
+                          LocalDateTime departure, boolean ready) {
+        Flight result = findOrCreate(Flight.class, "flightNumber", number, () -> {
             Flight flight = new Flight();
             flight.setFlightNumber(number);
             flight.setAirplane(plane);
@@ -166,11 +172,163 @@ public class DatabaseSeeder implements CommandLineRunner {
             flight.setDestinationAirport(destination);
             flight.setScheduledDeparture(departure);
             flight.setScheduledArrival(departure.plusHours(2));
-            flight.setStatus(Flight.FlightStatus.ACTIVE);
+            flight.setStatus(ready ? Flight.FlightStatus.ACTIVE : Flight.FlightStatus.PENDING_CREW);
             flight.setStandardSeatsCount(plane.getStandardSeatsCapacity());
             flight.setFirstClassSeatsCount(plane.getFirstClassSeatsCapacity());
             return flight;
         });
+        // Null prices identify old fixtures (and newly inserted flights). Do not restore
+        // crew removed during a demo on subsequent runs or change existing schedules.
+        if (result.getStandardPrice() == null && result.getFirstClassPrice() == null) {
+            if (ready && result.getStatus() == Flight.FlightStatus.ACTIVE
+                    && em.createQuery("select count(c) from CrewAssignment c where c.flight = :flight", Long.class)
+                    .setParameter("flight", result).getSingleResult() == 0) {
+                seedCrew(result);
+            }
+        }
+        if (result.getStandardPrice() == null) result.setStandardPrice(45000L);
+        if (result.getFirstClassPrice() == null) result.setFirstClassPrice(120000L);
+        if (result.getCurrency() == null) result.setCurrency(Currency.BHD);
+        return result;
+    }
+
+    private User staff(String email, String cpr, User.Role role, Supplier<? extends Person> factory) {
+        return findOrCreate(User.class, "emailAddress", email, () -> {
+            User user = new User();
+            user.setEmailAddress(email);
+            user.setPassword(passwords.encode("TestPassword1"));
+            user.setSecurityQuestion("In which city were you born?");
+            user.setSecurityQuestionAnswer(passwords.encode("manama"));
+            user.setRole(role);
+            user.setStatus(User.Status.ACTIVE);
+            user.setActive(true);
+            Person profile = factory.get();
+            profile.setFName("Sample");
+            profile.setLName(email.substring(0, email.indexOf('@')));
+            profile.setCpr(cpr);
+            profile.setPhoneNumberOpeningCode("+973");
+            profile.setPhoneNumber("3600" + cpr.substring(5));
+            if (profile instanceof AirlineEmployee employee) user.setAirlineEmployee(employee);
+            else if (profile instanceof AirportEmployee employee) user.setAirportEmployee(employee);
+            else if (profile instanceof MaintenanceEmployee employee) user.setMaintenanceEmployee(employee);
+            else throw new IllegalArgumentException("Unsupported seed staff profile");
+            return user;
+        });
+    }
+
+    private void seedCrew(Flight flight) {
+        Duty[] duties = {Duty.PILOT, Duty.SECONDARY_PILOT, Duty.FLIGHT_ATTENDANT};
+        String code = flight.getAirline().getAirlineCode().toLowerCase();
+        for (int i = 0; i < duties.length; i++) {
+            Duty duty = duties[i];
+            User user = staff(code + ".crew" + (i + 1) + "@mailsac.com",
+                    "9900000" + ((code.equals("gf") ? 20 : 30) + i), User.Role.AIRLINE_EMPLOYEE, () -> {
+                        AirlineEmployee employee = new AirlineEmployee();
+                        employee.setAirline(flight.getAirline());
+                        employee.setAirlineRole(duty == Duty.FLIGHT_ATTENDANT
+                                ? AirlineEmployee.AirlineRole.FLIGHT_ATTENDANT : AirlineEmployee.AirlineRole.PILOT);
+                        employee.setHireDate(LocalDate.of(2025, 1, 1));
+                        employee.setSalary(1500L);
+                        return employee;
+                    });
+            AirlineEmployee employee = user.getAirlineEmployee();
+            require(employee != null && user.getRole() == User.Role.AIRLINE_EMPLOYEE
+                    && employee.getAirline() != null
+                    && Objects.equals(employee.getAirline().getId(), flight.getAirline().getId())
+                    && employee.getAirlineRole() == (duty == Duty.FLIGHT_ATTENDANT
+                    ? AirlineEmployee.AirlineRole.FLIGHT_ATTENDANT : AirlineEmployee.AirlineRole.PILOT),
+                    "crew profile " + user.getEmailAddress());
+            // Existing crew may have been reassigned by a user; never introduce overlaps.
+            long conflicts = em.createQuery("select count(c) from CrewAssignment c where c.airlineEmployee = :employee "
+                            + "and c.flight.status <> :cancelled and c.flight.scheduledDeparture < :arrival "
+                            + "and c.flight.scheduledArrival > :departure", Long.class)
+                    .setParameter("employee", user.getAirlineEmployee())
+                    .setParameter("cancelled", Flight.FlightStatus.CANCELLED)
+                    .setParameter("arrival", flight.getScheduledArrival())
+                    .setParameter("departure", flight.getScheduledDeparture()).getSingleResult();
+            require(conflicts == 0, "crew schedule for " + flight.getFlightNumber());
+            CrewAssignment assignment = new CrewAssignment();
+            assignment.setFlight(flight);
+            assignment.setAirlineEmployee(user.getAirlineEmployee());
+            assignment.setDuty(duty);
+            em.persist(assignment);
+        }
+    }
+
+    private void projectThree(Airline airline, Airport airport, Airport destination, Airplane plane,
+                              User customer, LocalDateTime departure) {
+        AirportOperator operator = airport.getOperator();
+        if (operator == null) {
+            operator = findOrCreate(AirportOperator.class, "contactEmail", "seed.operator@mailsac.com", () -> {
+                AirportOperator value = new AirportOperator();
+                value.setName("Sample Bahrain Airport Operator");
+                value.setContactEmail("seed.operator@mailsac.com");
+                return value;
+            });
+            airport.setOperator(operator);
+        }
+        AirportOperator assignedOperator = operator;
+        for (AirportEmployee.AirportRole role : new AirportEmployee.AirportRole[]{
+                AirportEmployee.AirportRole.ADMIN, AirportEmployee.AirportRole.INSPECTOR}) {
+            staff("airport." + role.name().toLowerCase() + "@mailsac.com",
+                    role == AirportEmployee.AirportRole.ADMIN ? "990000040" : "990000041",
+                    User.Role.AIRPORT_EMPLOYEE, () -> {
+                        AirportEmployee employee = new AirportEmployee();
+                        employee.setAirport(airport);
+                        employee.setOperator(assignedOperator);
+                        employee.setAirportRole(role);
+                        return employee;
+                    });
+        }
+        Flight pending = flight("GF-P3-READY", plane, airport, destination, departure, false);
+        // One initial inspection only; preserve later assignments and re-inspection history.
+        if (em.createQuery("select count(i) from FlightInspection i where i.flight = :flight", Long.class)
+                .setParameter("flight", pending).getSingleResult() == 0) {
+            FlightInspection inspection = new FlightInspection();
+            inspection.setFlight(pending);
+            inspection.setAirport(airport);
+            em.persist(inspection);
+        }
+        MaintenanceProvider provider = findOrCreate(MaintenanceProvider.class, "contactEmail",
+                "seed.maintenance@mailsac.com", () -> {
+                    MaintenanceProvider value = new MaintenanceProvider();
+                    value.setName("Sample Gulf Maintenance");
+                    value.setContactEmail("seed.maintenance@mailsac.com");
+                    value.getAirlines().add(airline);
+                    return value;
+                });
+        for (MaintenanceEmployee.MaintenanceRole role : MaintenanceEmployee.MaintenanceRole.values()) {
+            staff("maintenance." + role.name().toLowerCase() + "@mailsac.com",
+                    role == MaintenanceEmployee.MaintenanceRole.ADMIN ? "990000050" : "990000051",
+                    User.Role.MAINTENANCE_EMPLOYEE, () -> {
+                        MaintenanceEmployee employee = new MaintenanceEmployee();
+                        employee.setProvider(provider);
+                        employee.setMaintenanceRole(role);
+                        if (role == MaintenanceEmployee.MaintenanceRole.TECHNICIAN)
+                            employee.setLicenseNumber("SEED-TECH-001");
+                        return employee;
+                    });
+        }
+        findOrCreate(MaintenanceRecord.class, "description", "Project 3 sample routine maintenance", () -> {
+            MaintenanceRecord record = new MaintenanceRecord();
+            record.setAirplane(plane);
+            record.setProvider(provider);
+            record.setDescription("Project 3 sample routine maintenance");
+            return record;
+        });
+        Flight paymentFlight = flight("GF-P3-PAY", plane, airport, destination, departure.plusDays(1));
+        booking("P3PAY01", customer, paymentFlight, "standard-3", Booking.BookingStatus.BOOKED);
+        Booking payable = em.createQuery("select b from Booking b where b.bookingRef = 'P3PAY01'", Booking.class).getSingleResult();
+        if (em.createQuery("select count(p) from Payment p where p.booking = :booking", Long.class)
+                .setParameter("booking", payable).getSingleResult() == 0) {
+            Payment payment = new Payment();
+            payment.setBooking(payable);
+            payment.setAmount(payable.getFlight().getStandardPrice());
+            payment.setCurrency(payable.getFlight().getCurrency());
+            payment.setStatus(payable.getStatus() == Booking.BookingStatus.CANCELLED
+                    ? Payment.PaymentStatus.EXPIRED : Payment.PaymentStatus.PENDING);
+            em.persist(payment);
+        }
     }
 
     private void booking(String reference, User owner, Flight flight, String seat, Booking.BookingStatus status) {

@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 public class FlightController {
     private FlightService flightService;
 
-    // TODO: maybe use request DTO with @ModelAttribute for the search parameters? search later about it
     @GetMapping("/search")
     public FlightSearchResponse searchFlights(@RequestParam(required = false) String date, @RequestParam(required = false) String airlineCode,
                                               @RequestParam(required = false) String originAirport, @RequestParam(required = false) String destinationAirport,

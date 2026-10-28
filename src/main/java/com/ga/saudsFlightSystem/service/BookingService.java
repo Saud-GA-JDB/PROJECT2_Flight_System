@@ -69,11 +69,11 @@ public class BookingService {
     public ResponseEntity<?> cancelBooking(Long bookingId) {
         User user = UserService.getCurrentLoggedInUser();
         Long flightId = bookingRepository.findFlightIdByBookingId(bookingId)
-                .orElseThrow( () -> new InvalidInformationException("No Booking with that id found"));
+                .orElseThrow( () -> new InformationNotFoundException("No Booking with that id found"));
         Flight flight = flightRepository.findByIdForUpdate(flightId)
                 .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
         Booking booking = bookingRepository.findByIdForPayment(bookingId).orElseThrow( () -> {
-            throw new InvalidInformationException("No Booking with that id found");
+            throw new InformationNotFoundException("No Booking with that id found");
         });
         if (user.getRole() == User.Role.AIRLINE_EMPLOYEE &&
                 (user.getAirlineEmployee() == null || user.getAirlineEmployee().getAirline() == null))
@@ -107,7 +107,7 @@ public class BookingService {
                 booking.setStatus(Booking.BookingStatus.CANCELLED);
             } else {
                 logger.warning("User with id " + user.getId() + " could not cancel booking with id " + bookingId + " because departure is less than 48 hours away");
-                return ResponseEntity.status(HttpStatus.EXPECTATION_FAILED)
+                return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body("Sorry, Bookings must be cancelled 48 hours before flight departure. You can contact the airline customer service if you have special circumstances.");
             }
         }

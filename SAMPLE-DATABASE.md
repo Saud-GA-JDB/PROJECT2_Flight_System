@@ -1,214 +1,173 @@
-# Sample database: accounts, flights, and bookings
+# Sample database for Project 3
 
-Use this reference to try the application without opening PostgreSQL. Values below
-were checked against the local `aviation` database on **8 October 2026**, after seeding.
-It covers the seeded sample records; older personal records are not listed.
+`DatabaseSeeder` is an optional PostgreSQL startup seeder. It creates connected
+sample data for bookings, crew readiness, airport inspections, maintenance, and
+payments. This document describes initial fixtures, not a snapshot of a particular
+machine's database.
 
-**IDs shown are for this database.** On another database, generated IDs can differ.
-Only booking `900001`, activation request `900002`, and airplane `900003` are fixed.
-Use login responses, flight search, bookings, and FAA airline/request lists to find
-the corresponding IDs on a fresh installation. Use user IDs, not profile IDs, in URLs.
+## Run
 
-## Setup
-
-Configure PostgreSQL and mail in `src/main/resources/application.properties` or
-environment variables. To populate a new database, run from PowerShell:
+Configure the application using `src/main/resources/application-example.properties`
+as a reference, then run from PowerShell:
 
 ```powershell
 $env:APP_SEED_ENABLED = "true"
 .\mvnw.cmd spring-boot:run
 ```
 
-The startup log reports `Database seed completed; existing records were preserved.`
-After stopping the application, set `$env:APP_SEED_ENABLED = "false"` and start it
-normally. The current local database is already seeded.
+After stopping the application, disable seeding for normal starts:
 
-Rerunning adds missing records and preserves existing passwords, bookings, approvals,
-and flight dates. It does not reset manual testing changes. Initial departures are
-three, four, and five days after seeding; flights eventually disappear from available
-flight search as their scheduled departures pass. Use future flights when testing.
-
-## Login accounts
-
-**Password for every account below: `TestPassword1`** (case-sensitive).
-
-| User ID | Name | Email | Role | Airline | CPR | Phone (+973) |
-| --- | --- | --- | --- | --- | --- | --- |
-| 15 | Ahmed Yousif | flighttest.customer@mailsac.com | CUSTOMER | — | 990000001 | 36001001 |
-| 16 | Fatima Salman | flighttest.faa@mailsac.com | FAA_ADMIN | — | 990000002 | 36001002 |
-| 17 | Hassan Mahmood | flighttest.airline@mailsac.com | AIRLINE_EMPLOYEE / ADMIN | Gulf Air | 990000003 | 36001003 |
-| 18 | Sara Ahmed | sara.customer@mailsac.com | CUSTOMER | — | 990000004 | 36001004 |
-| 19 | Omar Ali | omar.customer@mailsac.com | CUSTOMER | — | 990000005 | 36001005 |
-| 20 | Layla Hassan | layla.customer@mailsac.com | CUSTOMER | — | 990000006 | 36001006 |
-| 21 | Noor Khalid | noor.airline@mailsac.com | AIRLINE_EMPLOYEE / ADMIN | Emirates | 990000007 | 36001007 |
-
-All accounts start with `status=ACTIVE`, `active=true`, and zero failed login attempts.
-Security question: **In which city were you born?** Answer: **`manama`**.
-Passwords and security answers are stored using BCrypt. Names and personal details
-are fictional sample data. All sample inboxes use Mailsac so you can inspect emails.
-
-Linked profile IDs in this database:
-
-| User | Profile type | Profile ID |
-| --- | --- | --- |
-| Ahmed | Customer | 8 |
-| Fatima | FAA admin | 4 |
-| Hassan | Airline employee | 8 |
-| Sara | Customer | 9 |
-| Omar | Customer | 10 |
-| Layla | Customer | 11 |
-| Noor | Airline employee | 9 |
-
-Both airline employees have `airlineRole=ADMIN`, hire date `2025-01-01`, and salary
-`1500`. Sample profiles have no uploaded image.
-
-### Login request
-
-`POST http://localhost:8080/auth/users/login`, with `Content-Type: application/json`:
-
-```json
-{
-  "email": "sara.customer@mailsac.com",
-  "password": "TestPassword1"
-}
+```powershell
+$env:APP_SEED_ENABLED = "false"
 ```
 
-Use the returned JWT on protected requests: `Authorization: Bearer YOUR_TOKEN`.
-The login field is **`email`**, not `emailAddress`. Switch accounts by logging in
-again and using that account's token.
+Seeding is transactional and uses a PostgreSQL advisory lock to serialize seed runs.
+It does not send email or call Stripe. Existing records are reused. Missing prices
+are filled, and legacy ACTIVE sample flights with both prices missing and no crew
+receive their initial crew. Existing passwords, statuses, dates, prices, bookings,
+payment state, assignments, and maintenance progress are not reset. Conflicting
+reserved IDs or overlapping seed crew schedules abort the transaction.
 
-## Airlines and airports
+The seeder adds the Project 3 fixtures to an older seeded database. It does not
+reschedule old flights; their dates may already have passed. New Project 3 flights
+start six and seven days after their first seed run. Reruns preserve those dates too.
+Use a fresh development database or create future flights when fixtures expire.
 
-| Airline ID | Name | Code | Headquarters | Airline admin |
+## Accounts
+
+Initial password: **`TestPassword1`**. Security question: **In which city were you
+born?** Answer: **`manama`**. Both secrets are encoded. All accounts start ACTIVE.
+The addresses and personal details are sample data.
+
+| Email | Role / scope |
+| --- | --- |
+| flighttest.customer@mailsac.com | Customer Ahmed |
+| flighttest.faa@mailsac.com | FAA admin Fatima |
+| flighttest.airline@mailsac.com | Gulf Air admin Hassan |
+| sara.customer@mailsac.com | Customer Sara |
+| omar.customer@mailsac.com | Customer Omar |
+| layla.customer@mailsac.com | Customer Layla, initially no bookings |
+| noor.airline@mailsac.com | Emirates admin Noor |
+| gf.crew1@mailsac.com | Gulf Air pilot |
+| gf.crew2@mailsac.com | Gulf Air secondary pilot |
+| gf.crew3@mailsac.com | Gulf Air flight attendant |
+| ek.crew1@mailsac.com | Emirates pilot |
+| ek.crew2@mailsac.com | Emirates secondary pilot |
+| ek.crew3@mailsac.com | Emirates flight attendant |
+| airport.admin@mailsac.com | BAH airport admin |
+| airport.inspector@mailsac.com | BAH inspector |
+| maintenance.admin@mailsac.com | Sample Gulf Maintenance admin |
+| maintenance.technician@mailsac.com | Sample Gulf Maintenance technician |
+
+Login with `POST /auth/users/login` and JSON:
+
+```json
+{"email":"flighttest.airline@mailsac.com","password":"TestPassword1"}
+```
+
+Use the returned JWT as `Authorization: Bearer YOUR_TOKEN`. Discover generated IDs
+through login and list responses. Employee assignment endpoints use **employee
+profile IDs**, which differ from user IDs. See [API guide](docs/API-GUIDE.md).
+
+## Airlines, airports, and airplanes
+
+Airlines: Gulf Air (`GF`) and Emirates (`EK`). Airports: BAH, DXB, and DOH, with
+Asia/Bahrain, Asia/Dubai, and Asia/Qatar time zones respectively. BAH receives a
+sample operator if it has none; an existing operator is retained and used by the
+sample airport staff. Sample Gulf Maintenance starts contracted to Gulf Air.
+
+| Registration | Airline | Standard / first-class capacity | Initial state |
+| --- | --- | --- | --- |
+| TEST-FREE-PLANE | GF | 250 / 26 | ACTIVE; no flights; fixed ID 900003 |
+| A9C-SF01 | GF | 138 / 12 | ACTIVE; GF501 and Project 3 flights |
+| A9C-SF02 | GF | 154 / 16 | GROUNDED; pending activation request 900002 |
+| A9C-SF03 | GF | 138 / 12 | ACTIVE; GF524 and GF525 |
+| A6-SF01 | EK | 310 / 8 | ACTIVE; EK837 and EK838 |
+
+Capacities, registrations, schedules, and mileage are illustrative. Every airplane
+starts with `maxMileage=6000`. Only airplane 900003, request 900002, and booking
+900001 have reserved IDs; all other IDs are generated.
+
+## Flights, crew, and prices
+
+| Flight | Route | Departure after initial seed | Initial status | Standard / first-class available |
 | --- | --- | --- | --- | --- |
-| 1 | Gulf Air | GF | Bahrain | Hassan |
-| 6 | Emirates | EK | United Arab Emirates | Noor |
+| GF501 | BAH to DXB | 3 days | ACTIVE | 137 / 12 |
+| GF524 | BAH to DOH | 4 days | ACTIVE | 137 / 12 |
+| GF525 | DOH to BAH | 5 days | ACTIVE | 138 / 12 |
+| EK837 | DXB to BAH | 4 days | ACTIVE | 310 / 7 |
+| EK838 | BAH to DXB | 5 days | ACTIVE | 310 / 8 |
+| GF-P3-READY | BAH to DXB | 6 days | PENDING_CREW | 138 / 12 |
+| GF-P3-PAY | BAH to DXB | 7 days | ACTIVE | 137 / 12 |
 
-Gulf Air and the airports below were already present locally and were reused.
+Each flight lasts two hours. ACTIVE flights start with a pilot, a secondary pilot,
+and an attendant from their own airline. The same airline's sample crew are reused
+on non-overlapping days. GF-P3-READY starts without crew for the assignment workflow.
 
-| Airport ID | IATA code | Name | City | Country | Time zone |
-| --- | --- | --- | --- | --- | --- |
-| 1 | BAH | Bahrain International Airport | Muharraq | Bahrain | Asia/Bahrain |
-| 2 | DXB | Dubai International Airport | Dubai | United Arab Emirates | Asia/Dubai |
-| 3 | DOH | Hamad International Airport | Doha | Qatar | Asia/Qatar |
+Prices are `45000` standard and `120000` first class, in BHD minor units (45.000 and
+120.000 BHD). Existing non-null prices are preserved. Seat names are `standard-1`,
+`firstClass-1`, etc. Flight counts represent availability, not airplane capacity.
 
-## Airplanes
+## Bookings and payments
 
-| Airplane ID | Registration | Model | Airline | Standard capacity | First-class capacity | Status | Use |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 900003 | TEST-FREE-PLANE | Boeing 787-9 | Gulf Air | 250 | 26 | ACTIVE | No flights; create a flight |
-| 900008 | A9C-SF01 | Airbus A320-200 | Gulf Air | 138 | 12 | ACTIVE | GF501 / booking fixture |
-| 900009 | A9C-SF02 | Airbus A321neo | Gulf Air | 154 | 16 | GROUNDED | Pending FAA approval |
-| 900010 | A9C-SF03 | Airbus A320-200 | Gulf Air | 138 | 12 | ACTIVE | GF524 and GF525 |
-| 900011 | A6-SF01 | Boeing 777-300ER | Emirates | 310 | 8 | ACTIVE | EK837 and EK838 |
-
-Every seeded airplane has `maxMileage=6000`. Model names are real; registrations,
-seat configurations, mileage values, flight numbers, and schedules are illustrative
-application data, not specifications of actual airline aircraft.
-
-## Flights and remaining seats
-
-These are the initial values. All five flights are `ACTIVE`; actual departure and
-arrival are null. Timestamps are stored without a time-zone offset.
-
-| Flight ID | Number | Route | Airplane ID | Scheduled departure | Scheduled arrival | Standard available | First-class available |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 7 | GF501 | BAH → DXB | 900008 | 2026-10-11 01:08:41 | 2026-10-11 03:08:41 | 137 | 12 |
-| 8 | GF524 | BAH → DOH | 900010 | 2026-10-12 01:08:41 | 2026-10-12 03:08:41 | 137 | 12 |
-| 9 | GF525 | DOH → BAH | 900010 | 2026-10-13 01:08:41 | 2026-10-13 03:08:41 | 138 | 12 |
-| 10 | EK837 | DXB → BAH | 900011 | 2026-10-12 01:08:41 | 2026-10-12 03:08:41 | 310 | 7 |
-| 11 | EK838 | BAH → DXB | 900011 | 2026-10-13 01:08:41 | 2026-10-13 03:08:41 | 310 | 8 |
-
-Seat types in URLs are exactly `standard` and `firstClass`. Seat IDs start at 1.
-Flight seat counts are remaining availability, while airplane capacities are totals.
-
-## Bookings
-
-| Booking ID | Reference | Owner (user ID) | Flight (ID) | Seat | Status |
-| --- | --- | --- | --- | --- | --- |
-| 900001 | TEST-BOOKING-900001 | Ahmed (15) | GF501 (7) | standard-1 | BOOKED |
-| 900005 | SFA7K2 | Sara (18) | GF524 (8) | standard-1 | BOOKED |
-| 900006 | SFB8L3 | Omar (19) | EK837 (10) | firstClass-1 | BOOKED |
-| 900007 | SFC9M4 | Sara (18) | EK837 (10) | standard-2 | CANCELLED |
-
-Layla starts with no bookings. The cancelled booking does not consume a seat.
-Booking timestamps are generated when seeded. Rebooking a cancelled seat creates
-a new booking; it does not reactivate the old record.
-
-## Airplane activation request
-
-| Request ID | Airplane | Requested by | Status | Reviewer / review time |
+| Reference | Owner | Flight | Seat | Initial status |
 | --- | --- | --- | --- | --- |
-| 900002 | A9C-SF02 (900009) | Hassan (user 17) | PENDING | null / null |
+| TEST-BOOKING-900001 | Ahmed | GF501 | standard-1 | BOOKED; ID 900001 |
+| SFA7K2 | Sara | GF524 | standard-1 | BOOKED |
+| SFB8L3 | Omar | EK837 | firstClass-1 | BOOKED |
+| SFC9M4 | Sara | EK837 | standard-2 | CANCELLED |
+| P3PAY01 | Omar | GF-P3-PAY | standard-3 | BOOKED |
 
-The request timestamp is generated during seeding. Approving it activates the
-airplane. The requester belongs to Gulf Air; the reviewer must be an FAA admin.
+Only P3PAY01 has a seeded payment: PENDING, 45000 BHD minor units, with no Stripe
+session or intent. Start checkout as Omar using the payment endpoints; real checkout
+requires Stripe test configuration. A pending payment without a session becomes
+ineligible for retry after 23 hours under the current service rules. For later demos,
+create a new booking and prepare its payment through the API. Rerunning the seeder
+does not reset payment age or state.
 
-## Things to try
+Other bookings intentionally start without payments, preserving the cancellation
+test fixtures. Cancelled bookings consume no seats. Pending or paid payments block
+cancellation under the current service rules.
 
-Use `http://localhost:8080` and the appropriate account's bearer token for each
-request. Examples assume the initial data above and future flight departures.
+## Project 3 workflows to try
 
-1. **Search flights — any sample account.**
-   `GET /flights/search?originAirport=BAH&destinationAirport=DOH&seatType=standard`
-   should include GF524. Use `airlineCode=EK` to search Emirates flights.
+1. **Crew readiness:** as Hassan, assign gf.crew1, gf.crew2, and gf.crew3 to
+   GF-P3-READY with PILOT, SECONDARY_PILOT, and FLIGHT_ATTENDANT duties, then activate
+   it. Attempting activation before the required crew is present should fail.
+2. **Inspection assignment:** GF-P3-READY has one PENDING inspection with no
+   inspector. As the BAH airport admin, assign the BAH inspector. Log in as the
+   inspector to complete it. A FAILED result permits an airline re-inspection request.
+   Other flights can receive inspections through the normal assignment endpoint.
+3. **Maintenance:** the record described as `Project 3 sample routine maintenance`
+   belongs to Sample Gulf Maintenance and airplane A9C-SF01. It starts PENDING with
+   no technician. Assign the sample technician as the maintenance admin, then complete
+   it as the technician. Completion does not automatically change airplane status.
+4. **Concurrency:** submit competing assignments to the same pending inspection or
+   maintenance request, or competing bookings for the same available seat. Use the
+   existing concurrency tests for repeatable assertions.
+5. **Checkout:** as Omar, locate P3PAY01 and use the payment workflow. No fake PAID
+   state or external Stripe identifier is inserted by the seeder.
+6. **FAA approval:** as Fatima, review request 900002 for A9C-SF02. This changes an
+   existing test fixture; use a separate database for manual demos.
 
-2. **Customer with no bookings — Layla.**
-   `GET /bookings` initially returns an empty list.
-   `POST /customer/20/flights/9/standard/2/book` books GF525 seat `standard-2`.
-   Its standard availability changes from 138 to 137; Layla receives an email.
-   Use the returned booking ID for later cancellation.
+Audit logs are produced by these real service actions. The seeder does not invent
+user activity or temporary email-verification codes. New staff accounts are already
+set up so you can exercise the workflows immediately.
 
-3. **Occupied seat — Sara.**
-   `POST /customer/18/flights/8/standard/1/book` is rejected because her seeded
-   booking already occupies that seat. `standard/2` is initially available.
+## Verification and existing tests
 
-4. **Cancel a booking — Sara.**
-   `DELETE /bookings/900005` succeeds when at least 48 hours remain before departure.
-   Status becomes `CANCELLED`, GF524 standard availability becomes 138, and Sara
-   receives an email. Repeating cancellation is rejected. Airline admins can cancel
-   their own airline's bookings without the customer 48-hour restriction.
+`DatabaseSeederTest` exercises seeding twice, relationship consistency, unchanged
+row counts and seat counts, and preservation of edited credentials, prices, and
+workflow state. It uses the configured PostgreSQL test database and rolls back row
+changes; PostgreSQL sequence advances are not rolled back.
 
-5. **Airline booking search — Hassan and Noor.**
-   Hassan: `GET /bookings/search?status=BOOKED` includes Ahmed's and Sara's Gulf Air
-   bookings. Noor sees Emirates bookings, including Omar's first-class booking.
-   A customer cannot use the airline booking search endpoint.
+```powershell
+.\mvnw.cmd '-Dtest=DatabaseSeederTest' test
+```
 
-6. **FAA review — Fatima.**
-   `GET /faaadmin/airplaneRequests` includes request `900002`.
-   `PUT /faaadmin/airplaneRequests/900002` with JSON
-   `{"status":"ACCEPTED","reviewReason":"Safety checks passed"}` activates airplane
-   `900009` and sends Hassan an email. Airline admins cannot approve requests.
-   This changes a fixture used by the automated tests.
-
-7. **Create a flight — Hassan.**
-   `POST /airlineAdmin/airplanes/900003/addFlight` with the JSON below. Choose future
-   times, and leave at least two hours between flights on the same airplane.
-   Successful creation returns the new flight ID with 250 standard and 26 first-class
-   seats available. This changes the automated-test fixture that expects no flights.
-
-   ```json
-   {
-     "originAirportIataCode": "BAH",
-     "arrivalAirportIataCode": "DXB",
-     "scheduledDeparture": "2026-10-20T10:00:00",
-     "scheduledArrival": "2026-10-20T12:00:00"
-   }
-   ```
-
-Mail configuration must work for operations that send email. Database changes may
-roll back if email sending fails. Seeder startup itself sends no emails.
-
-## Automated-test fixtures
-
-Keep the three `flighttest.*@mailsac.com` accounts with password `TestPassword1`,
-booking `900001` in `BOOKED` status, request `900002` in `PENDING` status with its
-airplane grounded, and airplane `900003` active with no flights when running the
-existing service tests. Their flight dates are adjusted inside rolled-back tests.
-Manual changes to these fixtures are not repaired by rerunning the seeder.
-
-The tests create `Test Created Airline`, airline code `TCA`, and registration
-`TEST-NEW-PLANE`; leave these values unused. Use a separate freshly seeded database
-for automated tests if manual testing has changed the fixtures.
-
-For more endpoints and accepted request fields, see [Detailed API guide](docs/API-GUIDE.md).
+For existing service tests, retain the three `flighttest.*` accounts with their
+initial password, booking 900001 BOOKED, request 900002 PENDING with its airplane
+GROUNDED, and airplane 900003 ACTIVE without flights. Rerunning does not repair
+manual changes to those fixtures. Leave `TCA`, `Test Created Airline`, and
+`TEST-NEW-PLANE` unused for the tests. See [API guide](docs/API-GUIDE.md) for request
+paths and DTOs, and [locking notes](docs/database-locking.md) for concurrency details.

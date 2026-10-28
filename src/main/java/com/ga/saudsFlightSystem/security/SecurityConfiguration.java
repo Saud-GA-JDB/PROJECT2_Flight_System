@@ -1,7 +1,7 @@
 package com.ga.saudsFlightSystem.security;
 
 import jakarta.servlet.DispatcherType;
-import lombok.RequiredArgsConstructor;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,10 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration // means it contains Beans
 @EnableMethodSecurity(prePostEnabled = true)
-@RequiredArgsConstructor
 public class SecurityConfiguration {
-
-    private MyUserDetailsService myUserDetailsService;
 
     @Bean
     public JwtRequestFilter authenticationJwtTokenFilter() {
@@ -37,6 +34,12 @@ public class SecurityConfiguration {
                 .csrf( csrf -> csrf.disable()) //csrf -> cross sight request forgery. disabled bc the request is from the same domain but here since its the same domain we dont need it. if we has frontend and backend in diff domains then this would be true
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling( exception -> exception
+                        .authenticationEntryPoint((request, response, ex) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Please login with a valid token"))
+                        .accessDeniedHandler((request, response, ex) ->
+                                response.sendError(HttpServletResponse.SC_FORBIDDEN, "You are not allowed this endpoint"))
                 )
                 .authorizeHttpRequests( auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll() // to see the errors

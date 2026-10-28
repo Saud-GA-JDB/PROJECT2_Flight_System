@@ -34,7 +34,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -254,7 +257,6 @@ public class UserService {
         }
 
         user.setPassword(passwordEncoder.encode(user.getCustomer().getCpr())); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
-        // TODO: Should i handle an exception here with try catch? bc sending an email may fail
         emailService.sendEmail(user.getEmailAddress(), "Reset Password", String.format(
                 """
                         Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately.
@@ -504,13 +506,16 @@ public class UserService {
     }
 
     private void saveProfileImage(Person person, MultipartFile image) {
-        String originalFileName = image.getOriginalFilename();
+        BufferedImage profileImage;
 
-        if (originalFileName == null || originalFileName.isBlank()
-                || originalFileName.contains("/")
-                || originalFileName.contains("\\")) {
-            throw new InvalidInformationException("Invalid image filename");
+        try (InputStream inputStream = image.getInputStream()) {
+            profileImage = ImageIO.read(inputStream);
+        } catch (IOException e) {
+            throw new InvalidInformationException("Invalid image file");
         }
+
+        if (profileImage == null)
+            throw new InvalidInformationException("Please upload a valid image");
 
         try {
             Path uploadPath = Paths.get(UPLOAD_DIR).toAbsolutePath();
@@ -520,10 +525,12 @@ public class UserService {
             }
 
             String uniqueId = UUID.randomUUID().toString();
-            String fileName = uniqueId + "_" + originalFileName;
+            String fileName = uniqueId + ".png";
             Path filePath = uploadPath.resolve(fileName);
 
-            image.transferTo(filePath);
+            if (!ImageIO.write(profileImage, "png", filePath.toFile()))
+                throw new IOException("Could not save image");
+
             person.setImageUrl(UPLOAD_DIR + fileName);
         } catch (IOException e) {
             throw new RuntimeException("Could not save image", e);

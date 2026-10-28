@@ -97,11 +97,11 @@ public class OpenApiConfiguration {
             document(openApi, "/faaadmin/airlines", PathItem.HttpMethod.POST,
                     "Create airline",
                     "FAA admin only. Supply name, airlineCode, and headquartersCountry as query parameters.",
-                    "200", Airline.class, false);
+                    "200", AirlineResponse.class, false);
             document(openApi, "/faaadmin/airlines", PathItem.HttpMethod.GET,
                     "List airlines",
                     "FAA admin only.",
-                    "200", Airline.class, true);
+                    "200", AirlineResponse.class, true);
             document(openApi, "/faaadmin/airlines/{airlineId}/addAirlineAdmin", PathItem.HttpMethod.POST,
                     "Create airline admin",
                     "FAA admin only. Creates an admin for the specified airline. The current response echoes the request object.",

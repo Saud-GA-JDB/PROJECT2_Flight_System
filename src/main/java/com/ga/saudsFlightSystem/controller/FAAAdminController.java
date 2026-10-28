@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.controller;
 
-import com.ga.saudsFlightSystem.model.Airline;
-import com.ga.saudsFlightSystem.model.Email;
+import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
 import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.*;
 import lombok.AllArgsConstructor;
@@ -9,31 +8,26 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.logging.Logger;
 
 @RestController
 @RequestMapping(path = "/faaadmin")
 @AllArgsConstructor
 public class FAAAdminController {
     private FAAAdminService faaAdminService;
-    private UserService userService;
     private AirlineService airlineService;
-    private EmailService emailService;
     private AirlineEmployeeService airlineEmployeeService;
     private MaintenanceProviderService maintenanceProviderService;
     private MaintenanceEmployeeService maintenanceEmployeeService;
     private AirportOperatorService airportOperatorService;
     private AirportEmployeeService airportEmployeeService;
 
-    private static final Logger logger = Logger.getLogger(FAAAdminController.class.getName());
-
     @PostMapping("/airlines")
-    public Airline createAirline(String name, String airlineCode, String headquartersCountry) {
+    public AirlineResponse createAirline(String name, String airlineCode, String headquartersCountry) {
         return airlineService.addAirline(name, airlineCode, headquartersCountry);
     }
 
     @GetMapping("/airlines")
-    public List<Airline> getAllAirlines() {
+    public List<AirlineResponse> getAllAirlines() {
         return airlineService.getAllAirlines();
     }
 

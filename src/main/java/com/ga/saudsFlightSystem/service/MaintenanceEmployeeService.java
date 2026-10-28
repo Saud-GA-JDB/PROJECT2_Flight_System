@@ -132,7 +132,6 @@ public class MaintenanceEmployeeService {
         checkRequestFieldPopulated(request.getSecurityQuestion());
         checkRequestFieldPopulated(request.getSecurityQuestionAnswer());
 
-        //TODO: Continue here
         if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}"))
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
 

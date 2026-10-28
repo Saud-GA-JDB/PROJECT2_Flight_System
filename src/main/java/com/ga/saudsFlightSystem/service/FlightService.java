@@ -116,7 +116,7 @@ public class FlightService {
         return new FlightSearchResponse(content, pageNumber, pageSize, totalElements, totalPages);
     }
 
-    @Transactional // TODO: i should also lock it
+    @Transactional
     public ResponseEntity<?> activateFlight(Long flightId) {
         User user = UserService.getCurrentLoggedInUser();
 
@@ -131,7 +131,7 @@ public class FlightService {
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find a flight with this ID."));
 
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
-            throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
+            throw new IllegalEndpoint("You are not allowed to edit flights that don't belong to your airline.");
 
         if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
             throw new InvalidInformationException("Activating flights cam only be done to future pending crew flights.");

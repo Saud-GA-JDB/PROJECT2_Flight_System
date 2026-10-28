@@ -116,7 +116,7 @@ public class BookingServiceTest {
 
         ResponseEntity<?> response = bookingService.cancelBooking(booking.getId());
 
-        Assert.assertEquals(HttpStatus.EXPECTATION_FAILED, response.getStatusCode());
+        Assert.assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         Assert.assertEquals(Booking.BookingStatus.BOOKED, booking.getStatus());
         Assert.assertEquals(availableSeats, flight.getStandardSeatsCount());
     }

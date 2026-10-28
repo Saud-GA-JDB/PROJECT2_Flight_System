@@ -789,12 +789,12 @@ string headquartersCountry
     ATC_EMPLOYEE ||--o{ FLIGHT_CONTROL_EVENT : handles
     FLIGHT ||--o{ FLIGHT_CONTROL_EVENT : has
 ```
-## Project 3 - Concurrency:
-- Trello Link: `https://trello.com/b/b63eU4qX/project-3-concurrency`
-- [Database locks, their purpose, and acquisition order](docs/database-locking.md).
+## Project 3 - Concurrency
 
+[Trello planning board](https://trello.com/b/b63eU4qX/project-3-concurrency)
 
-## Planning:
+### Planning
+
 - Day 1: Planning, adding the new models from the erd to data models. Read more on concurrency API such as Future etc...
 - Day 2: Adding Stripe payments and tests for payment race conditions. Removed unnecessary multithreading and started the crew assignment model.
 - Day 3: Adding the crew assignment service and endpoint. Locking employee rows to prevent conflicting assignments.
@@ -805,15 +805,129 @@ string headquartersCountry
 - Day 8: Completing inspection lists and tests. Adding more SSE notifications, database locks, concurrency tests, and documentation.
 
 
-## Resources
-- https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html
-- https://www.baeldung.com/java-stripe-api
-- https://github.com/stripe/stripe-java
-- https://docs.stripe.com/api?lang=java
+### New Functionality and Models
 
-# AI Usage
+Project 3 expands the system with Stripe sandbox payments, crew assignment and removal, crew requirements for flight activation, maintenance workflows, airport staff accounts, and flight inspections with reinspection history. It also adds asynchronous crew emails, failed-email retries, more SSE notifications, and concurrency protection across existing workflows.
+
+The models introduced for these workflows include `Payment`, `CrewAssignment`, `MaintenanceProvider`, `MaintenanceEmployee`, `MaintenanceRecord`, `AirportOperator`, `AirportEmployee`, and `FlightInspection`. See the [implemented ERD](docs/ERD-IMPLEMENTED.md) for their fields and relationships.
+
+### Concurrency Explanation
+
+Concurrency occurs when multiple HTTP requests or scheduled tasks access shared data at the same time. Examples include customers booking seats on the same flight, administrators assigning the same employee to overlapping flights, and inspectors submitting competing updates.
+
+Without concurrency control, two requests could both pass a validation check before either saves its changes. This could cause duplicate bookings, incorrect seat counts, conflicting crew assignments, duplicate payments, or overwritten inspection results.
+
+#### Concurrency-sensitive workflows
+
+| Workflow | Race condition being addressed | Protection |
+| --- | --- | --- |
+| Seat booking and cancellation | Duplicate seat bookings or lost updates to available-seat counts | Flight write lock; cancellation also locks the booking |
+| Payments | Competing checkout requests or payment updates for the same booking | Pessimistic locks, optimistic payment versioning, a unique booking relationship, and Stripe idempotency keys |
+| Crew assignment | Assigning an employee to overlapping flights or changing crew while activation checks run | Flight and employee write locks; activation also locks the flight |
+| Flight inspections | Competing assignments, completion results, or reinspection requests | Flight write lock and a database constraint allowing only one pending inspection per flight |
+| Maintenance | Competing technician assignments or completion updates | Maintenance-record locks; assignment also locks the technician |
+
+For example, if two customers request the same seat, the first transaction acquires the flight lock. The second waits until that transaction finishes, then checks the updated state. If the first booking succeeds, the second request is rejected instead of creating another booking for that seat.
+
+I used database locks because the shared business data is stored in PostgreSQL. The locks coordinate competing transactions accessing the same records. Pessimistic locking lets the service validate and update protected state within one transaction. Payment versioning provides additional detection of conflicting updates.
+
+See [Database locks, their purpose, and acquisition order](docs/database-locking.md) for the full list of protected workflows.
+
+#### Database consistency approach
+
+Related business changes and audit records share transactions, so they commit or roll back together. Locks remain held until the transaction finishes. Defined acquisition orders help reduce deadlock risk, while unique constraints provide additional protection against duplicate records.
+
+Inspection changes lock the parent flight before checking inspection history. This also protects the first assignment, when there is no inspection row to lock yet. A PostgreSQL partial unique index independently prevents multiple pending inspections for one flight.
+
+Stripe network calls run outside database transactions. The application prepares and saves payment state in separate protected transactions, avoiding holding database locks while waiting for Stripe.
+
+#### Asynchronous processing
+
+Crew emails are submitted to a shared five-thread `ExecutorService` after the business transaction commits. This allows email delivery to run in the background and avoids sending confirmation for a transaction that later rolls back.
+
+Failed emails are stored in an in-memory list and retried by a scheduled task every three hours. A `ReentrantLock` protects the list while worker threads add failures and the retry task copies and clears it.
+
+Stripe API calls run synchronously on the request thread. Separate requests can still execute concurrently through the web server.
+
+### Testing
+
+Automated concurrency tests use separate threads and coordinated execution to exercise competing operations. The tests check the resulting database state as well as whether conflicting operations wait or are rejected.
+
+Examples include:
+
+- Two customers attempting to book the same seat: only one booking should succeed.
+- Customers booking different seats on the same flight: both seat deductions should be preserved.
+- Concurrent cancellations: both seats should be restored correctly.
+- Competing crew assignments: overlapping assignments for the same employee should be rejected.
+- Competing payment operations: duplicate payment creation and conflicting updates should be prevented.
+- Competing inspection assignments, completions, and reinspection requests: only valid state transitions should succeed.
+- Read/write locking: compatible readers can proceed together, while conflicting writers wait.
+
+Relevant test classes:
+
+- [ConcurrencyTest](src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java)
+- [PaymentServiceTest](src/test/java/com/ga/saudsFlightSystem/service/PaymentServiceTest.java)
+- [CrewAssignmentServiceTest](src/test/java/com/ga/saudsFlightSystem/service/CrewAssignmentServiceTest.java)
+- [MaintenanceRecordServiceTest](src/test/java/com/ga/saudsFlightSystem/service/MaintenanceRecordServiceTest.java)
+- [FlightInspectionServiceTest](src/test/java/com/ga/saudsFlightSystem/service/FlightInspectionServiceTest.java)
+
+I also performed manual testing alongside the automated tests.
+
+See the [API guide's database and integration-test notes](docs/API-GUIDE.md#database-and-integration-test-notes) and [test setup notes](TESTING-NOTES-TEMP.md) for database requirements and fixture details.
+
+### Updated API
+
+The new and modified endpoints are documented earlier in this README, including request examples, permissions, validation rules, and responses:
+
+- [Payment endpoints](#payment-endpoints)
+- [Crew assignment endpoints](#crew-assignment-endpoints)
+- [Maintenance endpoints](#maintenance-endpoints)
+- [Airport accounts and inspection endpoints](#airport-accounts-and-inspection-endpoints)
+- [Changed existing endpoints](#changed-existing-endpoints)
+
+See also the [detailed API guide](docs/API-GUIDE.md).
+
+### Challenges
+
+Implementing the business logic took more time than I expected. Integrating Stripe into this Java backend was also harder for me than my previous experience using it with PHP or React applications.
+
+Concurrency and database locking introduced new concepts that I had to read about and understand before implementing them. Time was another major constraint, especially while balancing new functionality, testing, and learning.
+
+### Future Improvements
+
+- Complete the remaining business logic for the wider workflow shown in the ERD, including pilot departure checks, baggage handling, and the planned air traffic control workflow.
+- Introduce a separate model/table for individual flight seats. Currently, booking and cancellation lock the whole flight row, so operations on different seats of the same flight must wait for one another. A more granular design could reduce contention while preserving booking and seat-availability consistency.
+- Expand SSE notifications to cover more application events.
+- Add WebSocket support for live chat.
+- Build a frontend for the application.
+
+### Credits & External Resources
+
+The [Project 2 resources and acknowledgements](#resources-and-acknowledgements) continue to apply. The following resources were also used during Project 3.
+
+| Resource | Full URL | Used for |
+| --- | --- | --- |
+| Oracle Java — Future | https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/Future.html | Learning about results from asynchronous computations |
+| Oracle Java — ThreadPoolExecutor | https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html | Understanding thread pools and task execution |
+| Oracle Java — ExecutorService | https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/concurrent/ExecutorService.html | Understanding executor-based task submission and management |
+| Oracle Java — Locks package | https://docs.oracle.com/en/java/javase/26/docs/api/java.base/java/util/concurrent/locks/package-summary.html | Learning Java locking concepts |
+| PostgreSQL — Explicit Locking | https://www.postgresql.org/docs/current/explicit-locking.html | Understanding database locks and conflicting operations |
+| Jmix — Pessimistic Locking | https://docs.jmix.io/2.x/jmix/2.1/features/pessimistic-lock.html | Additional reading about pessimistic locking |
+| JDB course repository | https://github.com/Java-FT-01-Bahrain/JDB-Info/tree/main | Course reference material |
+| Baeldung — Scheduled Tasks | https://www.baeldung.com/spring-scheduled-tasks | Implementing scheduled tasks |
+| Baeldung — Java Stripe API | https://www.baeldung.com/java-stripe-api | Learning Stripe integration in Java |
+| Stripe Java library | https://github.com/stripe/stripe-java | Integrating the Stripe Java SDK |
+| Stripe API documentation | https://docs.stripe.com/api?lang=java | Implementing Stripe payment requests |
+
+I also consulted Stack Overflow and additional articles on Baeldung, Medium, and GeeksforGeeks while learning concurrency and database locking. The exact article links were not retained.
+
+Thank you to instructor Saad for answering my questions about how to handle different situations and helping me evaluate suitable implementation approaches.
+
+#### AI Usage
+
 - Discussed where I can implement concurrency.
 - StripeCheckoutService is fully AI generated
 - Stripe Exception handling in the global exception handler
 - handleDataIntegrity in the global exception handler
 - OpenApiConfiguration.java is AI generated
+- All documentation files are AI generated with my supervision

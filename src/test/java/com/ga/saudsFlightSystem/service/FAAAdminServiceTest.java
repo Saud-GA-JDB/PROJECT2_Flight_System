@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.service;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.*;
+import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import org.junit.After;
 import org.junit.Assert;
@@ -55,7 +56,7 @@ public class FAAAdminServiceTest {
     @Test
     @DisplayName("when FAA admin adds airline then airline is saved")
     public final void whenFAAAdminAddsAirlineThenAirlineIsSaved() {
-        Airline airline = airlineService.addAirline("Test Created Airline", "TCA", "Bahrain");
+        AirlineResponse airline = airlineService.addAirline("Test Created Airline", "TCA", "Bahrain");
 
         Assert.assertNotNull(airline.getId());
         Assert.assertEquals("Test Created Airline", airline.getName());
