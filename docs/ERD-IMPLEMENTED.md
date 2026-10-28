@@ -1,6 +1,6 @@
 # Implemented system ERD
 
-This diagram documents the 12 current JPA entities as of 8 October 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
+This diagram documents the 20 current JPA entities as of 28 October 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
 
 Names and types below follow Java fields, rather than PostgreSQL column spelling or SQL types. Relationship attributes use the Java relationship name followed by `Id` to represent their join columns. `PK`, `FK`, and `UK` mean primary, foreign, and unique keys. `Required` marks explicit non-null mappings; other attributes have no explicit non-null constraint in the model. Relationship cardinalities reflect JPA nullability, which can be less strict than service validation.
 
@@ -32,6 +32,7 @@ erDiagram
         String city
         String country
         String timeZone
+        Long operatorId FK "Nullable"
     }
 
     FLIGHT {
@@ -43,7 +44,10 @@ erDiagram
         LocalDateTime scheduledArrival
         LocalDateTime actualDeparture
         LocalDateTime actualArrival
-        FlightStatus status "ACTIVE, IN_AIR, CLOSED, CANCELLED"
+        FlightStatus status "PENDING_CREW, ACTIVE, IN_AIR, CLOSED, CANCELLED"
+        Long firstClassPrice
+        Long standardPrice
+        Currency currency "BHD or USD"
         Long airlineId FK
         Long airplaneId FK
         Long originAirportId FK
@@ -67,7 +71,7 @@ erDiagram
         String password "Required; hash"
         String securityQuestion
         String securityQuestionAnswer "Hash"
-        Role role "CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN"
+        Role role "CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE"
         boolean isActive
         Status status "SETUP_REQUIRED, ACTIVE, DEACTIVATED"
         int failedLoginAttempts "Required; default 0"
@@ -75,6 +79,8 @@ erDiagram
         Long customerId FK, UK
         Long airlineEmployeeId FK, UK
         Long faaAdminId FK, UK
+        Long airportEmployeeId FK, UK
+        Long maintenanceEmployeeId FK, UK
     }
 
     CUSTOMER {
@@ -147,9 +153,98 @@ erDiagram
         Long userId "Scalar actor ID; not a foreign key"
         Role userRole
         Action action "Required; audit action enum"
-        EntityType entityType "Required; BOOKING, USER, AIRLINE, AIRPLANE, AIRPLANE_REQUEST, FLIGHT"
+        EntityType entityType "Required; see AuditLog.EntityType"
         Long entityId "Required; scalar target ID; not a foreign key"
         String description "Required; up to 500 characters"
+    }
+
+    AIRPORT_OPERATOR {
+        long id PK
+        string name "Required"
+        string contactEmail "Required"
+    }
+
+    AIRPORT_EMPLOYEE {
+        long id PK
+        long operatorId FK "Required"
+        long airportId FK "Required"
+        string fName
+        string lName
+        string cpr UK "Required"
+        string phoneNumberOpeningCode
+        string phoneNumber
+        byte[] imageData
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
+        AirportRole airportRole "ADMIN, INSPECTOR, BAGGAGE_HANDLER"
+    }
+
+    CREW_ASSIGNMENT {
+        long id PK
+        long flightId FK
+        long airlineEmployeeId FK
+        Duty duty "PILOT, SECONDARY_PILOT, FLIGHT_ATTENDANT"
+        datetime assignedAt
+    }
+
+    FLIGHT_INSPECTION {
+        long id PK
+        long flightId FK "Required"
+        long airportId FK "Required"
+        long inspectorId FK "Nullable"
+        InspectionStatus status "PENDING, PASSED, FAILED; required"
+        string reason "Optional; up to 2000 characters"
+        datetime createdAt "Required"
+        datetime completedAt "Nullable"
+    }
+
+    MAINTENANCE_PROVIDER {
+        long id PK
+        string name "Required"
+        string contactEmail "Required"
+    }
+
+    MAINTENANCE_EMPLOYEE {
+        long id PK
+        long providerId FK "Required"
+        string fName
+        string lName
+        string cpr UK "Required"
+        string phoneNumberOpeningCode
+        string phoneNumber
+        byte[] imageData
+        string imageUrl
+        datetime createdAt
+        datetime updatedAt
+        MaintenanceRole maintenanceRole "ADMIN, TECHNICIAN"
+        string licenseNumber "Required by service for technicians"
+    }
+
+    MAINTENANCE_RECORD {
+        long id PK
+        long airplaneId FK "Required"
+        long providerId FK "Required"
+        long technicianId FK "Nullable"
+        string description "Optional; up to 2000 characters"
+        string findings "Optional; up to 2000 characters"
+        MaintenanceStatus status "PENDING, COMPLETED, CANCELLED; required"
+        datetime createdAt "Required"
+        datetime updatedAt "Required"
+        datetime completedAt "Nullable"
+    }
+
+    PAYMENT {
+        Long id PK
+        Long bookingId FK, UK "Required"
+        Long amount "Required; smallest currency unit"
+        Currency currency "Required; BHD or USD"
+        String stripeCheckoutSessionId UK
+        String stripePaymentIntentId UK
+        PaymentStatus status "Required; PENDING, PAID, EXPIRED"
+        Long version "Optimistic lock"
+        LocalDateTime createdAt
+        LocalDateTime updatedAt
     }
 
     AIRLINE ||--o{ AIRPLANE : manages
@@ -166,17 +261,33 @@ erDiagram
     AIRPLANE ||--o{ AIRPLANE_REQUEST : has
     USER o|--o{ AIRPLANE_REQUEST : requests
     FAA_ADMIN o|--o{ AIRPLANE_REQUEST : reviews
+    AIRPORT_OPERATOR o|--o{ AIRPORT : operates
+    AIRPORT_OPERATOR ||--o{ AIRPORT_EMPLOYEE : employs
+    AIRPORT ||--o{ AIRPORT_EMPLOYEE : workplace
+    AIRPORT_EMPLOYEE o|--o| USER : profileFor
+    MAINTENANCE_EMPLOYEE o|--o| USER : profileFor
+    AIRLINE_EMPLOYEE o|--o{ CREW_ASSIGNMENT : receives
+    FLIGHT o|--o{ CREW_ASSIGNMENT : has
+    AIRPORT_EMPLOYEE o|--o{ FLIGHT_INSPECTION : performs
+    AIRPORT ||--o{ FLIGHT_INSPECTION : location
+    FLIGHT ||--o{ FLIGHT_INSPECTION : receives
+    MAINTENANCE_PROVIDER ||--o{ MAINTENANCE_EMPLOYEE : employs
+    MAINTENANCE_EMPLOYEE o|--o{ MAINTENANCE_RECORD : performs
+    MAINTENANCE_PROVIDER ||--o{ MAINTENANCE_RECORD : receives
+    AIRPLANE ||--o{ MAINTENANCE_RECORD : has
+    AIRLINE }o--o{ MAINTENANCE_PROVIDER : contracts
+    BOOKING ||--o| PAYMENT : has
 ```
 
 ## Mapping notes
 
-- `Person` is a `@MappedSuperclass`, not an entity or separate table. Its fields are inherited by `Customer`, `AirlineEmployee`, and `FAAAdmin` and are expanded in each box above. CPR uniqueness is mapped separately within each profile table.
+- `Person` is a `@MappedSuperclass`, not an entity or separate table. Its fields are inherited by `Customer`, `AirlineEmployee`, `FAAAdmin`, `AirportEmployee`, and `MaintenanceEmployee` and are expanded in each box above. CPR uniqueness is mapped separately within each profile table.
 - Bookings belong to `User`, not directly to `Customer`. Airplane requests also reference `User` as their requester and `FAAAdmin` as their reviewer.
-- User profile links are nullable, unique one-to-one relationships. The mappings do not impose a database constraint requiring exactly one of the three profiles.
+- User profile links are nullable, unique one-to-one relationships. The mappings do not impose a database constraint requiring exactly one of the five profiles.
 - `PendingRegistration` has no mapped relationship to `User`; email and CPR matching happens in application code. `AuditLog.userId` and `entityId` are scalar identifiers, not JPA relationships, so no foreign-key edges are drawn for them.
-- `User.role` and `User.status` do not declare `@Enumerated`, so their JPA mapping uses enum ordinals by default. Other enum fields in this diagram explicitly use `EnumType.STRING`. The diagram shows enum names for readability, not their physical database encoding.
+- `User.role` uses EnumType.STRING; User.status remains ordinal (SETUP_REQUIRED=0, ACTIVE=1, DEACTIVATED=2). Other enum fields in this diagram explicitly use `EnumType.STRING`. The diagram shows enum names for readability, not their physical database encoding.
 - Airplane capacities are total seats; flight seat counts track remaining availability. There is no separate seat entity. `flightNumber` has no mapped unique constraint, while `bookingRef` does.
-- `AIRPORT_EMPLOYEE` exists as a `User.Role` value, but there is no implemented airport-employee entity. Crew, ground-service, maintenance, and air traffic control entities from the original ERD are not included here.
+- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. Generic ground services/baggage and ATC/navigation remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
 - `Email` and the request/response DTOs are not entities. Despite its package name, `model.request.AirplaneRequest` is an entity and is included. SSE connections are in memory, not persisted entities.
 
 ## Entity-to-table reference
@@ -197,5 +308,13 @@ These are the explicit `@Table` names in source. Hibernate's physical naming str
 | AirplaneRequest | `airplane_requests` |
 | PendingRegistration | `pending_registrations` |
 | AuditLog | `audit_logs` |
+| AirportOperator | `airport_operators` |
+| AirportEmployee | `airport_employees` |
+| CrewAssignment | `crew_assignments` |
+| FlightInspection | `flight_inspections` |
+| MaintenanceProvider | `maintenance_providers` |
+| MaintenanceEmployee | `maintenance_employees` |
+| MaintenanceRecord | `maintenance_records` |
+| Payment | `payments` |
 
 Source: [entity models](../src/main/java/com/ga/saudsFlightSystem/model/) and [AirplaneRequest](../src/main/java/com/ga/saudsFlightSystem/model/request/AirplaneRequest.java). This is a source-mapping diagram, not a reverse-engineered snapshot of a particular local database.

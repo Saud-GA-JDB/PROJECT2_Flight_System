@@ -8,7 +8,7 @@ Cron Jobs
 - Changes `ACTIVE` to `IN_AIR` when `actualDeparture` is not null and its time has been reached.
 - Changes `IN_AIR` to `CLOSED` when `actualArrival` is not null and its time has been reached.
 
-Null actual times leave the status unchanged, allowing for delayed flights. Time checks use the server's local time.
+Pilot take-off and inspection/FAA departure enforcement are deferred. This scheduler does not check inspection results before transitioning to IN_AIR. Null actual times leave the status unchanged, allowing for delayed flights. Time checks use the server's local time.
 
 Customer registration endpoints
 ---
@@ -126,9 +126,9 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates an active flight for the admin's airline and returns an `AddFlightResponse` with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00"}` |
+| POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates a PENDING_CREW flight for the admin's airline and returns an `AddFlightResponse` with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival`, `firstClassPrice`, `standardPrice`; optional `currency` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00","firstClassPrice":30000,"standardPrice":15000,"currency":"USD"}` |
 
-Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities.
+Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities. Supply positive firstClassPrice and standardPrice values and BHD or USD currency (omitted currency defaults to BHD). After assigning a pilot, secondary pilot, and flight attendant, call PUT /airlineAdmin/flights/{flightId}/activate for a future PENDING_CREW flight owned by your airline. Activation does not yet enforce inspection clearance.
 
 Search flights endpoint
 ---
@@ -411,3 +411,75 @@ $env:APP_SEED_ENABLED = "false"
 
 Aircraft use Airbus A320-200, Airbus A321neo, Boeing 787-9, and Boeing 777-300ER model names. Registrations, seat layouts, flight numbers, and schedules are illustrative sample data, not a representation of current airline fleets or timetables. The required TEST-FREE-PLANE and TEST-BOOKING-900001 identifiers remain for test compatibility.
 
+
+### Crew and payments
+
+See the README for [crew assignment endpoints](../README.md#crew-assignment-endpoints) and [payment endpoints](../README.md#payment-endpoints), including current state restrictions and concurrency behavior.
+
+### Maintenance endpoints
+
+FAA admins create providers and their admin accounts. Airline admins contract providers and request maintenance for their own airplanes. Provider admins assign their technicians; only the assigned technician can complete a pending record.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| POST | `/faaadmin/maintenanceProviders` | Create provider; JSON name and contactEmail |
+| POST | `/faaadmin/maintenanceProviders/{providerId}/addMaintenanceAdmin` | Create provider admin account |
+| POST | `/maintenanceAdmin/technicians` | Create technician within the admin's provider |
+| POST | `/airlineAdmin/maintenanceProviders/{providerId}/contract` | Contract provider for the admin's airline |
+| POST | `/airlineAdmin/airplanes/{airplaneId}/maintenanceRequests` | Request maintenance; JSON providerId and optional description |
+| GET | `/maintenanceAdmin/maintenanceRequests` | List the provider's requests |
+| POST | `/maintenanceAdmin/maintenanceRequests/{requestId}?technicianId=...` | Assign a technician |
+| GET | `/maintenanceTechnician/maintenanceRecords` | List the technician's assignments |
+| PUT | `/maintenanceTechnician/maintenanceRecords/{recordId}/complete?findings=...` | Complete work; findings optional |
+
+A request starts PENDING without a technician. Assignment keeps it PENDING; completion changes it to COMPLETED. Maintenance staff cannot ground or activate airplanes, and completion does not change an inspection result. Cancellation and airline maintenance-history endpoints remain deferred.
+
+Contract linking and request creation lock the provider before checking airline relationships. Assignment locks the maintenance record before the technician; completion locks the record. State checks and audit writes share the transaction. Multiple pending maintenance requests are allowed.
+
+### Airport accounts and inspection endpoints
+
+FAA admins create operators, link airports, and create airport admin accounts. Each airport admin manages one airport, even though the creation endpoint is named addAirportOperatorAdmin. Airport admins can create INSPECTOR or BAGGAGE_HANDLER employees at their own airport; the baggage workflow itself is deferred.
+
+| Method | Endpoint | Purpose / caller |
+| --- | --- | --- |
+| POST | `/faaadmin/airportOperators` | FAA admin; JSON name and contactEmail |
+| PUT | `/faaadmin/airports/{airportId}/operator?operatorId=...` | FAA admin links an operator |
+| POST | `/faaadmin/airports/{airportId}/addAirportOperatorAdmin` | FAA admin creates an airport admin |
+| POST | `/airportAdmin/employees?role=INSPECTOR` | Airport admin creates staff; also accepts BAGGAGE_HANDLER |
+| POST | `/airportAdmin/flights/{flightId}/inspection?inspectorId=...` | Origin-airport admin assigns an inspector |
+| GET | `/airportAdmin/inspections` | Admin lists inspections at their airport |
+| GET | `/airportInspector/inspections` | Inspector lists their assignments |
+| PUT | `/airportInspector/flights/{flightId}/inspections/{inspectionId}/complete?result=PASSED&reason=...` | Assigned inspector records PASSED or FAILED; reason optional |
+| POST | `/airlineAdmin/flights/{flightId}/reinspection` | Owning airline admin requests another attempt after failure |
+| GET | `/airlineAdmin/flights/{flightId}/inspections` | Owning airline admin lists the flight's inspection history |
+
+Employee creation uses AddAirportEmployeeRequest JSON: fName, lName, cpr, emailAddress, phoneNumberOpeningCode, phoneNumber, password, securityQuestion, and securityQuestionAnswer. Airport/operator relationships are derived by the service. Airport linking and employee creation lock the airport before checking its operator. An airport with employees cannot change operators; attempting to link its current operator again is also rejected.
+
+#### Inspection workflow
+
+1. The origin-airport admin selects an INSPECTOR at the same airport and operator. The first assignment creates a PENDING inspection.
+2. Only the assigned inspector can complete the latest attempt as PASSED or FAILED. The optional reason is stored as supplied, with a 2000-character limit, and completedAt is recorded.
+3. After failure, the owning airline admin can request reinspection. This creates a new unassigned PENDING attempt while preserving the previous result and reason.
+4. The airport admin assigns an inspector to the new attempt; it need not be the previous inspector.
+
+Assignment cannot overwrite an assigned inspector or reopen a completed attempt. Reinspection is rejected if the latest attempt is pending or passed. Mutations require a flight in PENDING_CREW or ACTIVE status. There is no cross-flight defect carryover, and airport employees do not read maintenance records.
+
+Lists return FlightInspectionResponse objects with id, flightId, airportId, nullable inspectorId, status, reason, createdAt, and completedAt, ordered by descending ID. A flight with no inspections returns an empty list.
+
+#### Inspection concurrency and departure limits
+
+Assignment, completion, and reinspection first lock the flight through findByIdForUpdate(), then read/check the latest attempt. This serializes competing requests, including the first assignment when no inspection row exists. Audit writes share the transaction; listing methods use ordinary reads. The PostgreSQL partial unique index flight_inspections_one_pending_per_flight additionally rejects two PENDING attempts for one flight while allowing completed history.
+
+Inspection completion never changes FAA airplane status. Pilot take-off and departure enforcement are deferred: the existing scheduler still transitions ACTIVE to IN_AIR based on actualDeparture without checking inspection results. The future pilot workflow must coordinate the same flight lock, assigned-pilot authorization, crew readiness, a passed latest inspection, and independent FAA airplane status before departure.
+
+### Database and integration-test notes
+
+The flight inspection schema requires its foreign keys, status check, and one-pending-per-flight partial unique index. See the [README database setup](../README.md#2-configure-postgresql) for the index and audit-constraint requirements. The old crew-assignment-audit.sql omits newer audit values and must not be rerun unchanged on the current schema.
+
+FlightInspectionServiceTest passed 16 PostgreSQL tests on 28 October 2026 with no failures/errors/skips. It creates its own fixtures with seeding disabled and schema validation enabled. Ordinary tests roll back; committed concurrency fixtures are cleaned up. Tests cover history, permissions, lists, competing assignments/completions/reinspection, and direct unique-index rejection. They do not cover HTTP routing, airport account creation end to end, or deferred departure enforcement.
+
+```powershell
+.\mvnw.cmd -Dtest=FlightInspectionServiceTest test
+```
+
+MaintenanceRecordServiceTest passed five PostgreSQL tests on 27 October 2026 and also creates its own fixtures. The older seeded-test instructions above apply to their named suites, not these two classes. No application-wide concurrency-safety claim follows from these results.

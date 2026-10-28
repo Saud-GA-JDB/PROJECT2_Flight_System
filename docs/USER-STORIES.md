@@ -21,19 +21,34 @@ These stories were recorded retrospectively from the implemented API and the wid
 | US-13 | As an FAA administrator, I want to maintain user records and deactivate accounts. | Supply a target user ID to update supported administrative fields or deactivate an account; enforce FAA authorization. |
 | US-14 | As a developer, I want repeatable sample data and API documentation so I can explore the system. | Opt-in seeding creates demo workflows; Swagger exposes the API and supports JWT authorization; Postman examples and a detailed guide provide usage instructions. |
 
+## Operational stories implemented by 28 October 2026
+
+| ID | User story | Acceptance criteria |
+| --- | --- | --- |
+| US-37 | As an FAA admin, I want to create maintenance providers and their admins. | Create provider and authenticated admin account; only FAA admins can perform setup. |
+| US-38 | As an airline admin, I want to request maintenance from a contracted provider. | Contract an existing provider; request work for my airline's airplane; no technician selection at request creation. |
+| US-39 | As a provider admin, I want to assign technicians to my requests. | Assign a technician from my provider to an unassigned PENDING record; reject competing reassignment. |
+| US-40 | As a technician, I want to list and complete my assignments. | Only the assigned technician completes PENDING work; optional findings; no FAA status or inspection changes. |
+| US-41 | As an FAA admin, I want to set up airport operators and airport admins. | Link an airport to an operator; create an admin at that airport; operator reassignment is rejected while employees exist. |
+| US-42 | As an airport admin, I want to manage staff and inspection assignments at my airport. | Create inspectors or baggage handlers; assign only an inspector at the flight's origin airport and operator; list my airport's inspections. |
+| US-43 | As an inspector, I want to list my assignments and record inspection results. | Complete only my latest assigned PENDING attempt as PASSED or FAILED with optional reason; preserve completion time and audit record. |
+| US-44 | As an airline admin, I want reinspection after failure and access to the history. | Own the flight's airline; latest attempt must be FAILED; create a separate unassigned PENDING attempt; retain all prior attempts and list newest first. |
+| US-45 | As an airline admin, I want to manage qualified crew and activate a staffed flight. | Create/list/remove assignments with role, airline, and scheduling checks; activation requires pilot, secondary pilot, and attendant; active-flight removal must preserve coverage. |
+
+Inspection mutations serialize through the flight lock; PostgreSQL permits only one pending attempt per flight. The inspection test suite passed 16 tests on 28 October 2026, including three competing-request cases. This does not establish departure enforcement, which remains deferred.
+
 ## Deferred stories from the broader design
 
-- As an airline administrator, I want to assign crew to flights and record their duties.
-- As an airport operator, I want to manage airport employees and ground-service assignments.
-- As a maintenance provider, I want to manage technicians and record airplane maintenance and release status.
-- As an air traffic control employee, I want to record flight-control events through my assigned control facility.
-- As an aviation-system user, I want these operational stages connected into the full flight workflow.
+- Pilot take-off with assigned-pilot authorization and final locked inspection, crew, and FAA-status checks.
+- Baggage handling and other ground services beyond inspections.
+- Maintenance cancellation and airline maintenance-history endpoints.
+- Air traffic control facilities, controllers, and flight-control events (outside current scope).
 
-These workflows remain planned; their appearance in the ERD does not mean they have working endpoints. See [Planning](PLANNING.md) and the [README](../README.md).
+Maintenance staff do not make aircraft release/grounding decisions. Cross-flight defect carryover was rejected and is not a future requirement. See [Planning](PLANNING.md) and the [README](../README.md).
 
 ## Project 3 proposed user stories
 
-Drafted on 21 October 2026 for scope selection. All stories below are proposed, not implemented or a commitment to implement the full ERD. Existing implemented stories describe Project 2 behavior; payment stories below propose changes to that booking flow.
+Drafted on 21 October 2026 for scope selection. The original proposals below are retained as historical scope-selection notes, not current acceptance criteria. US-28, US-29, and US-32 now have implementations; US-31 is narrowed to FlightInspection; US-33 aircraft-release decisions were rejected and replaced by US-38/39/40. Stripe checkout and status retrieval are implemented as described in the README, but webhook confirmation, automatic holds/expiry, and refunds remain unimplemented. Use the implemented stories above for current behavior.
 
 ### Concurrency and scheduled background work
 
@@ -64,7 +79,7 @@ Initial proposal: Stripe Checkout in test mode, with card payments only. Hold du
 
 Payment design references: [Stripe post-payment handling](https://docs.stripe.com/payments/existing-customers?platform=web&ui=stripe-hosted) supports server-side webhook confirmation rather than relying on a redirect; [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests) explains safe retries of payment operations. These references informed the proposed acceptance criteria.
 
-### Planned ERD models and operational workflows
+### Original operational proposals (historical; see current scope above)
 
 These stories cover the wider ERD as a selection backlog. Choose a coherent subset rather than implementing every model merely to increase the entity count.
 
@@ -80,7 +95,7 @@ These stories cover the wider ERD as a selection backlog. Choose a coherent subs
 | US-35 | As an air-navigation administrator, I want to manage control facilities and their controllers so flight events have an authorized operational source. | Associate facilities with a provider and, where applicable, an airport; associate controllers with a facility and an authenticated account; restrict actions to authorized scope. | `AirNavigationServiceProvider`, `ControlFacility`, `ATCEmployee` |
 | US-36 | As an air traffic controller, I want to record permitted flight-control events so the flight's operational history remains consistent. | Record controller, flight, event type, time, and notes; validate permitted state transitions; concurrent conflicting transitions cannot both succeed; save flight state and event together and publish updates after commit. | `FlightControlEvent` |
 
-### Proposed model mapping
+### Original proposed model mapping (historical)
 
 | Model group | Models | Scope notes |
 | --- | --- | --- |
