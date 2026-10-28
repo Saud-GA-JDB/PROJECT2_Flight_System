@@ -25,4 +25,10 @@ public class AirportAdminController {
     public ResponseEntity<?> assignInspector(@PathVariable(name = "flightId") Long flightId, @RequestParam(name = "inspectorId") Long inspectorId) {
         return flightInspectionService.assignInspector(flightId, inspectorId);
     }
+
+    @GetMapping("/inspections")
+    public ResponseEntity<?> getAirportInspections() {
+        return flightInspectionService.getAirportInspections();
+    }
+
 }

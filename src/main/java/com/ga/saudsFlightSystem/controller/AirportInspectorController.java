@@ -20,4 +20,10 @@ public class AirportInspectorController {
             @RequestParam(name = "reason", required = false) String reason) {
         return flightInspectionService.completeInspection(flightId, inspectionId, result, reason);
     }
+
+    @GetMapping("/inspections")
+    public ResponseEntity<?> getMyInspections() {
+        return flightInspectionService.getMyInspections();
+    }
+
 }

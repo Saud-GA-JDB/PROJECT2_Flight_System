@@ -4,6 +4,7 @@ import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
+import com.ga.saudsFlightSystem.model.request.response.FlightInspectionResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.FlightInspectionRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -14,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 @Service
@@ -199,5 +202,83 @@ public class FlightInspectionService {
         logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body("Re-inspection requested. Inspection ID: " + inspection.getId());
+    }
+
+    @Transactional
+    public ResponseEntity<?> getAirportInspections() {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirportEmployee admin = user.getAirportEmployee();
+
+        if (admin == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN
+                || admin.getAirport() == null || admin.getOperator() == null || admin.getAirport().getOperator() == null
+                || !admin.getOperator().getId().equals(admin.getAirport().getOperator().getId()))
+            throw new IllegalEndpoint("Only airport admins can view their airport's inspections.");
+
+        List<FlightInspection> inspections = flightInspectionRepository.findByAirport_IdOrderByIdDesc(admin.getAirport().getId());
+
+        return ResponseEntity.ok(toInspectionResponses(inspections));
+    }
+
+    @Transactional
+    public ResponseEntity<?> getMyInspections() {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirportEmployee inspector = user.getAirportEmployee();
+
+        if (inspector == null || inspector.getAirportRole() != AirportEmployee.AirportRole.INSPECTOR)
+            throw new IllegalEndpoint("Only inspectors can access their inspection assignments.");
+
+        List<FlightInspection> inspections = flightInspectionRepository.findByInspector_IdOrderByIdDesc(inspector.getId());
+
+        return ResponseEntity.ok(toInspectionResponses(inspections));
+    }
+
+    @Transactional
+    public ResponseEntity<?> getFlightInspections(Long flightId) {
+        User user = UserService.getCurrentLoggedInUser();
+
+        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+
+        AirlineEmployee admin = user.getAirlineEmployee();
+
+        if (admin == null || admin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN || admin.getAirline() == null)
+            throw new IllegalEndpoint("Only airline admins can access this endpoint.");
+
+        Flight flight = flightRepository.findById(flightId)
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find a flight with this ID."));
+
+        if (flight.getAirline() == null || !flight.getAirline().getId().equals(admin.getAirline().getId()))
+            throw new IllegalEndpoint("You can only view inspections for your airline's flights.");
+
+        List<FlightInspection> inspections = flightInspectionRepository.findByFlight_IdOrderByIdDesc(flightId);
+
+        return ResponseEntity.ok(toInspectionResponses(inspections));
+    }
+
+    private List<FlightInspectionResponse> toInspectionResponses(List<FlightInspection> inspections) {
+        List<FlightInspectionResponse> responses = new ArrayList<>();
+
+        for (FlightInspection inspection : inspections) {
+            responses.add(new FlightInspectionResponse(
+                    inspection.getId(),
+                    inspection.getFlight().getId(),
+                    inspection.getAirport().getId(),
+                    inspection.getInspector() == null ? null : inspection.getInspector().getId(),
+                    inspection.getStatus(),
+                    inspection.getReason(),
+                    inspection.getCreatedAt(),
+                    inspection.getCompletedAt()
+            ));
+        }
+
+        return responses;
     }
 }

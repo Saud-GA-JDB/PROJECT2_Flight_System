@@ -71,4 +71,10 @@ public class AirlineAdminController {
     public ResponseEntity<?> requestReinspection(@PathVariable(name = "flightId") Long flightId) {
         return flightInspectionService.requestReInspection(flightId);
     }
+
+    @GetMapping("/flights/{flightId}/inspections")
+    public ResponseEntity<?> getFlightInspections(@PathVariable(name = "flightId") Long flightId) {
+        return flightInspectionService.getFlightInspections(flightId);
+    }
+
 }
