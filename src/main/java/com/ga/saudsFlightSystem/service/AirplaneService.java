@@ -168,7 +168,11 @@ public class AirplaneService {
         ));
 
         logger.info(description + " (user id: " + user.getId() + ")");
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), user.getAirlineEmployee().getCpr(), airplane.getStatus()));
+
+        AddAirplaneResponse response = new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), user.getAirlineEmployee().getCpr(), airplane.getStatus());
+
+        notificationService.sendToUser(user.getId(), "airplane-added", response);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
