@@ -160,18 +160,25 @@ public class FlightService {
     public void updateFlightStatus() {
         LocalDateTime now = LocalDateTime.now();
 
-        for (Flight flight : flightRepository.findByStatus(Flight.FlightStatus.ACTIVE)) {
-            if (flight.getActualDeparture() != null && !flight.getActualDeparture().isAfter(now)) {
+        List<Long> flightIds = flightRepository.findIdsByStatuses(Flight.FlightStatus.ACTIVE, Flight.FlightStatus.IN_AIR);
+
+        for (Long flightId : flightIds) {
+            Flight flight = flightRepository.findByIdForUpdate(flightId).orElse(null);
+
+            if (flight == null)
+                continue;
+
+            if (flight.getStatus() == Flight.FlightStatus.ACTIVE &&
+                    flight.getActualDeparture() != null && !flight.getActualDeparture().isAfter(now)) {
                 flight.setStatus(Flight.FlightStatus.IN_AIR);
                 flightRepository.save(flight);
                 String description = "System changed flight with id " + flight.getId() + " from ACTIVE to IN_AIR";
                 auditLogService.addAuditLog(null, AuditLog.Action.FLIGHT_STATUS_CHANGED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
                 logger.info(description);
             }
-        }
 
-        for (Flight flight : flightRepository.findByStatus(Flight.FlightStatus.IN_AIR)) {
-            if (flight.getActualArrival() != null && !flight.getActualArrival().isAfter(now)) {
+            if (flight.getStatus() == Flight.FlightStatus.IN_AIR &&
+                    flight.getActualArrival() != null && !flight.getActualArrival().isAfter(now)) {
                 flight.setStatus(Flight.FlightStatus.CLOSED);
                 flightRepository.save(flight);
                 String description = "System changed flight with id " + flight.getId() + " from IN_AIR to CLOSED";

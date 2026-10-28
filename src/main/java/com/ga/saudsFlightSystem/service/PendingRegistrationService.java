@@ -60,17 +60,19 @@ public class PendingRegistrationService {
      * @param cpr CPR for the new account
      * @return a message confirming the verification email was requested
      */
+    @Transactional
     public ResponseEntity<?> sendCode(String email, String cpr) {
         if(!EmailService.validateEmailFormat(email)) throw new InvalidInformationException("invalid Email Format");
         if (cpr == null || !cpr.matches("[0-9]{9}")) {
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
         }
 
+        for (PendingRegistration pending : pendingRegistrationRepository.findByEmailAddressOrCprForUpdate(email, cpr)) {
+            checkPending(pending);
+        }
         checkExistingDetails(email, cpr);
-        checkPending(pendingRegistrationRepository.findByEmailAddress(email));
-        checkPending(pendingRegistrationRepository.findByCpr(cpr));
+        pendingRegistrationRepository.flush();
 
-        // Generates a number from 100000 to 999999.
         String code = String.valueOf((int) (Math.random() * 900000) + 100000);
 
         PendingRegistration pending = new PendingRegistration();
@@ -113,7 +115,7 @@ public class PendingRegistrationService {
     public ResponseEntity<?> verify(String email, String code) {
         PendingRegistration pending = checkCode(email, code);
 
-        User user = userRepository.findUserByEmailAddress(pending.getEmailAddress());
+        User user = userRepository.findByEmailAddressForUpdate(pending.getEmailAddress());
         if (user == null) {
             checkExistingDetails(pending.getEmailAddress(), pending.getCpr());
 
@@ -148,8 +150,7 @@ public class PendingRegistrationService {
     }
 
     public PendingRegistration getVerifiedRegistration(String email) {
-        PendingRegistration pending =
-                pendingRegistrationRepository.findByEmailAddress(email);
+        PendingRegistration pending = pendingRegistrationRepository.findByEmailAddressForUpdate(email);
         if (pending == null) {
             throw new InformationNotFoundException("No pending registration found.");
         }
@@ -163,7 +164,7 @@ public class PendingRegistrationService {
         if (email == null || email.isBlank() || code == null || code.isBlank()) {
             throw new InvalidInformationException("Email and code are required.");
         }
-        PendingRegistration pending = pendingRegistrationRepository.findByEmailAddress(email);
+        PendingRegistration pending = pendingRegistrationRepository.findByEmailAddressForUpdate(email);
         if (pending == null) {
             throw new InformationNotFoundException("No pending registration found.");
         }

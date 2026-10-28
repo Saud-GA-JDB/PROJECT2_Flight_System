@@ -13,6 +13,7 @@ import com.ga.saudsFlightSystem.model.request.response.AirplaneRequestResponse;
 import com.ga.saudsFlightSystem.model.request.response.AddAirplaneResponse;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.saudsFlightSystem.repository.AirplaneRequestRepository;
+import com.ga.saudsFlightSystem.repository.FlightRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,7 @@ public class AirplaneService {
     private NotificationService notificationService;
     private EmailService emailService;
     private AuditLogService auditLogService;
+    private FlightRepository flightRepository;
 
     private static final Logger logger = Logger.getLogger(AirplaneService.class.getName());
 
@@ -51,7 +53,8 @@ public class AirplaneService {
         if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
             throw new IllegalEndpoint("Only airline admins can request airplane activation!");
         }
-        Airplane airplane = airplaneRepository.findById(airplaneId).orElseThrow(() -> new InformationNotFoundException("couldn't find airplane with this id"));
+        Airplane airplane = airplaneRepository.findByIdForUpdate(airplaneId)
+                .orElseThrow( () -> new InformationNotFoundException("couldn't find airplane with this id"));
         if (!Objects.equals(airplane.getAirline().getId(), airlineEmployee.getAirline().getId())) {
             throw new InvalidInformationException("airplane must be owned by the airline");
         }
@@ -99,8 +102,7 @@ public class AirplaneService {
             throw new InvalidInformationException("Can't add a flight because the airplane is grounded");
         }
 
-        // leave two hours between flights, whether the new flight is before or after an existing one
-        for (Flight flight : airplane.getFlightsList()) {
+        for (Flight flight : flightRepository.findByAirplane_Id(airplane.getId())) {
             if (flight.getStatus() != Flight.FlightStatus.CANCELLED &&
                     scheduledDeparture.isBefore(flight.getScheduledArrival().plusMinutes(120)) &&
                     scheduledArrival.plusMinutes(120).isAfter(flight.getScheduledDeparture())) {

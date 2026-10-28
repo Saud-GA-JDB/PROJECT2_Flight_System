@@ -60,6 +60,7 @@ public class FAAAdminService {
     @Transactional
     public ResponseEntity<?> reviewAirplaneRequest(Long requestId, ReviewAirplaneRequest review) {
         User user = UserService.getCurrentLoggedInUser();
+
         if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()) || user.getFaaAdmin() == null) {
             throw new IllegalEndpoint("Only FAA admins can review airplane activation requests!");
         }
@@ -77,11 +78,17 @@ public class FAAAdminService {
         if (reason.length() > 500) {
             throw new InvalidInformationException("Review reason must not exceed 500 characters");
         }
-        AirplaneRequest request = airplaneRequestRepository.findById(requestId).orElseThrow(() -> new InformationNotFoundException("couldn't find airplane request with this id"));
+
+        Long airplaneId = airplaneRequestRepository.findAirplaneIdByRequestId(requestId)
+                .orElseThrow( () -> new InformationNotFoundException("couldn't find airplane request with this id"));
+        Airplane airplane = airplaneRepository.findByIdForUpdate(airplaneId)
+                .orElseThrow( () -> new InformationNotFoundException("couldn't find airplane with this id"));
+        AirplaneRequest request = airplaneRequestRepository.findById(requestId)
+                .orElseThrow( () -> new InformationNotFoundException("couldn't find airplane request with this id"));
+
         if (request.getStatus() != AirplaneRequest.ApprovalStatus.PENDING) {
             throw new InvalidInformationException("This activation request has already been reviewed");
         }
-        Airplane airplane = request.getAirplane();
         if (review.getStatus() == AirplaneRequest.ApprovalStatus.ACCEPTED) {
             airplane.setStatus(Airplane.Status.ACTIVE);
         } else {

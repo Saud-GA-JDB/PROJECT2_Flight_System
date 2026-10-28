@@ -10,6 +10,7 @@ import com.ga.saudsFlightSystem.model.Payment;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.PaymentResponse;
 import com.ga.saudsFlightSystem.model.request.response.CheckoutResponse;
+import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.stripe.model.checkout.Session;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.PaymentRepository;
@@ -25,6 +26,7 @@ import java.util.Objects;
 public class PaymentService {
     private BookingRepository bookingRepository;
     private PaymentRepository paymentRepository;
+    private FlightRepository flightRepository;
 
     @Transactional(readOnly = true)
     public PaymentResponse getPayment(Long bookingId) {
@@ -152,17 +154,20 @@ public class PaymentService {
     public PaymentResponse preparePayment(Long bookingId) {
         User user = UserService.getCurrentLoggedInUser();
 
+        Long flightId = bookingRepository.findFlightIdByBookingId(bookingId)
+                .orElseThrow( () -> new InformationNotFoundException("No booking with that id found"));
+
+        Flight flight = flightRepository.findByIdForUpdate(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
+
         Booking booking = bookingRepository.findByIdForPayment(bookingId)
-                .orElseThrow(() ->
-                        new InformationNotFoundException("No booking with that id found"));
+                .orElseThrow( () -> new InformationNotFoundException("No booking with that id found"));
 
         if (!Objects.equals(user.getId(), booking.getUser().getId()))
             throw new IllegalEndpoint("You can only pay for your own booking");
 
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
             throw new InvalidInformationException("You can only pay for an active booking");
-
-        Flight flight = booking.getFlight();
 
         if (flight.getStatus() != Flight.FlightStatus.ACTIVE)
             throw new InvalidInformationException("This flight is not open for payment");

@@ -102,15 +102,12 @@ public class UserService {
     public User finishSetup(RegistrationRequest request) {
         User user = getCurrentLoggedInUser();
 
-        if (user == null || user.getStatus() != User.Status.SETUP_REQUIRED) {
+        if (user == null || user.getStatus() != User.Status.SETUP_REQUIRED)
             throw new InvalidInformationException("This account does not require setup.");
-        }
-        if (request.getPassword() == null || request.getPassword().isBlank()) {
+        if (request.getPassword() == null || request.getPassword().isBlank())
             throw new InvalidInformationException("Password is required.");
-        }
-        if (!passwordService.isValidPassword(request.getPassword())) {
+        if (!passwordService.isValidPassword(request.getPassword()))
             throw new InvalidInformationException("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
-        }
         if (request.getFName() == null || request.getFName().isBlank()
                 || request.getLName() == null || request.getLName().isBlank()) {
             throw new InvalidInformationException("First name and last name are required.");
@@ -122,8 +119,7 @@ public class UserService {
                     "Phone number and opening code are required.");
         }
         if (!phoneValidationService.isValidPhoneNumber(request.getPhoneNumber(), request.getPhoneNumberOpeningCode()))
-            throw new InvalidInformationException(
-                    "Invalid phone number or country code.");
+            throw new InvalidInformationException("Invalid phone number or country code.");
         if (request.getSecurityQuestion() == null
                 || request.getSecurityQuestion().isBlank()
                 || request.getSecurityQuestionAnswer() == null
@@ -131,11 +127,16 @@ public class UserService {
             throw new InvalidInformationException("Security question and answer are required.");
         }
 
-        PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(
-                user.getEmailAddress());
-        if (request.getPassword().equals(pending.getCpr())) {
+        PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(user.getEmailAddress());
+
+        user = userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
+
+        if (user.getStatus() != User.Status.SETUP_REQUIRED)
+            throw new InvalidInformationException("This account does not require setup.");
+
+        if (request.getPassword().equals(pending.getCpr()))
             throw new InvalidInformationException("Choose a new password different from your CPR.");
-        }
 
         Customer customer = user.getCustomer();
         customer.setFName(request.getFName());
@@ -237,13 +238,14 @@ public class UserService {
      */
     @Transactional
     public ResponseEntity<?> forgetPassword(String email, String securityQuestionAnswer) {
-        if (!userRepository.existsByEmailAddress(email)) {
+        User user = userRepository.findByEmailAddressForUpdate(email);
+
+        if (user == null) {
             logger.warning("Password reset failed because the account was not found");
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ForgetPasswordResponse("Error: Email does not exist."));
         }
 
-        User user = findUserByEmailAddress(email);
         String hashedSecurityQuestionAnswer = user.getSecurityQuestionAnswer();
         if (securityQuestionAnswer == null || !passwordEncoder.matches(securityQuestionAnswer.trim().toLowerCase(), hashedSecurityQuestionAnswer)) {
             logger.warning("Password reset failed because the security answer was incorrect");
@@ -280,7 +282,8 @@ public class UserService {
                     .body("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
         }
 
-        User user = getCurrentLoggedInUser();
+        User user = userRepository.findByIdForUpdate(getCurrentLoggedInUser().getId())
+                .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         String description = "User changed their own password";
@@ -301,7 +304,6 @@ public class UserService {
     @Transactional
     public ResponseEntity<?> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
         User user = getCurrentLoggedInUser();
-        User profileOwner = user;
 
         if (userId != null) {
             if (!UserService.isAllowedEndpoint("faaadmin", user.getRole())
@@ -314,8 +316,6 @@ public class UserService {
                 throw new IllegalEndpoint("Security question and answer can only be changed through your own profile");
             }
 
-            profileOwner = userRepository.findById(userId)
-                    .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists."));
         } else {
             if (request.getFName() != null || request.getLName() != null
                     || request.getCpr() != null
@@ -324,6 +324,9 @@ public class UserService {
                 throw new IllegalEndpoint("Only FAA admins can change these details");
             }
         }
+
+        User profileOwner = userRepository.findByIdForUpdate(userId != null ? userId : user.getId())
+                .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
 
         Person person = null;
 

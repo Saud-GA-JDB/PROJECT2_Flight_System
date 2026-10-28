@@ -807,3 +807,4 @@ string headquartersCountry
 - Discussed where I can implement concurrency.
 - StripeCheckoutService is fully AI generated
 - Stripe Exception handling in the global exception handler
+- handleDataIntegrity in the global exception handler

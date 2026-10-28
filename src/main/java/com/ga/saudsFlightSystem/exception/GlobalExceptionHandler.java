@@ -5,6 +5,7 @@ import com.stripe.exception.ApiConnectionException;
 import com.stripe.exception.RateLimitException;
 import com.stripe.exception.StripeException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -13,6 +14,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.logging.Logger;
 
@@ -47,6 +49,24 @@ public class GlobalExceptionHandler {
             InformationExistException ex, HttpServletRequest request) {
         logger.warning("Request rejected because the information already exists");
         return build(ex.getMessage(), HttpStatus.CONFLICT, request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        Throwable cause = ex;
+
+        while (cause != null) {
+            if (cause instanceof SQLException sqlException &&
+                    "23505".equals(sqlException.getSQLState())) {
+                logger.warning("Request rejected because the information already exists");
+                return build("This information already exists. Please check your details.",
+                        HttpStatus.CONFLICT, request);
+            }
+            cause = cause.getCause();
+        }
+
+        return handleGeneric(ex, request);
     }
 
     @ExceptionHandler(IllegalEndpoint.class)

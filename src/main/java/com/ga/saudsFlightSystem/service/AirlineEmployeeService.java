@@ -139,7 +139,7 @@ public class AirlineEmployeeService {
         if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
             throw new IllegalEndpoint("Only airline admins can add flights!");
         }
-        // validation
+
         if (    request.getOriginAirportIataCode()==null || request.getOriginAirportIataCode().isBlank() ||
                 request.getArrivalAirportIataCode()==null || request.getArrivalAirportIataCode().isBlank() ||
                 request.getScheduledArrival()==null || request.getScheduledDeparture()==null
@@ -171,7 +171,8 @@ public class AirlineEmployeeService {
         flight.setCurrency(request.getCurrency());
         flight.setAirline(user.getAirlineEmployee().getAirline());
         flight.setStatus(PENDING_CREW);
-        Airplane airplane = airplaneRepository.findById(airplaneId).orElseThrow(()-> new InformationNotFoundException("couldn't find airplane with this id"));
+        Airplane airplane = airplaneRepository.findByIdForUpdate(airplaneId)
+                .orElseThrow(() -> new InformationNotFoundException("couldn't find airplane with this id"));
         flight.setAirplane(airplane);
         flight.setFirstClassSeatsCount(airplane.getFirstClassSeatsCapacity());
         flight.setStandardSeatsCount(airplane.getStandardSeatsCapacity());

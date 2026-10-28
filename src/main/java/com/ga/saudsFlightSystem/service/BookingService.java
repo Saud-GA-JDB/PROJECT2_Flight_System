@@ -68,6 +68,10 @@ public class BookingService {
     @Transactional
     public ResponseEntity<?> cancelBooking(Long bookingId) {
         User user = UserService.getCurrentLoggedInUser();
+        Long flightId = bookingRepository.findFlightIdByBookingId(bookingId)
+                .orElseThrow( () -> new InvalidInformationException("No Booking with that id found"));
+        Flight flight = flightRepository.findByIdForUpdate(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
         Booking booking = bookingRepository.findByIdForPayment(bookingId).orElseThrow( () -> {
             throw new InvalidInformationException("No Booking with that id found");
         });
@@ -107,7 +111,6 @@ public class BookingService {
                         .body("Sorry, Bookings must be cancelled 48 hours before flight departure. You can contact the airline customer service if you have special circumstances.");
             }
         }
-        Flight flight = booking.getFlight();
         if (booking.getSeatNumber().startsWith("firstClass-")) {
             flight.setFirstClassSeatsCount(flight.getFirstClassSeatsCount() + 1);
         } else {
@@ -152,12 +155,10 @@ public class BookingService {
     @Transactional
     public ResponseEntity<BookingResponse> bookFlight(Long userId, Long flightId, String seatType, Long seatId) {
         //validate input
+        Flight flight = flightRepository.findByIdForUpdate(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
         User bookingOwner = userRepository.findById(userId)
-                .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists."));
-        Flight flight = flightRepository.findById(flightId)
-                .orElseThrow( () -> {
-                    throw new InformationNotFoundException("No flight with that Id exist.");
-                });
+                .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         if (flight.getStatus() != Flight.FlightStatus.ACTIVE)
             throw new InvalidInformationException("This flight is not Open for booking");
         if (!flight.getScheduledDeparture().isAfter(LocalDateTime.now().plusMinutes(5)))
