@@ -34,7 +34,7 @@ public class AirlineAdminController {
 
     @PostMapping("airplanes/{airplaneId}/addFlight")
     public ResponseEntity<?> addFlight(@PathVariable(name = "airplaneId") Long id, @RequestBody AddFlightRequest request) {
-        return airlineEmployeeService.addFlight(id, request); //TODO: SHOULDN'T it be in flight service?
+        return airlineEmployeeService.addFlight(id, request);
     }
 
     @PostMapping("flights/{flightId}/addCrewAssignment")

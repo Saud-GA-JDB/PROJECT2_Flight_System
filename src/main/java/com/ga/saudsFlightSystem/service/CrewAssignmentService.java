@@ -33,6 +33,7 @@ public class CrewAssignmentService {
     private AuditLogService auditLogService;
     private UserRepository userRepository;
     private ApplicationEventPublisher eventPublisher;
+    private NotificationService notificationService;
 
     private static final Logger logger = Logger.getLogger(CrewAssignmentService.class.getName());
 
@@ -109,6 +110,19 @@ public class CrewAssignmentService {
         auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_CREATED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
 
+        notificationService.sendToUser(
+                user.getId(),
+                "Assignment_Created",
+                "employee " + employee.getFName()+" "+employee.getLName() + " assigned to Flight " +
+                        flight.getFlightNumber() + " as " + assignment.getDuty()
+        );
+        notificationService.sendToUser(
+                employeeUser.getId(),
+                "Flight_Assignment",
+                "You are assigned to flight " + flight.getFlightNumber() + " as " + assignment.getDuty() +
+                        " please check you assignment to view more details"
+        );
+
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new CrewAssignmentResponse(assignment.getId(), flight.getId(), employee.getId(), assignment.getDuty(), assignment.getAssignedAt())
         );
@@ -165,13 +179,13 @@ public class CrewAssignmentService {
 
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
             throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
-        // TODO: should make so that if the flight is active first check that we have sufficient other crew assignment, else allow it
+
         if (!(flight.getStatus() == Flight.FlightStatus.ACTIVE ||  flight.getStatus() == Flight.FlightStatus.PENDING_CREW) || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
             throw new InvalidInformationException("Crew can only be removed from active or pending crew flights.");
 
 
 
-        airlineEmployeeRepository.findByIdForAssignment(employeeId)
+        AirlineEmployee employee = airlineEmployeeRepository.findByIdForAssignment(employeeId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find employee with this id."));
 
         CrewAssignment assignment = crewAssignmentRepository.findByFlightIdAndAirlineEmployeeId(flightId, employeeId)
@@ -189,6 +203,18 @@ public class CrewAssignmentService {
         String description = "Airline admin removed employee with id " + employeeId + " from flight with id " + flightId + " with duty " + assignment.getDuty();
         auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_REMOVED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
+
+        notificationService.sendToUser(
+                user.getId(),
+                "Assignment_Removed",
+                "employee " + employee.getFName()+" "+employee.getLName() + " removed from Flight " +
+                        flight.getFlightNumber()
+        );
+        notificationService.sendToUser(
+                employee.getId(),
+                "Flight_Assignment",
+                "You are removed from flight " + flight.getFlightNumber() + " as " + assignment.getDuty()
+        );
 
         return ResponseEntity.noContent().build();
     }

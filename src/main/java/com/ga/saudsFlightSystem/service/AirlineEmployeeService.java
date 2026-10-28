@@ -37,6 +37,7 @@ public class AirlineEmployeeService {
     PasswordEncoder passwordEncoder;
     PhoneValidationService phoneValidationService;
     PendingRegistrationService pendingRegistrationService;
+    NotificationService notificationService;
     AuditLogService auditLogService;
 
     private static final Logger logger = Logger.getLogger(AirlineEmployeeService.class.getName());
@@ -185,7 +186,6 @@ public class AirlineEmployeeService {
             throw new InvalidInformationException("airplane must be owned by the airline");
         airplaneService.checkAvailability(airplane, request.getScheduledDeparture(), request.getScheduledArrival());
 
-        // save first because the flight number needs the generated flight id
         flight = flightRepository.save(flight);
         flight.setFlightNumber(flight.getAirline().getAirlineCode() + flight.getId());
         flightRepository.save(flight);
@@ -193,6 +193,12 @@ public class AirlineEmployeeService {
         String description = "Airline admin created flight with id " + flight.getId();
         auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_CREATED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
+
+        notificationService.sendToUser(
+                user.getId(),
+                "FLIGHT_CREATED",
+                "Flight " + flight.getFlightNumber() + " added successfully."
+        );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new AddFlightResponse(
                 flight.getFlightNumber(), airplane.getRegistrationNumber(),
