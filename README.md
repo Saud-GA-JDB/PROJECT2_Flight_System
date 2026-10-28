@@ -791,6 +791,7 @@ string headquartersCountry
 ```
 ## Project 3 - Concurrency:
 - Trello Link: `https://trello.com/b/b63eU4qX/project-3-concurrency`
+- [Database locks, their purpose, and acquisition order](docs/database-locking.md).
 
 
 ## Planning:
