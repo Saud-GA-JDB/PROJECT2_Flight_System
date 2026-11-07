@@ -70,6 +70,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         booking("SFB8L3", omar, dubai, "firstClass-1", Booking.BookingStatus.BOOKED);
         booking("SFC9M4", sara, dubai, "standard-2", Booking.BookingStatus.CANCELLED);
         projectThree(test, bah, dxb, bookingPlane, omar, departure.plusDays(3));
+        atcSetup(bah, dxb, doh);
         em.flush();
         logger.info("Database seed completed; existing records were preserved.");
     }
@@ -211,9 +212,54 @@ public class DatabaseSeeder implements CommandLineRunner {
             if (profile instanceof AirlineEmployee employee) user.setAirlineEmployee(employee);
             else if (profile instanceof AirportEmployee employee) user.setAirportEmployee(employee);
             else if (profile instanceof MaintenanceEmployee employee) user.setMaintenanceEmployee(employee);
+            else if (profile instanceof ATCEmployee employee) user.setAtcEmployee(employee);
             else throw new IllegalArgumentException("Unsupported seed staff profile");
             return user;
         });
+    }
+
+    private void atcSetup(Airport bah, Airport dxb, Airport doh) {
+        AirNavigationServiceProvider gulf = navigationProvider("Sample Gulf Navigation", "seed.navigation.gulf@example.com");
+        AirNavigationServiceProvider qatar = navigationProvider("Sample Qatar Navigation", "seed.navigation.qatar@example.com");
+        seedTower(bah, gulf, "BAH", 60);
+        seedTower(dxb, gulf, "DXB", 62);
+        seedTower(doh, qatar, "DOH", 64);
+    }
+
+    private AirNavigationServiceProvider navigationProvider(String name, String email) {
+        // This email identifies only the sample fixture; providers may otherwise share contact details.
+        return findOrCreate(AirNavigationServiceProvider.class, "contactEmail", email, () -> {
+            AirNavigationServiceProvider provider = new AirNavigationServiceProvider();
+            provider.setName(name);
+            provider.setContactEmail(email);
+            return provider;
+        });
+    }
+
+    private void seedTower(Airport airport, AirNavigationServiceProvider provider, String code, int cprSuffix) {
+        ControlFacility facility = em.createQuery("select f from ControlFacility f where f.airport = :airport", ControlFacility.class)
+                .setParameter("airport", airport).getResultStream().findFirst().orElseGet(() -> {
+                    ControlFacility value = new ControlFacility();
+                    value.setAirport(airport);
+                    value.setProvider(provider);
+                    value.setName(code + " Sample Tower");
+                    em.persist(value);
+                    return value;
+                });
+        require(Objects.equals(facility.getProvider().getId(), provider.getId()), "tower provider for " + code);
+        for (ATCEmployee.ATCRole role : ATCEmployee.ATCRole.values()) {
+            User user = staff("atc." + code.toLowerCase() + "." + role.name().toLowerCase() + "@example.com",
+                    "9900000" + (cprSuffix + (role == ATCEmployee.ATCRole.ADMIN ? 0 : 1)), User.Role.ATC_EMPLOYEE, () -> {
+                        ATCEmployee employee = new ATCEmployee();
+                        employee.setFacility(facility);
+                        employee.setAtcRole(role);
+                        employee.setEmployeeNumber("SEED-ATC-" + code + "-" + role.name());
+                        return employee;
+                    });
+            require(user.getRole() == User.Role.ATC_EMPLOYEE && user.getAtcEmployee() != null
+                    && user.getAtcEmployee().getAtcRole() == role
+                    && Objects.equals(user.getAtcEmployee().getFacility().getId(), facility.getId()), "ATC profile " + user.getEmailAddress());
+        }
     }
 
     private void seedCrew(Flight flight) {

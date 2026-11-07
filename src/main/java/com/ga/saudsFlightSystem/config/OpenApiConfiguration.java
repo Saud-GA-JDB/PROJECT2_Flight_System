@@ -239,6 +239,36 @@ public class OpenApiConfiguration {
                     "Active account required. Receives events targeted to the user or role, including airplane, flight, and crew updates after transaction commit. Includes connection events and heartbeat comments. Reconnect after timeout; no persistent replay is provided. Use a streaming client supporting the Authorization header.",
                     "200", String.class, false);
 
+            document(openApi, "/faaadmin/airNavigationProviders", PathItem.HttpMethod.POST,
+                    "Create air navigation provider",
+                    "Active FAA admin only. Requires a nonblank name (maximum 150 characters) and valid contactEmail (maximum 254). Names and emails may repeat. Creation and audit commit together.",
+                    "201", ProviderResponse.class, false);
+            document(openApi, "/faaadmin/airNavigationProviders/{providerId}/controlFacilities", PathItem.HttpMethod.POST,
+                    "Create airport control tower",
+                    "Active FAA admin only. Requires positive providerId and airportId and a nonblank name (maximum 150 characters). One tower per airport across all providers; duplicates return 409 and missing references return 404.",
+                    "201", FacilityResponse.class, false);
+            document(openApi, "/faaadmin/controlFacilities/{facilityId}/admins", PathItem.HttpMethod.POST,
+                    "Create tower administrator",
+                    "Active FAA admin only. Creates an active ATC account with ADMIN role at the route's tower. All staff fields are required; CPR is nine digits, employeeNumber is trimmed uppercase (1–50 characters). Uses existing email/phone/password validation. Duplicate identities return 409. Multiple admins per tower are allowed.",
+                    "201", ATCEmployeeResponse.class, false);
+            document(openApi, "/atcAdmin/controllers", PathItem.HttpMethod.POST,
+                    "Create own-tower controller",
+                    "Active ATC ADMIN only. Derives the tower from the account and fixes the new role to CONTROLLER. All staff fields are required; employeeNumber is normalized uppercase (1–50 characters). Credentials are encoded. Extra JSON fields cannot override role, tower, actor or account state.",
+                    "201", ATCEmployeeResponse.class, false);
+            document(openApi, "/atc/facility", PathItem.HttpMethod.GET,
+                    "View own control tower",
+                    "Active ATC ADMIN or CONTROLLER only. Returns the account's own tower. Shared provider membership grants no access to another tower.",
+                    "200", FacilityResponse.class, false);
+            for (String path : List.of("/faaadmin/airNavigationProviders",
+                    "/faaadmin/airNavigationProviders/{providerId}/controlFacilities", "/atcAdmin/controllers")) {
+                Operation list = operation(openApi, path, PathItem.HttpMethod.GET);
+                if (list != null) {
+                    list.setDescription("Active FAA admin for provider/tower lists; active own-tower ATC ADMIN for controller lists. "
+                            + "Page defaults to 0 (minimum 0); size defaults to 20 (1–100). Sorted by entity ID ascending. "
+                            + "Counts and content are scoped before pagination. Controllers exclude admins and include inactive accounts. No business audit is written.");
+                }
+            }
+
             List.of("/auth/users/login", "/auth/users/register/email", "/auth/users/verification")
                     .forEach(path -> makePublic(openApi, path, PathItem.HttpMethod.POST));
             List.of("/payments/success", "/payments/cancel")

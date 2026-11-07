@@ -171,3 +171,18 @@ GROUNDED, and airplane 900003 ACTIVE without flights. Rerunning does not repair
 manual changes to those fixtures. Leave `TCA`, `Test Created Airline`, and
 `TEST-NEW-PLANE` unused for the tests. See [API guide](docs/API-GUIDE.md) for request
 paths and DTOs, and [locking notes](docs/database-locking.md) for concurrency details.
+
+
+## ATC setup fixtures
+
+With the ATC database schema configured, the existing opt-in seeder also creates two sample navigation providers and three towers. BAH and DXB share the Gulf provider; DOH uses a separate Qatar provider. Each tower has an admin and controller:
+
+| Tower | Admin | Controller |
+| --- | --- | --- |
+| BAH | `atc.bah.admin@example.com` | `atc.bah.controller@example.com` |
+| DXB | `atc.dxb.admin@example.com` | `atc.dxb.controller@example.com` |
+| DOH | `atc.doh.admin@example.com` | `atc.doh.controller@example.com` |
+
+These synthetic local accounts use the existing sample password `TestPassword1` and security answer `manama`, stored encoded. Employee numbers follow `SEED-ATC-BAH-ADMIN` (airport/role substituted); CPRs are 990000060 through 990000065. Reruns preserve existing credentials and account state. A conflicting pre-existing tower/provider or staff association causes the seeder to fail rather than overwrite it. No emails are sent by seeding.
+
+These fixtures cover setup and tower scope. Clearance/events and pilot operational scenarios are not seeded at this stage.

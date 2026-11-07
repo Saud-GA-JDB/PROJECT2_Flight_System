@@ -6,6 +6,9 @@ import com.stripe.exception.RateLimitException;
 import com.stripe.exception.StripeException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -29,6 +32,12 @@ import java.util.logging.Logger;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger logger = Logger.getLogger(GlobalExceptionHandler.class.getName());
+
+    @ExceptionHandler({PessimisticLockingFailureException.class, LockTimeoutException.class, PessimisticLockException.class})
+    public ResponseEntity<ErrorResponse> handleLockConflict(Exception ex, HttpServletRequest request) {
+        logger.warning("Request rolled back because a database lock could not be acquired");
+        return build("Another operation is in progress. Refresh and retry.", HttpStatus.CONFLICT, request);
+    }
 
     @ExceptionHandler(InformationNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(

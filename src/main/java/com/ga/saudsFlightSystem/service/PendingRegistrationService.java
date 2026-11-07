@@ -31,6 +31,7 @@ public class PendingRegistrationService {
     private final AuditLogService auditLogService;
     private final MaintenanceEmployeeRepository maintenanceEmployeeRepository;
     private final AirportEmployeeRepository airportEmployeeRepository;
+    private final ATCEmployeeRepository atcEmployeeRepository;
 
     private static final Logger logger = Logger.getLogger(PendingRegistrationService.class.getName());
 
@@ -45,7 +46,8 @@ public class PendingRegistrationService {
                 || airlineEmployeeRepository.existsByCpr(cpr)
                 || faaAdminRepository.existsByCpr(cpr)
                 || maintenanceEmployeeRepository.existsByCpr(cpr)
-                || airportEmployeeRepository.existsByCpr(cpr)) {
+                || airportEmployeeRepository.existsByCpr(cpr)
+                || atcEmployeeRepository.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
         if (userRepository.existsByEmailAddress(email)) {

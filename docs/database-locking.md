@@ -18,6 +18,8 @@ Pessimistic locks stay held until the transaction commits or rolls back. Write l
 | `MaintenanceRecordService` — complete maintenance | MaintenanceRecord write lock | Prevents competing completion updates. |
 | `MaintenanceProviderService`, `MaintenanceRecordService`, `MaintenanceEmployeeService` — contracts, requests, employee creation | MaintenanceProvider write lock | Coordinates contract creation, maintenance requests, and employee creation using that provider. |
 | `AirportOperatorService` / `AirportEmployeeService` | Airport write lock | Coordinates operator assignment with employee creation and their validation checks. |
+| `ATCService` — create tower | Airport write lock | Check the provider and existing tower after locking the airport; the unique airport foreign key protects cross-provider duplicates. Tower and audit commit together. |
+| `ATCService` — create admin/controller | ControlFacility write lock | Recheck caller role and tower scope, then create employee, User and audit in one transaction. No flight/resource locks. |
 | `UserService` — login, password changes/reset, profile edits | User write lock | Protects login-attempt counters and serializes account updates. |
 | Registration verification / account setup | PendingRegistration and User write locks | Protects verification attempts, account-state checks, and setup consumption. **PendingRegistration → User** when the User exists. |
 | `PendingRegistrationService` — send code | Matching pending-registration write locks, **ascending ID** | Coordinates expiry checks and replacement of existing registrations matching email or CPR. |
@@ -26,3 +28,5 @@ Pessimistic locks stay held until the transaction commits or rolls back. Write l
 Unique constraints also reject duplicate values when no existing row can be locked. `GlobalExceptionHandler` translates unique-constraint violations into **409 Conflict**; the handler itself does not acquire a lock.
 
 Concurrency tests are grouped in [ConcurrencyTest.java](../src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java).
+
+ATC list/facility reads take no write locks and create no business audits. Setup lock timeout/deadlock failures return 409 with a refresh/retry message; failed writes roll back. `ATCServiceTest` covers the two-provider tower race using independent PostgreSQL transactions and the existing application executor.

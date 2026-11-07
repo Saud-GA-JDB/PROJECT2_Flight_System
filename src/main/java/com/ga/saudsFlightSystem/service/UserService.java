@@ -68,6 +68,7 @@ public class UserService {
     private final FAAAdminRepository faaAdminRepository;
     private final AirportEmployeeRepository airportEmployeeRepository;
     private final MaintenanceEmployeeRepository maintenanceEmployeeRepository;
+    private final ATCEmployeeRepository atcEmployeeRepository;
     private final AuditLogService auditLogService;
     private final String UPLOAD_DIR = "uploads/";
 
@@ -78,7 +79,8 @@ public class UserService {
                        PendingRegistrationRepository pendingRegistrationRepository,
                        PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
                        CustomerRepository customerRepository, AirlineEmployeeRepository airlineEmployeeRepository,
-                       FAAAdminRepository faaAdminRepository, AirportEmployeeRepository airportEmployeeRepository, MaintenanceEmployeeRepository maintenanceEmployeeRepository, AuditLogService auditLogService) {
+                       FAAAdminRepository faaAdminRepository, AirportEmployeeRepository airportEmployeeRepository, MaintenanceEmployeeRepository maintenanceEmployeeRepository,
+                       ATCEmployeeRepository atcEmployeeRepository, AuditLogService auditLogService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
@@ -93,6 +95,7 @@ public class UserService {
         this.faaAdminRepository = faaAdminRepository;
         this.airportEmployeeRepository = airportEmployeeRepository;
         this.maintenanceEmployeeRepository = maintenanceEmployeeRepository;
+        this.atcEmployeeRepository = atcEmployeeRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -274,6 +277,7 @@ public class UserService {
                 case CUSTOMER -> user.getCustomer();
                 case AIRLINE_EMPLOYEE -> user.getAirlineEmployee();
                 case AIRPORT_EMPLOYEE -> user.getAirportEmployee();
+                case ATC_EMPLOYEE -> user.getAtcEmployee();
                 case MAINTENANCE_EMPLOYEE -> user.getMaintenanceEmployee();
                 case FAA_ADMIN -> user.getFaaAdmin();
             };
@@ -373,6 +377,8 @@ public class UserService {
             person = profileOwner.getMaintenanceEmployee();
         } else if (profileOwner.getRole() == User.Role.AIRPORT_EMPLOYEE) {
             person = profileOwner.getAirportEmployee();
+        } else if (profileOwner.getRole() == User.Role.ATC_EMPLOYEE) {
+            person = profileOwner.getAtcEmployee();
         }
 
         boolean hasImage = image != null && !image.isEmpty();
@@ -531,7 +537,8 @@ public class UserService {
                 || airlineEmployeeRepository.existsByCpr(cpr)
                 || faaAdminRepository.existsByCpr(cpr)
                 || maintenanceEmployeeRepository.existsByCpr(cpr)
-                || airportEmployeeRepository.existsByCpr(cpr)) {
+                || airportEmployeeRepository.existsByCpr(cpr)
+                || atcEmployeeRepository.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
     }
@@ -578,6 +585,9 @@ public class UserService {
                 break;
             case AIRPORT_EMPLOYEE:
                 if (endpoint.trim().equalsIgnoreCase("airportEmployee")) return true;
+                break;
+            case ATC_EMPLOYEE:
+                if (endpoint.trim().equalsIgnoreCase("atcEmployee")) return true;
                 break;
             case AIRLINE_EMPLOYEE:
                 if (endpoint.trim().equalsIgnoreCase("airlineEmployee")) return true;

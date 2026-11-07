@@ -483,3 +483,65 @@ FlightInspectionServiceTest passed 16 PostgreSQL tests on 28 October 2026 with n
 ```
 
 MaintenanceRecordServiceTest passed five PostgreSQL tests on 27 October 2026 and also creates its own fixtures. The older seeded-test instructions above apply to their named suites, not these two classes. No application-wide concurrency-safety claim follows from these results.
+
+
+## ATC setup and tower administration
+
+All routes below require a bearer JWT, an active account and the stated role/profile. Setup writes and their audits commit together. These routes do not send email or SSE; flight-operation notifications belong to the clearance stage.
+
+| Method | Path | Caller | Success |
+| --- | --- | --- | --- |
+| POST | `/faaadmin/airNavigationProviders` | FAA admin | 201 ProviderResponse |
+| GET | `/faaadmin/airNavigationProviders` | FAA admin | 200 paginated providers |
+| POST | `/faaadmin/airNavigationProviders/{providerId}/controlFacilities` | FAA admin | 201 FacilityResponse |
+| GET | `/faaadmin/airNavigationProviders/{providerId}/controlFacilities` | FAA admin | 200 paginated provider towers |
+| POST | `/faaadmin/controlFacilities/{facilityId}/admins` | FAA admin | 201 ATCEmployeeResponse, ADMIN |
+| POST | `/atcAdmin/controllers` | Tower ADMIN | 201 ATCEmployeeResponse, CONTROLLER |
+| GET | `/atcAdmin/controllers` | Tower ADMIN | 200 paginated own-tower controllers |
+| GET | `/atc/facility` | Tower ADMIN or CONTROLLER | 200 own FacilityResponse |
+
+Provider body:
+
+```json
+{"name":"Bahrain Navigation","contactEmail":"operations@example.com"}
+```
+
+Tower body:
+
+```json
+{"airportId":1,"name":"Bahrain Tower"}
+```
+
+Both staff-creation routes use:
+
+```json
+{
+  "fName":"Ahmed","lName":"Ali","cpr":"123456789",
+  "emailAddress":"ahmed@example.com","phoneNumberOpeningCode":"+973",
+  "phoneNumber":"33123456","password":"ExamplePass123",
+  "securityQuestion":"Example question?","securityQuestionAnswer":"example",
+  "employeeNumber":"ATC-001"
+}
+```
+
+The examples are synthetic. All staff fields are required. CPR is exactly nine digits; email, phone and password follow existing staff validation. Employee numbers are trimmed, uppercased and limited to 50 characters. Passwords and normalized security answers are encoded. Accounts start with role `ATC_EMPLOYEE`, status `ACTIVE` and `isActive=true`. They use the existing `/auth/users/login`, password and profile endpoints. Login returns the JWT in `message`.
+
+Provider/tower names are trimmed, nonblank and at most 150 characters. Provider contact email is valid and at most 254 characters. Provider names/contact emails may repeat. Every tower has an existing provider and airport, with one tower per airport across all providers. FAA may create multiple admins for a tower. There are no transfer or deletion routes.
+
+Validation stays in service code, matching existing DTOs. Unknown JSON fields are ignored by the existing mapper. Client-supplied role, facility, actor, status or timestamps do not override the values determined by the service and route. An admin's controller creation/listing derives the tower from the authenticated account; shared provider membership grants no wider access.
+
+Responses contain only:
+
+- Provider: `id`, `name`, `contactEmail`.
+- Facility: `id`, `providerId`, `airportId`, `name`, `facilityType` (`TOWER`).
+- Employee: `id`, `userId`, `facilityId`, `employeeNumber`, `fName`, `lName`, `emailAddress`, `atcRole`.
+
+Operational responses contain no CPR, phone, passwords or security answers. Lists accept `page` (default 0, minimum 0) and `size` (default 20, range 1–100), sorted by entity ID ascending. Controller lists include only own-tower controller accounts, including inactive accounts; admins are excluded. Count and paging apply after scope filtering. There is no client-selected sort.
+
+```json
+{"content":[],"page":0,"size":20,"totalElements":0,"totalPages":0}
+```
+
+Invalid fields, nonpositive IDs and invalid pagination return 400; missing/invalid authentication returns 401; wrong role/profile/tower or inactive status is denied; missing references return 404; duplicate airport tower, email, CPR or employee number returns 409. Database lock conflicts roll back and return 409 with a refresh/retry message. Business errors retain `timestamp`, `status`, `error`, `message`, `path`; the existing security filter can return its own error shape. Cross-profile CPR uniqueness uses service checks, not a globally atomic database identity registry.
+
+Setup audits use `AIR_NAVIGATION_PROVIDER_CREATED`, `CONTROL_FACILITY_CREATED`, and `ATC_EMPLOYEE_CREATED`, recording the actor and created entity. Failed/rolled-back commands leave no success audit. GETs do not create business audits.

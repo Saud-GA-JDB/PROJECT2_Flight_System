@@ -15,6 +15,7 @@ The purpose is to connect three main users: customers who search and book flight
 - Crew assignment creation, listing, and removal, with duty validation, scheduling conflict checks, database locks, and audit logging.
 - Maintenance provider setup and airline contracts, maintenance requests, technician assignment, completion, and audit records.
 - Airport operator setup, airport employee accounts, and role-based inspector assignment.
+- FAA navigation-provider and tower setup, tower administrator/controller accounts, scoped paginated lists, and ATC login/profile integration.
 - Per-flight inspections with pass/fail results, reinspection history, scoped lists, database locking, and one pending attempt per flight.
 - Server-Sent Events (SSE) notifying connected FAA administrators about airplane activation requests.
 - Database audit records, centralized error handling, demo data seeding, and Postman collections.
@@ -78,7 +79,7 @@ See [User stories](docs/USER-STORIES.md) for the current customer, airline admin
 
 ## ERD
 
-See the [ERD below](#erd-diagram) for the updated maintenance, airport-account, and inspection relationships. The separate [implemented system ERD](docs/ERD-IMPLEMENTED.md) documents all 20 current entities, including these additions and payment mappings.
+See the [ERD below](#erd-diagram) for the updated maintenance, airport-account, and inspection relationships. The separate [implemented system ERD](docs/ERD-IMPLEMENTED.md) documents all 23 current entities, including these additions and payment mappings.
 
 ## Planning
 
@@ -350,7 +351,7 @@ Start PostgreSQL and connect through pgAdmin or `psql` using an account allowed 
 CREATE DATABASE aviation;
 ```
 
-The application database user must be able to create and update tables in this database. Hibernate uses `ddl-auto=update` to create/update the schema on startup. Hibernate does not update existing enum check constraints automatically. The old docs/sql/crew-assignment-audit.sql predates maintenance and inspections; do not rerun it unchanged because it omits newer audit values. The development database audit checks were expanded through SQL supplied in chat, not a saved migration. Keep all existing values when adding the airport and inspection actions/entity types from AuditLog.java; user-role checks must include AIRPORT_EMPLOYEE and MAINTENANCE_EMPLOYEE.
+The application database user must be able to create and update tables in this database. Hibernate uses `ddl-auto=update` to create/update the schema on startup. Hibernate does not update existing enum check constraints automatically. The old docs/sql/crew-assignment-audit.sql predates maintenance and inspections; do not rerun it unchanged because it omits newer audit values. The development database audit checks were expanded through SQL supplied in chat, not a saved migration. Keep all existing values when adding the airport and inspection actions/entity types from AuditLog.java; user-role checks must include AIRPORT_EMPLOYEE, MAINTENANCE_EMPLOYEE and ATC_EMPLOYEE.
 
 
 After Hibernate has created flight_inspections, the database must also have the partial unique index below. It was confirmed in the development database; do not recreate it there. A fresh database needs it explicitly because the JPA model does not declare this partial index.
@@ -456,7 +457,7 @@ These tests create their own fixtures, disable seeding, and validate the schema.
 MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests on 27 October 2026. These results cover the tested services, not application-wide concurrency safety, HTTP routing, or the airport-account setup workflow. Departure-versus-inspection tests remain deferred with the pilot workflow.
 ## Unsolved problems and current limitations
 
-- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. Baggage handling, pilot take-off/departure enforcement, and air traffic control remain deferred or outside scope.
+- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; baggage handling and pilot/ATC flight-control operations remain deferred or outside scope.
 - Cross-table CPR uniqueness remains a pre-check and is not guaranteed under simultaneous registration/profile changes.
 - SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
 - Flight times use local date-times without offsets, and time-based checks use server-local time. Full airport time-zone handling remains future work.
@@ -473,7 +474,7 @@ MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests
 
 ## Future improvements
 
-Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. Baggage handling is also deferred; ATC and navigation remain outside the current scope.
+Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. ATC provider/tower/staff setup is implemented; flight clearances, control-event history and baggage handling remain deferred.
 
 Further improvements include a frontend, reliable notification storage and delivery, consistent response DTOs and validation, a reset-token password recovery flow, time-zone-aware scheduling, schema migrations, and tests that run independently of manually seeded data and external email services.
 

@@ -1,6 +1,9 @@
 package com.ga.saudsFlightSystem.repository;
 
 import com.ga.saudsFlightSystem.model.User;
+import com.ga.saudsFlightSystem.model.ATCEmployee;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
@@ -17,6 +20,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailAddress(String emailAddress);
     User findUserByEmailAddress(String emailAddress);
     User findByAirlineEmployeeId(Long employeeId);
+    User findByAtcEmployeeId(Long employeeId);
+
+    Page<User> findByRoleAndAtcEmployee_Facility_IdAndAtcEmployee_AtcRole(
+            User.Role role, Long facilityId, ATCEmployee.ATCRole atcRole, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.emailAddress = :email")

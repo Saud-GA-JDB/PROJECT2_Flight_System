@@ -83,7 +83,11 @@ public class User {
     @JoinColumn(name = "airport_employee_id", referencedColumnName = "id", unique = true)
     private AirportEmployee airportEmployee;
 
-    public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE}
+    @OneToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
+    @JoinColumn(name = "atc_employee_id", referencedColumnName = "id", unique = true)
+    private ATCEmployee atcEmployee;
+
+    public enum Role {CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE, ATC_EMPLOYEE}
 
     public enum Status {SETUP_REQUIRED, ACTIVE, DEACTIVATED}
 }

@@ -32,3 +32,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Personal planning reference ###
+/docs/WORKFLOW-COMPLETION-PLAN.md

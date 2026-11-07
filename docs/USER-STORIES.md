@@ -21,6 +21,16 @@ These stories were recorded retrospectively from the implemented API and the wid
 | US-13 | As an FAA administrator, I want to maintain user records and deactivate accounts. | Supply a target user ID to update supported administrative fields or deactivate an account; enforce FAA authorization. |
 | US-14 | As a developer, I want repeatable sample data and API documentation so I can explore the system. | Opt-in seeding creates demo workflows; Swagger exposes the API and supports JWT authorization; Postman examples and a detailed guide provide usage instructions. |
 
+## ATC setup implemented 7 November 2026
+
+| ID | User story | Acceptance criteria |
+| --- | --- | --- |
+| US-35 (setup) | As an FAA administrator, I want to create navigation providers, airport towers and tower admins. | A provider may operate several towers; an airport has at most one tower across providers; multiple admins are allowed; setup changes and audit records commit together. |
+| ATC-02 | As a tower administrator, I want to create and list my tower's controllers. | Role and tower come from the route/current account; controllers cannot provision staff; paging and counts are scoped to the admin's tower, even when providers are shared. |
+| ATC-03 | As an ATC employee, I want to sign in, maintain my contact details and view my tower. | Shared JWT login, active-account checks, encoded credentials, existing profile updates and an operational response without CPR, phone or credentials. |
+
+Flight clearances, pilot actions and control-event history remain future stages.
+
 ## Operational stories implemented by 28 October 2026
 
 | ID | User story | Acceptance criteria |
@@ -92,7 +102,7 @@ These stories cover the wider ERD as a selection backlog. Choose a coherent subs
 | US-32 | As a maintenance provider administrator, I want to manage technicians and their credentials so maintenance records identify responsible personnel. | Associate technicians with a provider; record license and role; authorize technician actions through the existing account system; prevent unauthorized changes to another provider's records. | `MaintenanceProvider`, `MaintenanceEmployee` |
 | US-33 | As a maintenance technician, I want to record maintenance and aircraft release decisions so restricted aircraft are not used for flight operations. | Record airplane, technician, maintenance type, findings, time, and release decision; concurrent scheduling or departure cannot bypass an active restriction; keep an audit trail and notify affected airline staff. | `MaintenanceRecord` |
 | US-34 | As an airline administrator, I want scheduled maintenance assessments to process airplanes concurrently so I can identify aircraft needing attention. | Apply explicitly defined maintenance rules to independent airplanes using executor tasks; return per-airplane findings; prevent duplicate alerts across overlapping runs; do not automatically certify an airplane as safe based only on a background calculation. | `MaintenanceRecord`, existing `Airplane` |
-| US-35 | As an air-navigation administrator, I want to manage control facilities and their controllers so flight events have an authorized operational source. | Associate facilities with a provider and, where applicable, an airport; associate controllers with a facility and an authenticated account; restrict actions to authorized scope. | `AirNavigationServiceProvider`, `ControlFacility`, `ATCEmployee` |
+| US-35 (historical proposal; setup delivered above) | As an air-navigation administrator, I want to manage control facilities and their controllers so flight events have an authorized operational source. | Associate facilities with a provider and, where applicable, an airport; associate controllers with a facility and an authenticated account; restrict actions to authorized scope. | `AirNavigationServiceProvider`, `ControlFacility`, `ATCEmployee` |
 | US-36 | As an air traffic controller, I want to record permitted flight-control events so the flight's operational history remains consistent. | Record controller, flight, event type, time, and notes; validate permitted state transitions; concurrent conflicting transitions cannot both succeed; save flight state and event together and publish updates after commit. | `FlightControlEvent` |
 
 ### Original proposed model mapping (historical)

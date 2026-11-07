@@ -1,11 +1,42 @@
 # Implemented system ERD
 
-This diagram documents the 20 current JPA entities as of 28 October 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
+This diagram documents the 23 current JPA entities as of 7 November 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
 
 Names and types below follow Java fields, rather than PostgreSQL column spelling or SQL types. Relationship attributes use the Java relationship name followed by `Id` to represent their join columns. `PK`, `FK`, and `UK` mean primary, foreign, and unique keys. `Required` marks explicit non-null mappings; other attributes have no explicit non-null constraint in the model. Relationship cardinalities reflect JPA nullability, which can be less strict than service validation.
 
 ```mermaid
 erDiagram
+    AIR_NAVIGATION_SERVICE_PROVIDER {
+        Long id PK
+        String name "Required, 150 characters"
+        String contactEmail "Required, 254 characters"
+    }
+    CONTROL_FACILITY {
+        Long id PK
+        Long providerId FK "Required"
+        Long airportId FK,UK "Required"
+        String name "Required, 150 characters"
+        FacilityType facilityType "TOWER"
+    }
+    ATC_EMPLOYEE {
+        Long id PK
+        String cpr UK "Required, inherited from Person"
+        String fName
+        String lName
+        String phoneNumberOpeningCode
+        String phoneNumber
+        byte[] imageData
+        String imageUrl
+        LocalDateTime createdAt
+        LocalDateTime updatedAt
+        String employeeNumber UK "Required, normalized uppercase"
+        ATCRole atcRole "ADMIN or CONTROLLER"
+        Long facilityId FK "Required"
+    }
+    AIR_NAVIGATION_SERVICE_PROVIDER ||--o{ CONTROL_FACILITY : operates
+    AIRPORT ||--o| CONTROL_FACILITY : hosts
+    CONTROL_FACILITY ||--o{ ATC_EMPLOYEE : employs
+    ATC_EMPLOYEE o|--o| USER : profile
     AIRLINE {
         Long id PK
         String name UK
@@ -71,7 +102,7 @@ erDiagram
         String password "Required; hash"
         String securityQuestion
         String securityQuestionAnswer "Hash"
-        Role role "CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE"
+        Role role "CUSTOMER, AIRPORT_EMPLOYEE, AIRLINE_EMPLOYEE, FAA_ADMIN, MAINTENANCE_EMPLOYEE, ATC_EMPLOYEE"
         boolean isActive
         Status status "SETUP_REQUIRED, ACTIVE, DEACTIVATED"
         int failedLoginAttempts "Required; default 0"
@@ -80,6 +111,7 @@ erDiagram
         Long airlineEmployeeId FK, UK
         Long faaAdminId FK, UK
         Long airportEmployeeId FK, UK
+        Long atcEmployeeId FK, UK
         Long maintenanceEmployeeId FK, UK
     }
 
@@ -283,11 +315,11 @@ erDiagram
 
 - `Person` is a `@MappedSuperclass`, not an entity or separate table. Its fields are inherited by `Customer`, `AirlineEmployee`, `FAAAdmin`, `AirportEmployee`, and `MaintenanceEmployee` and are expanded in each box above. CPR uniqueness is mapped separately within each profile table.
 - Bookings belong to `User`, not directly to `Customer`. Airplane requests also reference `User` as their requester and `FAAAdmin` as their reviewer.
-- User profile links are nullable, unique one-to-one relationships. The mappings do not impose a database constraint requiring exactly one of the five profiles.
+- User has six nullable, unique profile links, including `atcEmployeeId`. The configured database check requires an ATC account to populate only its ATC profile and forbids ATC links on other roles; it does not impose an exactly-one-profile constraint on legacy roles.
 - `PendingRegistration` has no mapped relationship to `User`; email and CPR matching happens in application code. `AuditLog.userId` and `entityId` are scalar identifiers, not JPA relationships, so no foreign-key edges are drawn for them.
 - `User.role` uses EnumType.STRING; User.status remains ordinal (SETUP_REQUIRED=0, ACTIVE=1, DEACTIVATED=2). Other enum fields in this diagram explicitly use `EnumType.STRING`. The diagram shows enum names for readability, not their physical database encoding.
 - Airplane capacities are total seats; flight seat counts track remaining availability. There is no separate seat entity. `flightNumber` has no mapped unique constraint, while `bookingRef` does.
-- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. Generic ground services/baggage and ATC/navigation remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
+- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. ATC provider/tower/staff setup is implemented. Generic ground services/baggage and flight-control operations remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
 - `Email` and the request/response DTOs are not entities. Despite its package name, `model.request.AirplaneRequest` is an entity and is included. SSE connections are in memory, not persisted entities.
 
 ## Entity-to-table reference
@@ -316,5 +348,8 @@ These are the explicit `@Table` names in source. Hibernate's physical naming str
 | MaintenanceEmployee | `maintenance_employees` |
 | MaintenanceRecord | `maintenance_records` |
 | Payment | `payments` |
+| AirNavigationServiceProvider | `air_navigation_service_providers` |
+| ControlFacility | `control_facilities` |
+| ATCEmployee | `atc_employees` |
 
 Source: [entity models](../src/main/java/com/ga/saudsFlightSystem/model/) and [AirplaneRequest](../src/main/java/com/ga/saudsFlightSystem/model/request/AirplaneRequest.java). This is a source-mapping diagram, not a reverse-engineered snapshot of a particular local database.

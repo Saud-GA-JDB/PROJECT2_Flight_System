@@ -56,6 +56,19 @@ public class DatabaseSeederTest {
         assertEquals(airportAdmin.getAirportEmployee().getOperator().getId(),
                 ready.getOriginAirport().getOperator().getId());
 
+        User bahAdmin = user("atc.bah.admin@example.com");
+        User dxbController = user("atc.dxb.controller@example.com");
+        User dohAdmin = user("atc.doh.admin@example.com");
+        assertEquals(User.Role.ATC_EMPLOYEE, bahAdmin.getRole());
+        assertEquals(ATCEmployee.ATCRole.ADMIN, bahAdmin.getAtcEmployee().getAtcRole());
+        assertEquals(ATCEmployee.ATCRole.CONTROLLER, dxbController.getAtcEmployee().getAtcRole());
+        assertEquals(bahAdmin.getAtcEmployee().getFacility().getProvider().getId(),
+                dxbController.getAtcEmployee().getFacility().getProvider().getId());
+        assertNotEquals(bahAdmin.getAtcEmployee().getFacility().getProvider().getId(),
+                dohAdmin.getAtcEmployee().getFacility().getProvider().getId());
+        assertEquals(ready.getOriginAirport().getId(), bahAdmin.getAtcEmployee().getFacility().getAirport().getId());
+        assertTrue(passwords.matches("TestPassword1", bahAdmin.getPassword()));
+
         MaintenanceRecord maintenance = em.createQuery("select m from MaintenanceRecord m where m.description = :description", MaintenanceRecord.class)
                 .setParameter("description", "Project 3 sample routine maintenance").getSingleResult();
         User technician = user("maintenance.technician@mailsac.com");
@@ -72,6 +85,7 @@ public class DatabaseSeederTest {
 
         // Simulate edits: a rerun must not reset credentials, prices, or workflow state.
         airportAdmin.setPassword("changed-password-hash");
+        bahAdmin.setPassword("changed-atc-password-hash");
         payable.setStandardPrice(47000L);
         payment.setStatus(Payment.PaymentStatus.PAID);
         maintenance.setStatus(MaintenanceRecord.MaintenanceStatus.COMPLETED);
@@ -86,6 +100,7 @@ public class DatabaseSeederTest {
         assertEquals(departure, flight("GF-P3-PAY").getScheduledDeparture());
         assertEquals(Long.valueOf(47000), flight("GF-P3-PAY").getStandardPrice());
         assertEquals("changed-password-hash", user("airport.admin@mailsac.com").getPassword());
+        assertEquals("changed-atc-password-hash", user("atc.bah.admin@example.com").getPassword());
         assertEquals(Payment.PaymentStatus.PAID, em.find(Payment.class, payment.getId()).getStatus());
         assertEquals(MaintenanceRecord.MaintenanceStatus.COMPLETED,
                 em.find(MaintenanceRecord.class, maintenance.getId()).getStatus());
@@ -107,7 +122,8 @@ public class DatabaseSeederTest {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (String entity : new String[]{"User", "Airline", "Airplane", "Flight", "Booking", "Payment",
                 "CrewAssignment", "AirportOperator", "AirportEmployee", "FlightInspection",
-                "MaintenanceProvider", "MaintenanceEmployee", "MaintenanceRecord"}) {
+                "MaintenanceProvider", "MaintenanceEmployee", "MaintenanceRecord",
+                "AirNavigationServiceProvider", "ControlFacility", "ATCEmployee"}) {
             counts.put(entity, em.createQuery("select count(e) from " + entity + " e", Long.class).getSingleResult());
         }
         return counts;

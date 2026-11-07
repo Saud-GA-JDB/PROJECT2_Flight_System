@@ -1,6 +1,10 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
+import com.ga.saudsFlightSystem.model.request.response.ATCEmployeeResponse;
+import com.ga.saudsFlightSystem.model.request.response.FacilityResponse;
+import com.ga.saudsFlightSystem.model.request.response.PageResponse;
+import com.ga.saudsFlightSystem.model.request.response.ProviderResponse;
 import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.*;
 import lombok.AllArgsConstructor;
@@ -20,6 +24,34 @@ public class FAAAdminController {
     private MaintenanceEmployeeService maintenanceEmployeeService;
     private AirportOperatorService airportOperatorService;
     private AirportEmployeeService airportEmployeeService;
+    private ATCService atcService;
+
+    @PostMapping("/airNavigationProviders")
+    public ResponseEntity<ProviderResponse> addAirNavigationProvider(@RequestBody AddAirNavigationProviderRequest request) {
+        return atcService.addProvider(request);
+    }
+
+    @GetMapping("/airNavigationProviders")
+    public ResponseEntity<PageResponse<ProviderResponse>> getAirNavigationProviders(
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return atcService.getProviders(page, size);
+    }
+
+    @PostMapping("/airNavigationProviders/{providerId}/controlFacilities")
+    public ResponseEntity<FacilityResponse> addControlFacility(@PathVariable Long providerId, @RequestBody AddControlFacilityRequest request) {
+        return atcService.addFacility(providerId, request);
+    }
+
+    @GetMapping("/airNavigationProviders/{providerId}/controlFacilities")
+    public ResponseEntity<PageResponse<FacilityResponse>> getControlFacilities(@PathVariable Long providerId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return atcService.getFacilities(providerId, page, size);
+    }
+
+    @PostMapping("/controlFacilities/{facilityId}/admins")
+    public ResponseEntity<ATCEmployeeResponse> addATCAdmin(@PathVariable Long facilityId, @RequestBody AddATCEmployeeRequest request) {
+        return atcService.addAdmin(facilityId, request);
+    }
 
     @PostMapping("/airlines")
     public AirlineResponse createAirline(String name, String airlineCode, String headquartersCountry) {
