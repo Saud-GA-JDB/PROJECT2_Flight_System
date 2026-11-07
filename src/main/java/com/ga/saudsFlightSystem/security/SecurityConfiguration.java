@@ -51,7 +51,8 @@ public class SecurityConfiguration {
                                 "/swagger-ui.html", "/swagger-ui/**",
                                 "/auth/users/login",
                                 "/auth/users/register/email",
-                                "/auth/users/verification"
+                                "/auth/users/verification",
+                                "/auth/users/forgetPassword"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/payments/success", "/payments/cancel").permitAll()
                         .requestMatchers("/auth/users/setup").authenticated() // for completing the user account setup

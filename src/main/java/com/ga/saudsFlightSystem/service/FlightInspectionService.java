@@ -211,7 +211,9 @@ public class FlightInspectionService {
         if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirportEmployee admin = user.getAirportEmployee();
+        AirportEmployee principalAdmin = user.getAirportEmployee();
+        AirportEmployee admin = principalAdmin == null ? null : airportEmployeeRepository
+                .findById(principalAdmin.getId()).orElse(null);
 
         if (admin == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN
                 || admin.getAirport() == null || admin.getOperator() == null || admin.getAirport().getOperator() == null

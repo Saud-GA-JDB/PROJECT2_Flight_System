@@ -50,6 +50,13 @@ public class User {
     @JsonIgnore
     private LocalDate loginAttemptsDate;
 
+    @JsonIgnore
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int failedPasswordResetAttempts;
+
+    @JsonIgnore
+    private LocalDate passwordResetAttemptsDate;
+
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", unique = true)
     private Customer customer;

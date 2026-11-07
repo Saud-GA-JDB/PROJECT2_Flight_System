@@ -51,6 +51,7 @@ import java.util.logging.Logger;
 public class UserService {
     private static final Logger logger = Logger.getLogger(UserService.class.getName());
     private static final int MAX_DAILY_LOGIN_FAILURES = 3;
+    private static final int MAX_DAILY_PASSWORD_RESET_FAILURES = 3;
     private static final ZoneId LOGIN_TIME_ZONE = ZoneId.of("Asia/Bahrain");
 
     private final UserRepository userRepository;
@@ -245,35 +246,65 @@ public class UserService {
 
         if (user == null) {
             logger.warning("Password reset failed because the account was not found");
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ForgetPasswordResponse("Error: Email does not exist."));
+            return passwordResetRejected();
+        }
+
+        LocalDate today = LocalDate.now(LOGIN_TIME_ZONE);
+        if (!today.equals(user.getPasswordResetAttemptsDate())) {
+            user.setFailedPasswordResetAttempts(0);
+            user.setPasswordResetAttemptsDate(today);
+        }
+        if (user.getFailedPasswordResetAttempts() >= MAX_DAILY_PASSWORD_RESET_FAILURES) {
+            return passwordResetRejected();
         }
 
         String hashedSecurityQuestionAnswer = user.getSecurityQuestionAnswer();
-        if (securityQuestionAnswer == null || !passwordEncoder.matches(securityQuestionAnswer.trim().toLowerCase(), hashedSecurityQuestionAnswer)) {
+        if (securityQuestionAnswer == null || securityQuestionAnswer.isBlank()
+                || hashedSecurityQuestionAnswer == null || hashedSecurityQuestionAnswer.isBlank()
+                || !passwordEncoder.matches(securityQuestionAnswer.trim().toLowerCase(Locale.ROOT), hashedSecurityQuestionAnswer)) {
+            user.setFailedPasswordResetAttempts(user.getFailedPasswordResetAttempts() + 1);
+            userRepository.save(user);
             logger.warning("Password reset failed because the security answer was incorrect");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ForgetPasswordResponse("Error: Email or security question answer is incorrect"));
+            return passwordResetRejected();
         }
 
-        user.setPassword(passwordEncoder.encode(user.getCustomer().getCpr())); // TODO: check what would happen if a user that havent setup tries to forget password bc there wouldnt be a customer connected right?
+        Person person = null;
+        if (user.getRole() != null) {
+            person = switch (user.getRole()) {
+                case CUSTOMER -> user.getCustomer();
+                case AIRLINE_EMPLOYEE -> user.getAirlineEmployee();
+                case AIRPORT_EMPLOYEE -> user.getAirportEmployee();
+                case MAINTENANCE_EMPLOYEE -> user.getMaintenanceEmployee();
+                case FAA_ADMIN -> user.getFaaAdmin();
+            };
+        }
+        if (person == null || person.getCpr() == null || person.getCpr().isBlank()) {
+            throw new InvalidInformationException("Account profile is unavailable.");
+        }
+
+        user.setPassword(passwordEncoder.encode(person.getCpr()));
+        user.setFailedPasswordResetAttempts(0);
         emailService.sendEmail(user.getEmailAddress(), "Reset Password", String.format(
                 """
                         Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately.
-                        If you have not requested a password reset, Call us immediately.
+                        If you have not requested a password reset, Contact us immediately.
                         Best Regards,
                         Saud Flight System.""",
-                        user.getCustomer().getFName()
+                        person.getFName()
                 ));
         userRepository.save(user);
 
-        User currentUser = getCurrentLoggedInUser();
         String description = "User reset the password for user with id " + user.getId();
-        auditLogService.addAuditLog(currentUser, AuditLog.Action.PASSWORD_RESET, AuditLog.EntityType.USER, user.getId(), description);
-        logger.info(description + " (user id: " + currentUser.getId() + ")");
+        auditLogService.addAuditLog(user, AuditLog.Action.PASSWORD_RESET, AuditLog.EntityType.USER, user.getId(), description);
+        logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.status(HttpStatus.OK)
-                .body(new ForgetPasswordResponse("You're Password has been reset. Please check you're mail"));
+                .body(new ForgetPasswordResponse("Your password has been reset. Please check your email."));
+    }
+
+    private ResponseEntity<ForgetPasswordResponse> passwordResetRejected() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ForgetPasswordResponse("Email or security question answer is incorrect, or the daily reset limit has been reached."));
     }
 
     @Transactional
