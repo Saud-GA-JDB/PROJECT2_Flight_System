@@ -26,6 +26,7 @@ public class FlightService {
     private FlightRepository flightRepository;
     private AuditLogService auditLogService;
     private CrewAssignmentService crewAssignmentService;
+    private FlightStatusService flightStatusService;
 
     private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
@@ -133,8 +134,8 @@ public class FlightService {
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
             throw new IllegalEndpoint("You are not allowed to edit flights that don't belong to your airline.");
 
-        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
-            throw new InvalidInformationException("Activating flights cam only be done to future pending crew flights.");
+        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW || flight.getActualDeparture() != null || flight.getActualArrival() != null)
+            throw new InvalidInformationException("Only pending crew flights with no actual departure or arrival can be activated.");
 
         if (!crewAssignmentService.hasRequiredCrew(flightId))
             throw new InvalidInformationException("Make sure the flight has all the required crew assignments.");
@@ -156,34 +157,14 @@ public class FlightService {
      * Updates flight status every five minutes using actual departure and arrival times.
      */
     @Scheduled(cron = "0 */5 * * * *")
-    @Transactional
     public void updateFlightStatus() {
-        LocalDateTime now = LocalDateTime.now();
-
         List<Long> flightIds = flightRepository.findIdsByStatuses(Flight.FlightStatus.ACTIVE, Flight.FlightStatus.IN_AIR);
 
         for (Long flightId : flightIds) {
-            Flight flight = flightRepository.findByIdForUpdate(flightId).orElse(null);
-
-            if (flight == null)
-                continue;
-
-            if (flight.getStatus() == Flight.FlightStatus.ACTIVE &&
-                    flight.getActualDeparture() != null && !flight.getActualDeparture().isAfter(now)) {
-                flight.setStatus(Flight.FlightStatus.IN_AIR);
-                flightRepository.save(flight);
-                String description = "System changed flight with id " + flight.getId() + " from ACTIVE to IN_AIR";
-                auditLogService.addAuditLog(null, AuditLog.Action.FLIGHT_STATUS_CHANGED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
-                logger.info(description);
-            }
-
-            if (flight.getStatus() == Flight.FlightStatus.IN_AIR &&
-                    flight.getActualArrival() != null && !flight.getActualArrival().isAfter(now)) {
-                flight.setStatus(Flight.FlightStatus.CLOSED);
-                flightRepository.save(flight);
-                String description = "System changed flight with id " + flight.getId() + " from IN_AIR to CLOSED";
-                auditLogService.addAuditLog(null, AuditLog.Action.FLIGHT_STATUS_CHANGED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
-                logger.info(description);
+            try {
+                flightStatusService.updateFlightStatus(flightId);
+            } catch (RuntimeException ex) {
+                logger.warning("Could not update status for flight " + flightId + ": " + ex.getClass().getSimpleName());
             }
         }
     }

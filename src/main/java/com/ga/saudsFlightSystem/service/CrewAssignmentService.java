@@ -67,7 +67,7 @@ public class CrewAssignmentService {
             throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
 
         if (!(flight.getStatus() == Flight.FlightStatus.ACTIVE || flight.getStatus() == Flight.FlightStatus.PENDING_CREW) ||
-                !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
+                flight.getActualDeparture() != null || flight.getActualArrival() != null)
             throw new InvalidInformationException("Crew assignments can only be done to pending or active flights.");
 
         AirlineEmployee employee = airlineEmployeeRepository.findByIdForAssignment(request.getEmployeeId())
@@ -180,7 +180,7 @@ public class CrewAssignmentService {
         if (!Objects.equals(flight.getAirline().getId(), airlineAdmin.getAirline().getId()))
             throw new InvalidInformationException("You are not allowed to edit flights that don't belong to your airline.");
 
-        if (!(flight.getStatus() == Flight.FlightStatus.ACTIVE ||  flight.getStatus() == Flight.FlightStatus.PENDING_CREW) || !flight.getScheduledDeparture().isAfter(LocalDateTime.now()))
+        if (!(flight.getStatus() == Flight.FlightStatus.ACTIVE ||  flight.getStatus() == Flight.FlightStatus.PENDING_CREW) || flight.getActualDeparture() != null || flight.getActualArrival() != null)
             throw new InvalidInformationException("Crew can only be removed from active or pending crew flights.");
 
 

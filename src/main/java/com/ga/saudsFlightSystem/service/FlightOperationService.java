@@ -216,6 +216,36 @@ public class FlightOperationService {
         return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.REVOKED, reason, now));
     }
 
+    @Transactional
+    public ResponseEntity<OperationResponse> takeOff(Long flightId, Long expectedRevision) {
+        validateCommand(flightId, FlightOperation.DEPARTURE, expectedRevision);
+        Flight flight = lockOperation(flightId, true);
+        User user = commandPilot(flight);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, FlightOperation.DEPARTURE, expectedRevision, now);
+        requireCurrentClearance(flight, FlightOperation.DEPARTURE, tower, ClearanceStatus.APPROVED);
+        checkReadiness(flight, FlightOperation.DEPARTURE, now, "ACTION");
+        flight.setActualDeparture(LocalDateTime.ofInstant(now, ZoneId.of("Asia/Bahrain")));
+        flight.setStatus(Flight.FlightStatus.IN_AIR);
+        flight.setClearanceStatus(ClearanceStatus.CONSUMED);
+        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.TAKE_OFF, null, now));
+    }
+
+    @Transactional
+    public ResponseEntity<OperationResponse> land(Long flightId, Long expectedRevision) {
+        validateCommand(flightId, FlightOperation.ARRIVAL, expectedRevision);
+        Flight flight = lockOperation(flightId, true);
+        User user = commandPilot(flight);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, FlightOperation.ARRIVAL, expectedRevision, now);
+        requireCurrentClearance(flight, FlightOperation.ARRIVAL, tower, ClearanceStatus.APPROVED);
+        checkReadiness(flight, FlightOperation.ARRIVAL, now, "ACTION");
+        flight.setActualArrival(LocalDateTime.ofInstant(now, ZoneId.of("Asia/Bahrain")));
+        flight.setStatus(Flight.FlightStatus.CLOSED);
+        flight.setClearanceStatus(ClearanceStatus.CONSUMED);
+        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.LANDED, null, now));
+    }
+
     private void validateCommand(Long flightId, FlightOperation operation, Long expectedRevision) {
         if (flightId == null || flightId <= 0)
             throw new InvalidInformationException("Flight ID must be positive.");
@@ -331,14 +361,30 @@ public class FlightOperationService {
         eventRepository.save(event);
         String description = "Flight " + flight.getId() + " clearance " + type + " cycle " + event.getCycle()
                 + " revision " + event.getRevision() + " by user " + user.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.valueOf("FLIGHT_CLEARANCE_" + type.name()),
+        AuditLog.Action action;
+        if (type == FlightControlEvent.EventType.TAKE_OFF)
+            action = AuditLog.Action.FLIGHT_TAKE_OFF;
+        else if (type == FlightControlEvent.EventType.LANDED)
+            action = AuditLog.Action.FLIGHT_LANDED;
+        else
+            action = AuditLog.Action.valueOf("FLIGHT_CLEARANCE_" + type.name());
+        auditLogService.addAuditLog(user, action,
                 AuditLog.EntityType.FLIGHT_CONTROL_EVENT, event.getId(), description);
         logger.info(description);
         String eventName = "Clearance_" + type.name().charAt(0) + type.name().substring(1).toLowerCase(java.util.Locale.ROOT);
+        if (type == FlightControlEvent.EventType.TAKE_OFF)
+            eventName = "Flight_Departed";
+        else if (type == FlightControlEvent.EventType.LANDED)
+            eventName = "Flight_Landed";
         ClearanceNotificationResponse payload = new ClearanceNotificationResponse(event.getId(), flight.getId(),
                 flight.getClearanceOperation(), event.getCycle(), event.getRevision(), flight.getClearanceStatus(), now,
                 type == FlightControlEvent.EventType.APPROVED ? flight.getClearanceExpiresAt() : null);
-        for (Long recipientId : userRepository.findClearanceRecipients(flight.getId(), flight.getClearanceFacility().getId(), flight.getAirline().getId(), User.Status.ACTIVE.ordinal()))
+        List<Long> recipients;
+        if (type == FlightControlEvent.EventType.TAKE_OFF || type == FlightControlEvent.EventType.LANDED)
+            recipients = userRepository.findFlightActionRecipients(flight.getId(), flight.getAirline().getId(), User.Status.ACTIVE.ordinal());
+        else
+            recipients = userRepository.findClearanceRecipients(flight.getId(), flight.getClearanceFacility().getId(), flight.getAirline().getId(), User.Status.ACTIVE.ordinal());
+        for (Long recipientId : recipients)
             notificationService.sendToUser(recipientId, eventName, payload);
         ClearanceResponse clearance = new ClearanceResponse(flight.getClearanceOperation(), flight.getClearanceStatus().name(),
                 flight.getClearanceFacility().getId(), flight.getClearanceCycle(), flight.getClearanceRevision(),

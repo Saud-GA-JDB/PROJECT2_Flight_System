@@ -134,7 +134,7 @@ Example response (`200 OK`):
 
 Open `checkoutUrl` in a browser to pay. The URL can be `null` when the session is no longer open or the booking/payment is no longer eligible.
 
-Checkout requires an active booking and flight, configured positive pricing, and departure more than five minutes away. Already-paid or expired payments are rejected.
+Checkout requires an active booking and flight with no actual departure, configured positive pricing, and scheduled departure more than five minutes away. Existing payment reconciliation remains available after departure. Already-paid or expired payments are rejected.
 
 #### Verify payment
 
@@ -197,7 +197,7 @@ These endpoints require an active account and a bearer JWT belonging to an airli
 }
 ```
 
-Use existing flight and employee IDs. Both request fields are required. The employee must belong to the admin's airline, and the flight must be `PENDING_CREW` or `ACTIVE` with a future scheduled departure.
+Use existing flight and employee IDs. Both request fields are required. The employee must belong to the admin's airline, and the flight must be `PENDING_CREW` or `ACTIVE` with both actual times null; delayed flights are allowed.
 
 Allowed duties are `PILOT`, `SECONDARY_PILOT`, and `FLIGHT_ATTENDANT`. Both pilot duties require an employee whose airline role is `PILOT`; attendant duty requires `FLIGHT_ATTENDANT`.
 
@@ -235,7 +235,7 @@ A flight with no assignments returns `[]`. Listing does not require the flight t
 
 `DELETE /airlineAdmin/flights/1/crewAssignments/2`
 
-Removes employee `2` from flight `1`. No request body is required. The flight must belong to the admin's airline, be `PENDING_CREW` or `ACTIVE`, and have a future scheduled departure. Removing crew from an active flight must preserve at least one pilot, one secondary pilot, and one flight attendant. A missing assignment returns `404 Not Found`; success returns `204 No Content` with an empty response body.
+Removes employee `2` from flight `1`. No request body is required. The flight must belong to the admin's airline, be `PENDING_CREW` or `ACTIVE`, and have both actual times null; delayed flights are allowed. Removing crew from an active flight must preserve at least one pilot, one secondary pilot, and one flight attendant. A missing assignment returns `404 Not Found`; success returns `204 No Content` with an empty response body.
 
 Validation failures, including airline ownership mismatches and scheduling conflicts, return `400 Bad Request`. An authenticated user without the required admin role receives `403 Forbidden`; missing flights or employees return `404 Not Found`.
 
@@ -297,7 +297,7 @@ Lists return FlightInspectionResponse objects with id, flightId, airportId, null
 
 Assignment, completion, and reinspection first lock the flight through findByIdForUpdate(), then read/check the latest attempt. This serializes competing requests, including the first assignment when no inspection row exists. Audit writes share the transaction; listing methods use ordinary reads. The PostgreSQL partial unique index flight_inspections_one_pending_per_flight additionally rejects two PENDING attempts for one flight while allowing completed history.
 
-Inspection completion never changes FAA airplane status. Pilot take-off and departure enforcement are deferred: the existing scheduler still transitions ACTIVE to IN_AIR based on actualDeparture without checking inspection results. The future pilot workflow must coordinate the same flight lock, assigned-pilot authorization, crew readiness, a passed latest inspection, and independent FAA airplane status before departure.
+Inspection completion never changes FAA airplane status. Pilot take-off rechecks current pilot assignment, required crew, latest passed inspection, FAA ACTIVE, occupancy and valid departure approval under resource locks. Inspection mutations require PENDING_CREW or ACTIVE with both actual times null, including delayed flights. The scheduler only corrects status from consistent actual times; it does not create departure permission or actual timestamps.
 
 ### Changed existing endpoints
 
@@ -456,13 +456,13 @@ These tests create their own fixtures, disable seeding, and validate the schema.
 .\mvnw.cmd -Dtest=FlightInspectionServiceTest test
 ```
 
-MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests on 27 October 2026. These results cover the tested services, not application-wide concurrency safety, HTTP routing, or the airport-account setup workflow. Departure-versus-inspection tests remain deferred with the pilot workflow.
+MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests on 27 October 2026. These results cover the tested services, not application-wide concurrency safety, HTTP routing, or the airport-account setup workflow. Physical-action verification is documented in the API guide; these historical results alone do not establish that workflow.
 ## Unsolved problems and current limitations
 
-- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; clearance commands are implemented; physical pilot actions and baggage handling remain deferred or outside scope.
+- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; clearance commands are implemented; physical pilot actions are implemented; maintenance cancellation/history and baggage handling remain deferred or outside scope.
 - Cross-table CPR uniqueness remains a pre-check and is not guaranteed under simultaneous registration/profile changes.
 - SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
-- Flight times use local date-times without offsets, and time-based checks use server-local time. Full airport time-zone handling remains future work.
+- Scheduled/actual flight times use local date-times without offsets. Pilot actual timestamps and scheduler checks explicitly use Asia/Bahrain; new event/clearance timestamps use UTC Instant. Older booking/scheduling cutoffs use server-local time. Full airport time-zone handling remains future work.
 - A failed verification email can leave a pending registration until expiry. Email and database transactions are not fully coordinated: a delivered email cannot be rolled back if a later database commit fails.
 
 
@@ -476,7 +476,7 @@ MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests
 
 ## Future improvements
 
-Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. ATC provider/tower/staff setup is implemented; flight-clearance commands are implemented; physical pilot actions and baggage handling remain deferred. Operational views, readiness and history reads are available.
+Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off enforces inspection/FAA readiness, crew, occupancy and departure approval. ATC provider/tower/staff setup is implemented; flight-clearance commands are implemented; physical pilot take-off/landing are implemented; baggage handling remains deferred. Operational views, readiness and history reads are available.
 
 Further improvements include a frontend, reliable notification storage and delivery, consistent response DTOs and validation, a reset-token password recovery flow, time-zone-aware scheduling, schema migrations, and tests that run independently of manually seeded data and external email services.
 
@@ -898,7 +898,7 @@ Concurrency and database locking introduced new concepts that I had to read abou
 
 ### Future Improvements
 
-- Complete the remaining business logic for the wider workflow shown in the ERD, including pilot departure checks, baggage handling, and the planned air traffic control workflow.
+- Complete the remaining business logic for the wider workflow shown in the ERD, including maintenance cancellation/history and any separately agreed baggage workflow.
 - Introduce a separate model/table for individual flight seats. Currently, booking and cancellation lock the whole flight row, so operations on different seats of the same flight must wait for one another. A more granular design could reduce contention while preserving booking and seat-availability consistency.
 - Expand SSE notifications to cover more application events.
 - Add WebSocket support for live chat.
@@ -937,4 +937,7 @@ Thank you to instructor Saad for answering my questions about how to handle diff
 
 ### Clearance command delivery
 
-Clearance commands use current pilot assignment or responsible own-tower authorization, required expectedRevision, 20-minute approvals, resource locks and atomic event/audit writes. Request/approval recheck readiness after locking; rejection/withdrawal/revocation can remove permission even when readiness fails. Scoped SSE is delivered after commit. See the [API guide](docs/API-GUIDE.md#clearance-commands) for routes, examples, errors and the audit-check SQL upgrade. Back up and apply the documented schema updates before starting this version with schema validation. Physical take-off/landing and their integration guards remain the next feature.
+Clearance commands use current pilot assignment or responsible own-tower authorization, required expectedRevision, 20-minute approvals, resource locks and atomic event/audit writes. Request/approval recheck readiness after locking; rejection/withdrawal/revocation can remove permission even when readiness fails. Scoped SSE is delivered after commit. See the [API guide](docs/API-GUIDE.md#clearance-commands) for routes, examples, errors and the audit-check SQL upgrade. Back up and apply the documented schema updates before starting this version with schema validation. Physical take-off/landing and their integration guards are implemented; see [Pilot physical actions](docs/API-GUIDE.md#pilot-physical-actions). Maintenance cancellation/history is the next feature.
+
+
+Pilot actions use `POST /pilot/flights/{flightId}/takeOff` and `/land` with `{"expectedRevision":2}`. Both current pilot duties are allowed. Each action consumes matching unexpired approval and atomically records status, actual time, one event and one audit; duplicates return 409. `Flight_Departed` / `Flight_Landed` SSE reaches both tower teams, current pilots and owning airline admins after commit. The five-minute scheduler uses a separate transaction per flight and skips inconsistent actual times. Crew/activation/inspection remain possible after scheduled departure until actual departure; booking/payment scheduled cutoffs remain in place.

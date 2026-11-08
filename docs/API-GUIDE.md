@@ -8,7 +8,7 @@ Cron Jobs
 - Changes `ACTIVE` to `IN_AIR` when `actualDeparture` is not null and its time has been reached.
 - Changes `IN_AIR` to `CLOSED` when `actualArrival` is not null and its time has been reached.
 
-Pilot take-off and inspection/FAA departure enforcement are deferred. This scheduler does not check inspection results before transitioning to IN_AIR. Null actual times leave the status unchanged, allowing for delayed flights. Time checks use the server's local time.
+Pilot actions immediately set status and actual times after locked operational checks. The scheduler invokes FlightStatusService through a separate service transaction per candidate and catches failures so later candidates still run. It locks/rechecks each Flight, skips/logs inconsistent or future actual times, and requires departure <= arrival <= now before closing. Null actual times and schedules alone do not move flights. It writes only FLIGHT_STATUS_CHANGED audits, never physical events, clearance or actual times. Checks use Asia/Bahrain.
 
 Customer registration endpoints
 ---
@@ -128,7 +128,7 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 | --- | --- | --- | --- | --- |
 | POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates a PENDING_CREW flight for the admin's airline and returns an `AddFlightResponse` with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival`, `firstClassPrice`, `standardPrice`; optional `currency` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00","firstClassPrice":30000,"standardPrice":15000,"currency":"USD"}` |
 
-Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities. Supply positive firstClassPrice and standardPrice values and BHD or USD currency (omitted currency defaults to BHD). After assigning a pilot, secondary pilot, and flight attendant, call PUT /airlineAdmin/flights/{flightId}/activate for a future PENDING_CREW flight owned by your airline. Activation does not yet enforce inspection clearance.
+Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities. Supply positive firstClassPrice and standardPrice values and BHD or USD currency (omitted currency defaults to BHD). After assigning a pilot, secondary pilot, and flight attendant, call PUT /airlineAdmin/flights/{flightId}/activate for a PENDING_CREW flight owned by your airline with both actual times null, including delayed flights. Activation checks crew; inspection clearance is enforced at departure request/approval/takeOff.
 
 Search flights endpoint
 ---
@@ -470,13 +470,13 @@ Lists return FlightInspectionResponse objects with id, flightId, airportId, null
 
 Assignment, completion, and reinspection first lock the flight through findByIdForUpdate(), then read/check the latest attempt. This serializes competing requests, including the first assignment when no inspection row exists. Audit writes share the transaction; listing methods use ordinary reads. The PostgreSQL partial unique index flight_inspections_one_pending_per_flight additionally rejects two PENDING attempts for one flight while allowing completed history.
 
-Inspection completion never changes FAA airplane status. Pilot take-off and departure enforcement are deferred: the existing scheduler still transitions ACTIVE to IN_AIR based on actualDeparture without checking inspection results. The future pilot workflow must coordinate the same flight lock, assigned-pilot authorization, crew readiness, a passed latest inspection, and independent FAA airplane status before departure.
+Inspection completion never changes FAA airplane status. Pilot take-off rechecks current pilot assignment, required crew, latest passed inspection, FAA ACTIVE, occupancy and valid departure approval under resource locks. Inspection mutations require PENDING_CREW or ACTIVE with both actual times null, including delayed flights. The scheduler only corrects status from consistent actual times; it does not create departure permission or actual timestamps.
 
 ### Database and integration-test notes
 
 The flight inspection schema requires its foreign keys, status check, and one-pending-per-flight partial unique index. See the [README database setup](../README.md#2-configure-postgresql) for the index and audit-constraint requirements. The old crew-assignment-audit.sql omits newer audit values and must not be rerun unchanged on the current schema.
 
-FlightInspectionServiceTest passed 16 PostgreSQL tests on 28 October 2026 with no failures/errors/skips. It creates its own fixtures with seeding disabled and schema validation enabled. Ordinary tests roll back; committed concurrency fixtures are cleaned up. Tests cover history, permissions, lists, competing assignments/completions/reinspection, and direct unique-index rejection. They do not cover HTTP routing, airport account creation end to end, or deferred departure enforcement.
+FlightInspectionServiceTest passed 16 PostgreSQL tests on 28 October 2026 with no failures/errors/skips. It creates its own fixtures with seeding disabled and schema validation enabled. Ordinary tests roll back; committed concurrency fixtures are cleaned up. Tests cover history, permissions, lists, competing assignments/completions/reinspection, and direct unique-index rejection. They do not cover HTTP routing, airport account creation end to end, or the later physical-action workflow.
 
 ```powershell
 .\mvnw.cmd -Dtest=FlightInspectionServiceTest test
@@ -549,7 +549,7 @@ Setup audits use `AIR_NAVIGATION_PROVIDER_CREATED`, `CONTROL_FACILITY_CREATED`, 
 
 ## Flight-operation views and readiness
 
-These GET endpoints are available to active accounts. They do not approve a clearance, move a flight, reserve resources, write business audits or send SSE. Clearance commands are documented below. Physical take-off and landing remain the next stage.
+These GET endpoints are available to active accounts. They do not approve a clearance, move a flight, reserve resources, write business audits or send SSE. Clearance commands are documented below. Physical take-off and landing are documented below.
 
 | GET path | Scope |
 | --- | --- |
@@ -587,7 +587,7 @@ Scope filtering happens in the database before count/paging. Flights sort by sch
 
 Readiness flags represent lifecycle eligibility, including direct approval eligibility, not permission for a pilot to perform ATC actions. Readiness is a snapshot; clearance commands recheck under their resource locks.
 
-Departure requires ACTIVE with both actual times null, an airplane and both airports, origin tower, all three required crew duties, latest inspection PASSED and FAA airplane ACTIVE. Any airplane/assigned crew (including extras) occupied on another unfinished departed flight blocks readiness, even after its scheduled arrival. IN_AIR conservatively counts as occupied even with inconsistent actual times. A completed landing releases occupancy once the other flight is no longer IN_AIR. There is no scheduled-departure cutoff in these readiness checks; existing mutation/booking guards are unchanged in this stage.
+Departure requires ACTIVE with both actual times null, an airplane and both airports, origin tower, all three required crew duties, latest inspection PASSED and FAA airplane ACTIVE. Any airplane/assigned crew (including extras) occupied on another unfinished departed flight blocks readiness, even after its scheduled arrival. IN_AIR conservatively counts as occupied even with inconsistent actual times. A completed landing releases occupancy once the other flight is no longer IN_AIR. There is no scheduled-departure cutoff in these readiness checks; crew, activation and inspection mutations require both actual times null; booking and checkout retain their scheduled cutoffs and also reject actualDeparture.
 
 Arrival requires IN_AIR, a departure time present and no later than the captured Bahrain time, no actual arrival and a configured destination tower. It does not require a fresh inspection, active FAA airplane status or free resources. Terminal pilot readiness has `operation:null` and all flags false.
 
@@ -645,7 +645,7 @@ Verify on a dedicated PostgreSQL database using `mvn '-Dtest=FlightOperationServ
 
 ### Clearance-command audit schema upgrade
 
-After the flight-operation schema above is installed, stop the application and back up the database. Apply this audit-check upgrade before running clearance commands, then start with `ddl-auto=validate`. This preserves existing audit rows and adds the five clearance actions and event entity type. Apply it to both existing and freshly initialized schemas; Hibernate validation alone does not verify check-constraint contents.
+After the flight-operation schema above is installed, stop the application and back up the database. Apply this audit-check upgrade before running clearance commands, then start with `ddl-auto=validate`. This preserves existing audit rows and adds the five clearance actions, FLIGHT_TAKE_OFF, FLIGHT_LANDED and event entity type. Reapply this block when upgrading from clearance-only commands; no additional table/column changes are needed for physical actions. Apply it to both existing and freshly initialized schemas; Hibernate validation alone does not verify check-constraint contents.
 
 ```sql
 BEGIN;
@@ -689,7 +689,9 @@ ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_action_check CHECK (action IN (
     'FLIGHT_CLEARANCE_APPROVED',
     'FLIGHT_CLEARANCE_REJECTED',
     'FLIGHT_CLEARANCE_WITHDRAWN',
-    'FLIGHT_CLEARANCE_REVOKED'));
+    'FLIGHT_CLEARANCE_REVOKED',
+    'FLIGHT_TAKE_OFF',
+    'FLIGHT_LANDED'));
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_entity_type_check;
 ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_entity_type_check CHECK (entity_type IN (
     'BOOKING',
@@ -735,13 +737,13 @@ Every success returns `OperationResponse`: flightId, flightNumber, status, actua
 
 A request starts a new PENDING cycle. Decisions and withdrawals require matching PENDING state. Direct approval approves a pending cycle or starts a fresh eligible cycle. Valid approval cannot be replaced or extended. Approval expires exactly 20 minutes after the captured action time; equality is expired. Pending requests never time out. Revocation requires an unexpired, unused matching approval and retains its timestamps. A fresh request/direct approval clears the old approval timestamps and increments cycle; every successful command increments revision once. Stale revisions return 409, including retries after a lost response: refresh the scoped GET before deciding what to do next.
 
-Request and approval recheck readiness under locks. Reject/withdraw/revoke enforce phase, actual-time consistency, scope, revision and state without requiring inspection, crew, occupancy or FAA readiness. These commands never change physical flight status or actual times. Airborne arrival requests use the destination tower without fresh inspection, FAA ACTIVE or free-resource requirements. Physical takeOff/land and changes to activation/crew/booking/scheduler guards are not yet delivered.
+Request and approval recheck readiness under locks. Reject/withdraw/revoke enforce phase, actual-time consistency, scope, revision and state without requiring inspection, crew, occupancy or FAA readiness. These commands never change physical flight status or actual times. Airborne arrival requests use the destination tower without fresh inspection, FAA ACTIVE or free-resource requirements. Physical actions and their integration guards are documented below.
 
 Each success writes one append-only control event and one audit referencing its event ID, flight, cycle, revision and actor in the same transaction. Failed commands leave no successful event/audit. SSE uses the existing `/notifications` subscription after commit: `Clearance_Requested`, `Clearance_Approved`, `Clearance_Rejected`, `Clearance_Withdrawn`, `Clearance_Revoked`. Recipients are active User IDs for the responsible tower team, both current pilot duties and owning airline admins, deduplicated. Payload fields are eventId, flightId, operation, cycle, revision, status, occurredAt and expiresAt (approval timestamp only; null otherwise). Reasons remain available through scoped history. Delivery is best effort; reconnect with GET. Expiry sends no timed event.
 
 Errors retain the existing ErrorResponse: 400 invalid input; 401 missing/invalid JWT; 403 role/scope/current assignment; 404 missing flight; 409 stale revision, lifecycle/readiness/expiry conflict, duplicate event revision or lock timeout/deadlock. No automatic command replay.
 
-Demo using a ready flight: read its revision as the assigned pilot, requestTakeOff, read the pending request as the origin controller, approve with the returned revision, then revoke with a reason. Either pilot can request again and withdraw the new pending cycle. Try the destination tower against the departure command to see 403, and replay an old revision to see 409. Landing requests require an already-airborne flight; this stage does not provide a takeOff endpoint to create that condition.
+Demo using a ready flight: read its revision as the assigned pilot, requestTakeOff, read the pending request as the origin controller, approve with the returned revision, then revoke with a reason. Either pilot can request again and withdraw the new pending cycle. Try the destination tower against the departure command to see 403, and replay an old revision to see 409. The full take-off/landing demo below creates an airborne flight through the pilot endpoint.
 
 Run clearance verification against a dedicated database with both schema sections applied:
 
@@ -749,6 +751,39 @@ Run clearance verification against a dedicated database with both schema section
 mvn '-Dtest=FlightClearanceServiceTest,FlightClearanceTransactionTest,FlightOperationServiceTest,ATCServiceTest' '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/your_test_database' test
 ```
 
-Command tests cover service/JWT contracts, lifecycle and scope; transaction tests commit isolated fixtures, use the existing executor with independent PostgreSQL transactions, prove blocking through `pg_blocking_pids`, and clean their fixtures. They cover competing commands, fresh occupancy checks after resource waits, expiry after a lock wait, rollback, scoped after-commit SSE and delivery failure. Physical-action races belong to the following stage.
+Command tests cover service/JWT contracts, lifecycle and scope; transaction tests commit isolated fixtures, use the existing executor with independent PostgreSQL transactions, prove blocking through `pg_blocking_pids`, and clean their fixtures. They cover competing commands, fresh occupancy checks after resource waits, expiry after a lock wait, rollback, scoped after-commit SSE and delivery failure. Physical-action tests also cover revocation, expiry after resource waits, occupied crew, rollback, both-tower SSE and scheduler transaction isolation.
 
 Verified on 8 November 2026: 85 targeted PostgreSQL tests passed with zero failures/errors/skips (29 clearance command/transaction tests plus 56 existing operation, ATC, inspection, maintenance and seeder tests). The test database used schema validation and the documented audit-check upgrade. Development data was not modified.
+
+
+### Pilot physical actions
+
+| POST path | Body | Success |
+| --- | --- | --- |
+| `/pilot/flights/{flightId}/takeOff` | `{"expectedRevision":2}` | 200 OperationResponse; IN_AIR, actualDeparture set, clearance CONSUMED |
+| `/pilot/flights/{flightId}/land` | `{"expectedRevision":5}` | 200 OperationResponse; CLOSED, actualArrival set, clearance CONSUMED |
+
+An active current primary or secondary pilot may act. Both routes acquire Airplane -> Flight -> all assigned employees ascending ID, then capture server time and recheck revision, phase and matching tower/operation approval. Approval is valid only before expiresAt, never at equality. takeOff repeats departure readiness (crew, latest PASSED inspection, FAA ACTIVE, origin tower and actual airplane/all-crew occupancy). land requires airborne phase, existing departure <= now and destination approval; it does not require a fresh inspection, active FAA state or free resources. Landing releases actual occupancy atomically. Scheduled departure does not limit pilot actions.
+
+The captured Instant supplies UTC event time and Asia/Bahrain actual local time. Client timestamps are ignored. Actual times are never overwritten. Success increments revision once, preserves cycle and approval times, and commits Flight + one TAKE_OFF/LANDED event + one FLIGHT_TAKE_OFF/FLIGHT_LANDED audit together. No additional status-change audit is written for pilot actions. Invalid/missing revision is 400; missing/invalid JWT 401; wrong role/current assignment 403; missing flight 404; stale revision, repeat action, wrong phase/operation/tower, expiry/readiness or lock conflict 409. Refresh GET after a lost response.
+
+After-commit `Flight_Departed` and `Flight_Landed` use the existing clearance notification payload (status CONSUMED, expiresAt null), scoped to deduplicated active User IDs for both airport tower teams, both current pilots and owning airline admins. A tower sharing the provider but neither airport is excluded. Failed writes produce no success SSE; delivery failures cannot undo the action. Reconnect GET is authoritative.
+
+Crew add/remove and activation allow delays with both actual times null; existing qualification, airline, overlap and ACTIVE minimum-crew checks remain. Inspection assignment/completion/reinspection use the same actual-time guard and retain latest-attempt and inspector restrictions. Booking and checkout preparation also reject actualDeparture even if status is still ACTIVE. Existing payment reconciliation is unchanged. Scheduler status correction runs every five minutes with one Flight transaction at a time; a failed flight cannot roll back another flight's correction.
+
+Demo (substitute the returned revision each time):
+
+1. Schedule a flight, assign PILOT + SECONDARY_PILOT + FLIGHT_ATTENDANT, activate it and complete its latest inspection as PASSED. Its airplane must be FAA ACTIVE and all assigned resources free; configure origin and destination towers.
+2. Pilot GET readiness, POST requestTakeOff revision 0 -> revision 1; origin ATC approves revision 1 -> revision 2.
+3. Pilot POST takeOff revision 2 -> IN_AIR, CONSUMED, revision 3. Replaying revision 2 returns 409.
+4. Either pilot POST requestLanding revision 3 -> revision 4; destination ATC approves revision 4 -> revision 5.
+5. Either pilot POST land revision 5 -> CLOSED, CONSUMED, revision 6. History has six events with six corresponding audits. The scheduler adds no correction for this completed workflow.
+6. On a separate ready flight, revoke approval before takeOff or wait until expiresAt; departure must fail. Use the wrong tower to see 403. Two approved flights sharing an airplane or crew cannot both depart before occupancy is released by landing.
+
+Run the focused verification on the isolated database after applying the audit SQL above:
+
+```powershell
+mvn '-Dtest=FlightClearanceServiceTest,FlightClearanceTransactionTest,FlightOperationServiceTest,FlightInspectionServiceTest' '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/your_test_database' '-Dspring.jpa.show-sql=false' test
+```
+
+Verified 8 November 2026 on `aviation_operations_verify_20261107` with ddl-auto=validate: 82 tests passed, zero failures/errors/skips (FlightClearanceServiceTest 21, FlightClearanceTransactionTest 22, FlightOperationServiceTest 22, FlightInspectionServiceTest 17). This includes the new physical actions, delayed preparation guards, resource races, rollback/SSE and scheduler isolation. Existing ATC, maintenance and seeder suites were not rerun for this stage. Only the isolated verification database received the audit constraint update; development migration remains the operator's next startup step.

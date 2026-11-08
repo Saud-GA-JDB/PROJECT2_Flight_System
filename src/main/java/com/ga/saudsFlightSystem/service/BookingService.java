@@ -159,7 +159,7 @@ public class BookingService {
                 .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
         User bookingOwner = userRepository.findById(userId)
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
-        if (flight.getStatus() != Flight.FlightStatus.ACTIVE)
+        if (flight.getStatus() != Flight.FlightStatus.ACTIVE || flight.getActualDeparture() != null)
             throw new InvalidInformationException("This flight is not Open for booking");
         if (!flight.getScheduledDeparture().isAfter(LocalDateTime.now().plusMinutes(5)))
             throw new InvalidInformationException("sorry this flight doors are already closed");

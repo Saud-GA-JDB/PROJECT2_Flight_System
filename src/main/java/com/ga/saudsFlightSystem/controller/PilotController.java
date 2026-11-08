@@ -58,4 +58,14 @@ public class PilotController {
     public ResponseEntity<OperationResponse> withdrawClearance(@PathVariable Long flightId, @RequestBody WithdrawClearanceRequest request) {
         return operationService.withdrawClearance(flightId, request.getOperation(), request.getExpectedRevision());
     }
+
+    @PostMapping("/flights/{flightId}/takeOff")
+    public ResponseEntity<OperationResponse> takeOff(@PathVariable Long flightId, @RequestBody FlightActionRequest request) {
+        return operationService.takeOff(flightId, request.getExpectedRevision());
+    }
+
+    @PostMapping("/flights/{flightId}/land")
+    public ResponseEntity<OperationResponse> land(@PathVariable Long flightId, @RequestBody FlightActionRequest request) {
+        return operationService.land(flightId, request.getExpectedRevision());
+    }
 }

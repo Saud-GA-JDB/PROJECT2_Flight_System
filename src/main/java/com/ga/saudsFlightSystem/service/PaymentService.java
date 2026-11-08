@@ -169,7 +169,7 @@ public class PaymentService {
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
             throw new InvalidInformationException("You can only pay for an active booking");
 
-        if (flight.getStatus() != Flight.FlightStatus.ACTIVE)
+        if (flight.getStatus() != Flight.FlightStatus.ACTIVE || flight.getActualDeparture() != null)
             throw new InvalidInformationException("This flight is not open for payment");
 
         if (!flight.getScheduledDeparture().isAfter(LocalDateTime.now().plusMinutes(5)))

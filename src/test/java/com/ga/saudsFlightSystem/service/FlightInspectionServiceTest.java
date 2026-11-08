@@ -313,6 +313,28 @@ public class FlightInspectionServiceTest {
         Assert.assertTrue(cause.getMessage().contains("flight_inspections_one_pending_per_flight"));
     }
 
+    @Test
+    public void delayedInspectionAllowedButActualTimesBlockAllMutations() {
+        Flight flight = entityManager.find(Flight.class, flightId);
+        flight.setScheduledDeparture(LocalDateTime.now().minusHours(2));
+        login(airportAdminEmail);
+        service.assignInspector(flightId, inspectorId);
+        FlightInspection inspection = repository.findFirstByFlight_IdOrderByIdDesc(flightId).get();
+        login(inspectorEmail);
+        service.completeInspection(flightId, inspection.getId(), FlightInspection.InspectionStatus.FAILED, "Recheck");
+        login(airlineAdminEmail);
+        service.requestReInspection(flightId);
+        FlightInspection pending = repository.findFirstByFlight_IdOrderByIdDesc(flightId).get();
+        flight.setActualDeparture(LocalDateTime.now().minusMinutes(1));
+        login(airportAdminEmail);
+        Assert.assertThrows(InvalidInformationException.class, () -> service.assignInspector(flightId, inspectorId));
+        login(inspectorEmail);
+        Assert.assertThrows(InvalidInformationException.class, () -> service.completeInspection(flightId, pending.getId(), FlightInspection.InspectionStatus.PASSED, null));
+        login(airlineAdminEmail);
+        Assert.assertThrows(InvalidInformationException.class, () -> service.requestReInspection(flightId));
+        Assert.assertEquals(FlightInspection.InspectionStatus.PENDING, pending.getStatus());
+    }
+
     private Long assign() {
         login(airportAdminEmail);
         Assert.assertEquals(HttpStatus.OK, service.assignInspector(flightId, inspectorId).getStatusCode());

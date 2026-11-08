@@ -29,7 +29,7 @@ These stories were recorded retrospectively from the implemented API and the wid
 | ATC-02 | As a tower administrator, I want to create and list my tower's controllers. | Role and tower come from the route/current account; controllers cannot provision staff; paging and counts are scoped to the admin's tower, even when providers are shared. |
 | ATC-03 | As an ATC employee, I want to sign in, maintain my contact details and view my tower. | Shared JWT login, active-account checks, encoded credentials, existing profile updates and an operational response without CPR, phone or credentials. |
 
-Flight-clearance commands are implemented; physical pilot actions remain a future stage.
+Flight-clearance commands and physical pilot actions are implemented.
 
 ## Flight-operation reads implemented 7 November 2026
 
@@ -40,7 +40,7 @@ Flight-clearance commands are implemented; physical pilot actions remain a futur
 | OPS-03 | As an airline admin, I want to inspect my airline's operational state and control history. | Only owning-airline ADMIN can read summaries and complete event history; no passenger/payment details appear. |
 | OPS-04 | As an API consumer, I want reliable expiry and list results. | Expiry at the exact boundary is computed without writes; pagination/counts are scoped; date filters use Bahrain scheduled times; GETs produce no business audit/SSE. |
 
-These views remain read-only. Clearance commands are implemented separately; physical-action commands remain a future stage.
+These views remain read-only. Clearance and physical-action commands are implemented separately.
 
 ## Operational stories implemented by 28 October 2026
 
@@ -56,14 +56,12 @@ These views remain read-only. Clearance commands are implemented separately; phy
 | US-44 | As an airline admin, I want reinspection after failure and access to the history. | Own the flight's airline; latest attempt must be FAILED; create a separate unassigned PENDING attempt; retain all prior attempts and list newest first. |
 | US-45 | As an airline admin, I want to manage qualified crew and activate a staffed flight. | Create/list/remove assignments with role, airline, and scheduling checks; activation requires pilot, secondary pilot, and attendant; active-flight removal must preserve coverage. |
 
-Inspection mutations serialize through the flight lock; PostgreSQL permits only one pending attempt per flight. The inspection test suite passed 16 tests on 28 October 2026, including three competing-request cases. This does not establish departure enforcement, which remains deferred.
+Inspection mutations serialize through the flight lock; PostgreSQL permits only one pending attempt per flight. The inspection test suite passed 16 tests on 28 October 2026, including three competing-request cases. Pilot take-off now enforces latest passed inspection under the same Flight lock.
 
 ## Deferred stories from the broader design
 
-- Pilot take-off with assigned-pilot authorization and final locked inspection, crew, and FAA-status checks.
 - Baggage handling and other ground services beyond inspections.
 - Maintenance cancellation and airline maintenance-history endpoints.
-- Air traffic control facilities, controllers, and flight-control events (outside current scope).
 
 Maintenance staff do not make aircraft release/grounding decisions. Cross-flight defect carryover was rejected and is not a future requirement. See [Planning](PLANNING.md) and the [README](../README.md).
 
@@ -138,3 +136,13 @@ Extend existing `Booking` with pending-payment/expiry behavior and an agreed pri
 | OPS-06 | As responsible tower staff, I want to approve, reject, issue directly or revoke. | Own-tower ADMIN/CONTROLLER only; origin/departure and destination/arrival; rejection/revocation require a reason; valid approvals cannot be extended. |
 | OPS-07 | As an operator, I want concurrent/retried commands to have one auditable result. | Revision checked after locks; one atomic event/audit per success; rejected commands leave no success history; time captured after locks; approval expires at exactly 20 minutes. |
 | OPS-08 | As scoped staff, I want committed clearance updates. | Deduplicated active tower/current-pilot/own-airline-admin User IDs receive SSE after commit; rollback sends nothing; reconnect GET remains authoritative. |
+
+
+## Physical flight actions implemented 8 November 2026
+
+| ID | User story | Acceptance criteria |
+| --- | --- | --- |
+| OPS-05 | As either current pilot, I want to take off with valid departure permission. | Locked revision/expiry/readiness checks; no occupied airplane or assigned crew; atomically consume approval, record actualDeparture/IN_AIR and one event/audit. |
+| OPS-06 | As either current pilot, I want to land with destination permission. | Valid ARRIVAL approval and consistent actual times; atomically record actualArrival/CLOSED and release occupancy without fresh inspection or FAA approval. |
+| OPS-07 | As an airline or airport operator, I want to prepare delayed flights safely. | Crew, activation and inspection mutations require both actual times null; preserve existing coverage, qualification and schedule-conflict checks; booking/checkout reject actual departure. |
+| OPS-08 | As an operator, I want reliable history and status correction. | Both towers/current pilots/owning airline receive after-commit SSE; duplicates never overwrite times; scheduler corrects consistent actual-time status in separate per-flight transactions and continues after failures. |

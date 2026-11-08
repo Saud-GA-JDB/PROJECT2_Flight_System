@@ -53,7 +53,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class FlightClearanceTransactionTest {
     @Autowired FlightOperationService service;
     @Autowired FlightReadinessService readiness;
-    @Autowired FlightRepository flights;
+    @MockitoSpyBean FlightRepository flights;
+    @Autowired FlightService flightService;
+    @Autowired FlightStatusService flightStatusService;
     @Autowired CrewAssignmentRepository crew;
     @Autowired FlightInspectionRepository inspections;
     @Autowired FlightControlEventRepository events;
@@ -129,9 +131,16 @@ public class FlightClearanceTransactionTest {
         if (committed) {
             if (TestTransaction.isActive()) TestTransaction.end();
             new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-                em.createQuery("delete from AuditLog a where a.entityType = :type and a.entityId in (select e.id from FlightControlEvent e where e.flight.id = :flight)")
-                        .setParameter("type", AuditLog.EntityType.FLIGHT_CONTROL_EVENT).setParameter("flight", flight.getId()).executeUpdate();
-                em.createQuery("delete from FlightControlEvent e where e.flight.id = :flight").setParameter("flight", flight.getId()).executeUpdate();
+                for (Object value : fixtures) {
+                    if (value instanceof Flight fixture) {
+                        em.createQuery("delete from AuditLog a where a.entityType = :type and a.entityId in (select e.id from FlightControlEvent e where e.flight.id = :flight)")
+                                .setParameter("type", AuditLog.EntityType.FLIGHT_CONTROL_EVENT).setParameter("flight", fixture.getId()).executeUpdate();
+                        em.createQuery("delete from FlightControlEvent e where e.flight.id = :flight")
+                                .setParameter("flight", fixture.getId()).executeUpdate();
+                        em.createQuery("delete from AuditLog a where a.entityType = :type and a.entityId = :id")
+                                .setParameter("type", AuditLog.EntityType.FLIGHT).setParameter("id", fixture.getId()).executeUpdate();
+                    }
+                }
                 for (int i = fixtures.size() - 1; i >= 0; i--) {
                     Object value = fixtures.get(i);
                     Object id = em.getEntityManagerFactory().getPersistenceUnitUtil().getIdentifier(value);
@@ -300,12 +309,205 @@ public class FlightClearanceTransactionTest {
         assertWrites(1);
     }
 
+    @Test
+    public void takeOffWinsAgainstRevocationWithoutDuplicateEffects() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        race(pilot, () -> service.takeOff(flight.getId(), 2L),
+                originController, () -> service.revokeClearance(flight.getId(), FlightOperation.DEPARTURE, 2L, "Traffic"));
+        Assert.assertEquals(Flight.FlightStatus.IN_AIR, flights.findById(flight.getId()).get().getStatus());
+        assertWrites(1);
+    }
+
+    @Test
+    public void revocationWinsAgainstTakeOff() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        race(originController, () -> service.revokeClearance(flight.getId(), FlightOperation.DEPARTURE, 2L, "Traffic"),
+                pilot, () -> service.takeOff(flight.getId(), 2L));
+        Assert.assertNull(flights.findById(flight.getId()).get().getActualDeparture());
+        assertWrites(1);
+    }
+
+    @Test
+    public void takeOffWaitingForAirplaneRechecksExpiry() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, now.minusSeconds(1200));
+        java.util.concurrent.atomic.AtomicReference<Instant> actionTime = new java.util.concurrent.atomic.AtomicReference<>(now.minusNanos(1));
+        race(originController, () -> airplanes.findByIdForUpdate(plane.getId()), pilot, () -> {
+            try (var time = mockStatic(Instant.class, CALLS_REAL_METHODS)) {
+                time.when(Instant::now).thenAnswer(invocation -> actionTime.get());
+                service.takeOff(flight.getId(), 2L);
+            }
+        }, () -> actionTime.set(now));
+        Assert.assertNull(flights.findById(flight.getId()).get().getActualDeparture());
+        assertWrites(0);
+    }
+
+    @Test
+    public void approvedDepartureRechecksSharedCrewOccupancyAfterWaiting() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        Flight occupied = flight(plane(airline), origin, destination);
+        assign(occupied, secondary, Duty.PILOT);
+        race(originController, () -> {
+            airplanes.findByIdForUpdate(occupied.getAirplane().getId());
+            Flight otherFlight = flights.findByIdForUpdate(occupied.getId()).get();
+            employees.findByIdForAssignment(secondary.getAirlineEmployee().getId());
+            otherFlight.setActualDeparture(LocalDateTime.now().minusMinutes(1));
+            otherFlight.setStatus(Flight.FlightStatus.IN_AIR);
+        }, pilot, () -> service.takeOff(flight.getId(), 2L));
+        Assert.assertNull(flights.findById(flight.getId()).get().getActualDeparture());
+        assertWrites(0);
+    }
+
+    @Test
+    public void physicalActionAuditFailureRollsBackTimestampStatusAndEvent() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        commitFixtures();
+        AtomicInteger sent = subscribe(pilot);
+        doThrow(new IllegalStateException("Injected audit failure")).when(audits).addAuditLog(any(), any(), any(), any(), any());
+        try {
+            Assert.assertThrows(IllegalStateException.class, () -> runAs(pilot, () -> service.takeOff(flight.getId(), 2L)));
+        } finally {
+            reset(audits);
+        }
+        TestTransaction.start();
+        Flight stored = flights.findById(flight.getId()).get();
+        Assert.assertNull(stored.getActualDeparture());
+        Assert.assertEquals(Flight.FlightStatus.ACTIVE, stored.getStatus());
+        Assert.assertEquals(ClearanceStatus.APPROVED, stored.getClearanceStatus());
+        assertWrites(0);
+        Assert.assertEquals(0, sent.get());
+    }
+
+    @Test
+    public void physicalActionNotifiesBothTowersAfterCommitOnly() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        User inactive = atc(destination, ATCEmployee.ATCRole.CONTROLLER);
+        inactive.setActive(false);
+        commitFixtures();
+        AtomicInteger primary = subscribe(pilot);
+        AtomicInteger second = subscribe(secondary);
+        AtomicInteger from = subscribe(originController);
+        AtomicInteger to = subscribe(destinationAdmin);
+        AtomicInteger owner = subscribe(admin);
+        AtomicInteger unrelated = subscribe(otherController);
+        AtomicInteger disabled = subscribe(inactive);
+        runAs(pilot, () -> {
+            service.takeOff(flight.getId(), 2L);
+            Assert.assertEquals(0, primary.get());
+            Assert.assertEquals(0, to.get());
+        });
+        Assert.assertEquals(1, primary.get());
+        Assert.assertEquals(1, second.get());
+        Assert.assertEquals(1, from.get());
+        Assert.assertEquals(1, to.get());
+        Assert.assertEquals(1, owner.get());
+        Assert.assertEquals(0, unrelated.get());
+        Assert.assertEquals(0, disabled.get());
+        TestTransaction.start();
+        assertWrites(1);
+    }
+
+    @Test
+    public void schedulerRollsBackOneFlightAndContinuesWithIndependentTransactions() {
+        LocalDateTime departure = LocalDateTime.ofInstant(Instant.now().minusSeconds(120), ZoneId.of("Asia/Bahrain"));
+        flight.setActualDeparture(departure);
+        Flight next = flight(plane(airline), origin, destination);
+        next.setStatus(Flight.FlightStatus.IN_AIR);
+        next.setActualDeparture(departure);
+        next.setActualArrival(departure.plusSeconds(60));
+        commitFixtures();
+        doReturn(List.of(flight.getId(), next.getId())).when(flights).findIdsByStatuses(Flight.FlightStatus.ACTIVE, Flight.FlightStatus.IN_AIR);
+        doThrow(new IllegalStateException("Injected first-flight audit failure")).when(audits)
+                .addAuditLog(isNull(), eq(AuditLog.Action.FLIGHT_STATUS_CHANGED), eq(AuditLog.EntityType.FLIGHT), eq(flight.getId()), anyString());
+        try {
+            flightService.updateFlightStatus();
+        } finally {
+            reset(audits);
+            reset(flights);
+        }
+        TestTransaction.start();
+        Assert.assertEquals(Flight.FlightStatus.ACTIVE, flights.findById(flight.getId()).get().getStatus());
+        Assert.assertEquals(Flight.FlightStatus.CLOSED, flights.findById(next.getId()).get().getStatus());
+        Assert.assertEquals(0L, em.createQuery("select count(a) from AuditLog a where a.entityType = :type and a.entityId = :id", Long.class)
+                .setParameter("type", AuditLog.EntityType.FLIGHT).setParameter("id", flight.getId()).getSingleResult().longValue());
+        Assert.assertEquals(1L, em.createQuery("select count(a) from AuditLog a where a.entityType = :type and a.entityId = :id", Long.class)
+                .setParameter("type", AuditLog.EntityType.FLIGHT).setParameter("id", next.getId()).getSingleResult().longValue());
+        assertWrites(0);
+    }
+
+    @Test
+    public void schedulerIgnoresScheduleAndInvalidActualTimesAndDoesNotRepeatCorrections() {
+        flightStatusService.updateFlightStatus(flight.getId());
+        Assert.assertEquals(Flight.FlightStatus.ACTIVE, flight.getStatus());
+        flight.setStatus(Flight.FlightStatus.IN_AIR);
+        flight.setActualArrival(LocalDateTime.now().minusMinutes(1));
+        flightStatusService.updateFlightStatus(flight.getId());
+        Assert.assertEquals(Flight.FlightStatus.IN_AIR, flight.getStatus());
+        flight.setActualDeparture(flight.getActualArrival().plusMinutes(1));
+        flightStatusService.updateFlightStatus(flight.getId());
+        Assert.assertEquals(Flight.FlightStatus.IN_AIR, flight.getStatus());
+        flight.setActualDeparture(flight.getActualArrival().minusMinutes(1));
+        flightStatusService.updateFlightStatus(flight.getId());
+        flightStatusService.updateFlightStatus(flight.getId());
+        Assert.assertEquals(Flight.FlightStatus.CLOSED, flight.getStatus());
+        Assert.assertEquals(1L, em.createQuery("select count(a) from AuditLog a where a.entityType = :type and a.entityId = :id", Long.class)
+                .setParameter("type", AuditLog.EntityType.FLIGHT).setParameter("id", flight.getId()).getSingleResult().longValue());
+        assertWrites(0);
+    }
+
+    @Test
+    public void twoApprovedDeparturesSharingAirplaneCannotBothTakeOff() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        Flight next = readyApprovedFlight();
+        race(pilot, () -> service.takeOff(flight.getId(), 2L),
+                pilot, () -> service.takeOff(next.getId(), 2L));
+        Assert.assertEquals(Flight.FlightStatus.IN_AIR, flights.findById(flight.getId()).get().getStatus());
+        Assert.assertNull(flights.findById(next.getId()).get().getActualDeparture());
+        Assert.assertEquals(0, events.countHistory(next.getId(), null, null));
+        assertWrites(1);
+    }
+
+    @Test
+    public void departureWaitingForLandingSeesReleasedResources() throws Exception {
+        flight.setStatus(Flight.FlightStatus.IN_AIR);
+        flight.setActualDeparture(LocalDateTime.ofInstant(Instant.now().minusSeconds(120), ZoneId.of("Asia/Bahrain")));
+        approve(FlightOperation.ARRIVAL, destination, Instant.now());
+        Flight next = readyApprovedFlight();
+        race(pilot, () -> service.land(flight.getId(), 2L),
+                pilot, () -> service.takeOff(next.getId(), 2L), () -> {}, false);
+        Assert.assertEquals(Flight.FlightStatus.CLOSED, flights.findById(flight.getId()).get().getStatus());
+        Assert.assertEquals(Flight.FlightStatus.IN_AIR, flights.findById(next.getId()).get().getStatus());
+        Assert.assertEquals(1, events.countHistory(next.getId(), null, null));
+        assertWrites(1);
+    }
+
+    private Flight readyApprovedFlight() {
+        Flight next = flight(plane, origin, destination);
+        next.setScheduledDeparture(flight.getScheduledArrival().plusHours(3));
+        next.setScheduledArrival(next.getScheduledDeparture().plusHours(2));
+        assign(next, pilot, Duty.PILOT);
+        assign(next, secondary, Duty.SECONDARY_PILOT);
+        assign(next, attendant, Duty.FLIGHT_ATTENDANT);
+        FlightInspection inspection = new FlightInspection();
+        inspection.setFlight(next);
+        inspection.setAirport(origin.getAirport());
+        inspection.setStatus(FlightInspection.InspectionStatus.PASSED);
+        persistTracked(inspection);
+        next.setClearanceOperation(FlightOperation.DEPARTURE);
+        next.setClearanceFacility(origin);
+        next.setClearanceStatus(ClearanceStatus.APPROVED);
+        next.setClearanceCycle(1);
+        next.setClearanceRevision(2);
+        next.setClearanceApprovedAt(Instant.now());
+        next.setClearanceExpiresAt(next.getClearanceApprovedAt().plusSeconds(1200));
+        return next;
+    }
+
     private AtomicInteger subscribe(User user) throws Exception {
         SseEmitter emitter = mock(SseEmitter.class);
         AtomicInteger sent = new AtomicInteger();
         doAnswer(invocation -> {
             SseEmitter.SseEventBuilder event = invocation.getArgument(0);
-            if (event.build().stream().anyMatch(data -> data.getData() instanceof String text && text.contains("event:Clearance_")))
+            if (event.build().stream().anyMatch(data -> data.getData() instanceof String text && (text.contains("event:Clearance_") || text.contains("event:Flight_"))))
                 sent.incrementAndGet();
             return null;
         }).when(emitter).send(any(SseEmitter.SseEventBuilder.class));
@@ -319,6 +521,10 @@ public class FlightClearanceTransactionTest {
     }
 
     private void race(User firstUser, Runnable firstAction, User secondUser, Runnable secondAction, Runnable afterBlocked) throws Exception {
+        race(firstUser, firstAction, secondUser, secondAction, afterBlocked, true);
+    }
+
+    private void race(User firstUser, Runnable firstAction, User secondUser, Runnable secondAction, Runnable afterBlocked, boolean conflict) throws Exception {
         commitFixtures();
         CountDownLatch firstChanged = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -352,9 +558,13 @@ public class FlightClearanceTransactionTest {
             afterBlocked.run();
             release.countDown();
             first.get(15, TimeUnit.SECONDS);
-            Future<?> loser = second;
-            ExecutionException failure = Assert.assertThrows(ExecutionException.class, () -> loser.get(15, TimeUnit.SECONDS));
-            Assert.assertTrue(failure.getCause() instanceof BusinessConflictException);
+            if (conflict) {
+                Future<?> loser = second;
+                ExecutionException failure = Assert.assertThrows(ExecutionException.class, () -> loser.get(15, TimeUnit.SECONDS));
+                Assert.assertTrue(failure.getCause() instanceof BusinessConflictException);
+            } else {
+                second.get(15, TimeUnit.SECONDS);
+            }
         } finally {
             release.countDown();
             if (first != null) settle(first);

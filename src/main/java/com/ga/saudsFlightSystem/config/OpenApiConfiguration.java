@@ -80,7 +80,7 @@ public class OpenApiConfiguration {
                     "200", FlightSearchResponse.class, false);
             document(openApi, "/customer/{userId}/flights/{flightId}/{seatType}/{seatId}/book", PathItem.HttpMethod.POST,
                     "Book a flight seat",
-                    "Active account required. Service checks the target user, flight, and seat availability before creating the booking.",
+                    "Active account required. Service checks the target user, flight, and seat availability before creating the booking. Actual departure blocks booking even if status is ACTIVE; the five-minute scheduled cutoff remains.",
                     "201", BookingResponse.class, false);
             document(openApi, "/bookings", PathItem.HttpMethod.GET,
                     "List bookings",
@@ -148,7 +148,7 @@ public class OpenApiConfiguration {
                     "201", AddFlightResponse.class, false);
             document(openApi, "/airlineAdmin/flights/{flightId}/addCrewAssignment", PathItem.HttpMethod.POST,
                     "Assign crew to a flight",
-                    "Admin of the flight's airline. Rejects duplicate assignments, incompatible duties, and scheduling conflicts. Sends email and SSE notifications after commit.",
+                    "Admin of the flight's airline. Requires PENDING_CREW or ACTIVE with both actual times null. Rejects duplicate assignments, incompatible duties, and scheduling conflicts. Sends email and SSE notifications after commit.",
                     "201", CrewAssignmentResponse.class, false);
             document(openApi, "/airlineAdmin/flights/{flightId}/crewAssignments", PathItem.HttpMethod.GET,
                     "List flight crew",
@@ -156,11 +156,11 @@ public class OpenApiConfiguration {
                     "200", getCrewAssignmentsResponse.class, true);
             document(openApi, "/airlineAdmin/flights/{flightId}/crewAssignments/{employeeId}", PathItem.HttpMethod.DELETE,
                     "Remove crew assignment",
-                    "Admin of the flight's airline. Requires a future flight; active flights must retain the required crew.",
+                    "Admin of the flight's airline. Requires PENDING_CREW or ACTIVE with both actual times null; delayed flights are allowed and active flights must retain required crew.",
                     "204", null, false);
             document(openApi, "/airlineAdmin/flights/{flightId}/activate", PathItem.HttpMethod.PUT,
                     "Activate flight",
-                    "Admin of the flight's airline. Requires a future PENDING_CREW flight with a pilot, secondary pilot, and flight attendant. Inspection clearance is not enforced here.",
+                    "Admin of the flight's airline. Requires a PENDING_CREW flight with both actual times null, a pilot, secondary pilot, and flight attendant; delayed flights are allowed. Inspection clearance is not enforced here.",
                     "200", String.class, false);
             document(openApi, "/airlineAdmin/maintenanceProviders/{providerId}/contract", PathItem.HttpMethod.POST,
                     "Contract maintenance provider",
@@ -172,7 +172,7 @@ public class OpenApiConfiguration {
                     "201", MaintenanceRecordResponse.class, false);
             document(openApi, "/airlineAdmin/flights/{flightId}/reinspection", PathItem.HttpMethod.POST,
                     "Request reinspection",
-                    "Admin of the flight's airline. Requires a failed latest inspection and a future flight. Creates a pending attempt awaiting assignment.",
+                    "Admin of the flight's airline. Requires a failed latest inspection and a PENDING_CREW or ACTIVE flight with both actual times null. Creates a pending attempt awaiting assignment.",
                     "201", String.class, false);
             document(openApi, "/airlineAdmin/flights/{flightId}/inspections", PathItem.HttpMethod.GET,
                     "List flight inspection history",
@@ -184,7 +184,7 @@ public class OpenApiConfiguration {
                     "201", AirportEmployeeResponse.class, false);
             document(openApi, "/airportAdmin/flights/{flightId}/inspection", PathItem.HttpMethod.POST,
                     "Assign flight inspector",
-                    "Origin-airport admin only. Inspector must belong to the same airport and operator. Creates the first inspection or assigns the pending attempt.",
+                    "Origin-airport admin only. Both actual times must be null and phase PENDING_CREW or ACTIVE. Inspector must belong to the same airport and operator. Creates the first inspection or assigns the pending attempt.",
                     "200", String.class, false);
             document(openApi, "/airportAdmin/inspections", PathItem.HttpMethod.GET,
                     "List airport inspections",
@@ -192,7 +192,7 @@ public class OpenApiConfiguration {
                     "200", FlightInspectionResponse.class, true);
             document(openApi, "/airportInspector/flights/{flightId}/inspections/{inspectionId}/complete", PathItem.HttpMethod.PUT,
                     "Complete flight inspection",
-                    "Assigned inspector only. Completes the latest pending attempt as PASSED or FAILED. Optional reason is limited to 2000 characters.",
+                    "Assigned inspector only. Both actual times must be null and phase PENDING_CREW or ACTIVE. Completes the latest pending attempt as PASSED or FAILED. Optional reason is limited to 2000 characters.",
                     "200", String.class, false);
             document(openApi, "/airportInspector/inspections", PathItem.HttpMethod.GET,
                     "List assigned inspections",
@@ -220,7 +220,7 @@ public class OpenApiConfiguration {
                     "200", String.class, false);
             document(openApi, "/payments/bookings/{bookingId}/checkout", PathItem.HttpMethod.POST,
                     "Start Stripe checkout",
-                    "Booking owner only. Creates or reuses a sandbox checkout session. Requires an active booking and flight, positive pricing, and departure more than five minutes away.",
+                    "Booking owner only. Creates or reuses a sandbox checkout session. Requires an active booking and flight with no actual departure, positive pricing, and scheduled departure more than five minutes away. Existing payment reconciliation remains allowed after departure.",
                     "200", CheckoutResponse.class, false);
             document(openApi, "/payments/bookings/{bookingId}", PathItem.HttpMethod.GET,
                     "Refresh payment status",
@@ -312,6 +312,18 @@ public class OpenApiConfiguration {
                                 + "Each success atomically writes one event and audit, increments revision and sends scoped SSE after commit. "
                                 + "400 invalid input; 401 missing/invalid JWT; 403 scope; 404 missing flight; 409 stale revision, phase/readiness/state/expiry or lock conflict. Refresh before retrying.",
                         path.endsWith("requestTakeOff") || path.endsWith("requestLanding") ? "201" : "200", OperationResponse.class, false);
+            }
+
+            for (String path : List.of("/pilot/flights/{flightId}/takeOff", "/pilot/flights/{flightId}/land")) {
+                document(openApi, path, PathItem.HttpMethod.POST, path.endsWith("takeOff") ? "Take off" : "Land",
+                        "Active current PILOT or SECONDARY_PILOT required. Body: {\"expectedRevision\":2}. "
+                                + "Requires matching unexpired APPROVED clearance; equality at expiry fails. Rechecks phase, revision and readiness after Airplane, Flight and sorted crew locks. "
+                                + "takeOff requires ACTIVE, no actual times, required crew, latest passed inspection, FAA ACTIVE and free resources; sets IN_AIR and server actualDeparture. "
+                                + "land requires IN_AIR and destination approval with consistent actual times; sets CLOSED and server actualArrival, without fresh FAA/inspection/occupancy checks. "
+                                + "Consumes approval, increments revision once and atomically writes one event/audit. Actual times use Asia/Bahrain; event time is UTC. "
+                                + "After-commit SSE reaches active origin/destination tower teams, current pilots and owning airline admins. "
+                                + "400 invalid input; 401 missing/invalid JWT; 403 assignment/scope; 404 missing flight; 409 stale revision, phase/readiness/expiry or lock conflict. Duplicate actions never overwrite times.",
+                        "200", OperationResponse.class, false);
             }
 
             List.of("/auth/users/login", "/auth/users/register/email", "/auth/users/verification")

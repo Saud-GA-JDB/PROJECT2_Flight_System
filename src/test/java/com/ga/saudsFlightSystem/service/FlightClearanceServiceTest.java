@@ -54,6 +54,10 @@ public class FlightClearanceServiceTest {
     @Autowired PasswordEncoder passwords;
     @Autowired MockMvc mvc;
     @Autowired JsonMapper jsonMapper;
+    @Autowired FlightService flightService;
+    @Autowired CrewAssignmentService crewService;
+    @Autowired BookingService bookingService;
+    @Autowired PaymentService paymentService;
 
     final Instant now = Instant.parse("2026-11-07T07:00:00Z");
     Airline airline;
@@ -336,6 +340,102 @@ public class FlightClearanceServiceTest {
         login(secondary);
         Assert.assertThrows(BusinessConflictException.class, () -> service.withdrawClearance(flight.getId(), FlightOperation.ARRIVAL, 1L));
         assertWrites(0);
+    }
+
+    @Test
+    public void pilotHttpWorkflowConsumesClearanceAndUsesServerTimes() throws Exception {
+        String primaryAuth = token(pilot);
+        String secondaryAuth = token(secondary);
+        String route = "/pilot/flights/" + flight.getId();
+        login(originController);
+        service.directClearance(flight.getId(), FlightOperation.DEPARTURE, 0L, null);
+        mvc.perform(post(route + "/takeOff").header("Authorization", primaryAuth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedRevision\":1,\"actualDeparture\":\"2000-01-01T00:00:00\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("IN_AIR"))
+                .andExpect(jsonPath("$.clearance.status").value("CONSUMED"));
+        FlightControlEvent departed = events.findHistory(flight.getId(), null, null, 1, 0).get(0);
+        Assert.assertEquals(FlightControlEvent.EventType.TAKE_OFF, departed.getEventType());
+        Assert.assertEquals(LocalDateTime.ofInstant(departed.getOccurredAt(), ZoneId.of("Asia/Bahrain")), flight.getActualDeparture());
+        LocalDateTime departure = flight.getActualDeparture();
+        mvc.perform(post(route + "/takeOff").header("Authorization", primaryAuth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedRevision\":2}")).andExpect(status().isConflict());
+        mvc.perform(post(route + "/land").header("Authorization", secondaryAuth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedRevision\":2}")).andExpect(status().isConflict());
+        plane.setStatus(Airplane.Status.GROUNDED);
+        inspection(FlightInspection.InspectionStatus.FAILED);
+        login(destinationAdmin);
+        service.directClearance(flight.getId(), FlightOperation.ARRIVAL, 2L, null);
+        mvc.perform(post(route + "/land").header("Authorization", secondaryAuth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedRevision\":3}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.clearance.revision").value(4));
+        Assert.assertEquals(departure, flight.getActualDeparture());
+        Assert.assertFalse(flight.getActualArrival().isBefore(departure));
+        Assert.assertFalse(flights.hasOccupiedAirplane(-1L, plane.getId()));
+        Assert.assertFalse(crew.hasOccupiedCrew(-1L, List.of(pilot.getAirlineEmployee().getId())));
+        mvc.perform(post(route + "/land").header("Authorization", secondaryAuth).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedRevision\":4}")).andExpect(status().isConflict());
+        assertWrites(4);
+        Assert.assertEquals(2L, em.createQuery("select count(a) from AuditLog a where a.action in :actions and a.entityId in (select e.id from FlightControlEvent e where e.flight.id = :flight)", Long.class)
+                .setParameter("actions", List.of(AuditLog.Action.FLIGHT_TAKE_OFF, AuditLog.Action.FLIGHT_LANDED))
+                .setParameter("flight", flight.getId()).getSingleResult().longValue());
+    }
+
+    @Test
+    public void takeOffRechecksReadinessAndRejectsExactExpiryWithoutWrites() {
+        approve(FlightOperation.DEPARTURE, origin, now.minusSeconds(1200));
+        try (var time = org.mockito.Mockito.mockStatic(Instant.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            time.when(Instant::now).thenReturn(now);
+            Assert.assertThrows(BusinessConflictException.class, () -> service.takeOff(flight.getId(), 2L));
+        }
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        plane.setStatus(Airplane.Status.GROUNDED);
+        Assert.assertThrows(BusinessConflictException.class, () -> service.takeOff(flight.getId(), 2L));
+        Assert.assertNull(flight.getActualDeparture());
+        Assert.assertEquals(ClearanceStatus.APPROVED, flight.getClearanceStatus());
+        assertWrites(0);
+    }
+
+    @Test
+    public void physicalActionHttpRejectsUnassignedPilotAndInvalidRevision() throws Exception {
+        approve(FlightOperation.DEPARTURE, origin, Instant.now());
+        String route = "/pilot/flights/" + flight.getId() + "/takeOff";
+        mvc.perform(post(route).header("Authorization", token(unassigned)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedRevision\":2}")).andExpect(status().isForbidden());
+        mvc.perform(post(route).header("Authorization", token(pilot)).contentType(MediaType.APPLICATION_JSON)
+                .content("{}")).andExpect(status().isBadRequest());
+        mvc.perform(post(route).contentType(MediaType.APPLICATION_JSON).content("{\"expectedRevision\":2}"))
+                .andExpect(status().isUnauthorized());
+        assertWrites(0);
+    }
+
+    @Test
+    public void delayedCrewAndActivationRemainAllowedButActualDepartureBlocksMutationsAndCheckout() throws Exception {
+        login(admin);
+        flight.setScheduledDeparture(LocalDateTime.now().minusHours(3));
+        flight.setScheduledArrival(LocalDateTime.now().minusHours(1));
+        flight.setStatus(Flight.FlightStatus.PENDING_CREW);
+        var request = jsonMapper.readValue("{\"employeeId\":" + unassigned.getAirlineEmployee().getId()
+                + ",\"duty\":\"PILOT\"}", com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest.class);
+        crewService.addCrewAssignment(flight.getId(), request);
+        flightService.activateFlight(flight.getId());
+        crewService.removeCrewAssignment(flight.getId(), unassigned.getAirlineEmployee().getId());
+        Assert.assertEquals(Flight.FlightStatus.ACTIVE, flight.getStatus());
+        flight.setActualDeparture(LocalDateTime.now().minusMinutes(1));
+        flight.setScheduledDeparture(LocalDateTime.now().plusDays(1));
+        Assert.assertThrows(InvalidInformationException.class, () -> crewService.addCrewAssignment(flight.getId(), request));
+        Assert.assertThrows(InvalidInformationException.class, () -> crewService.removeCrewAssignment(flight.getId(), pilot.getAirlineEmployee().getId()));
+        Assert.assertThrows(InvalidInformationException.class, () -> bookingService.bookFlight(admin.getId(), flight.getId(), "standard", 1L));
+        Booking booking = new Booking();
+        booking.setFlight(flight);
+        booking.setUser(admin);
+        booking.setBookingRef(UUID.randomUUID().toString());
+        booking.setSeatNumber("standard-1");
+        booking.setStatus(Booking.BookingStatus.BOOKED);
+        em.persist(booking);
+        Assert.assertThrows(InvalidInformationException.class, () -> paymentService.preparePayment(booking.getId()));
+        flight.setStatus(Flight.FlightStatus.PENDING_CREW);
+        Assert.assertThrows(InvalidInformationException.class, () -> flightService.activateFlight(flight.getId()));
     }
 
     private void assertWrites(long count) {

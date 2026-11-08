@@ -45,7 +45,8 @@ public class FlightInspectionService {
         Flight flight = flightRepository.findByIdForUpdate(flightId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find a flight with this ID."));
 
-        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+        if ((flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+                || flight.getActualDeparture() != null || flight.getActualArrival() != null)
             throw new InvalidInformationException("Inspections can only be assigned before departure.");
 
         Airport airport = flight.getOriginAirport();
@@ -114,7 +115,8 @@ public class FlightInspectionService {
         Flight flight = flightRepository.findByIdForUpdate(flightId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find a flight with this ID."));
 
-        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+        if ((flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+                || flight.getActualDeparture() != null || flight.getActualArrival() != null)
             throw new InvalidInformationException("Inspections can only be completed before departure.");
 
         FlightInspection inspection = flightInspectionRepository.findFirstByFlight_IdOrderByIdDesc(flightId)
@@ -172,7 +174,8 @@ public class FlightInspectionService {
         if (flight.getAirline() == null || !flight.getAirline().getId().equals(admin.getAirline().getId()))
             throw new IllegalEndpoint("You can only request re-inspection for your airline's flights.");
 
-        if (flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+        if ((flight.getStatus() != Flight.FlightStatus.PENDING_CREW && flight.getStatus() != Flight.FlightStatus.ACTIVE)
+                || flight.getActualDeparture() != null || flight.getActualArrival() != null)
             throw new InvalidInformationException("Re-inspection can only be requested before departure.");
 
         FlightInspection previousInspection = flightInspectionRepository.findFirstByFlight_IdOrderByIdDesc(flightId)
