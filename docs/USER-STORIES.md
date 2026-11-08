@@ -29,7 +29,7 @@ These stories were recorded retrospectively from the implemented API and the wid
 | ATC-02 | As a tower administrator, I want to create and list my tower's controllers. | Role and tower come from the route/current account; controllers cannot provision staff; paging and counts are scoped to the admin's tower, even when providers are shared. |
 | ATC-03 | As an ATC employee, I want to sign in, maintain my contact details and view my tower. | Shared JWT login, active-account checks, encoded credentials, existing profile updates and an operational response without CPR, phone or credentials. |
 
-Flight-clearance commands and physical pilot actions remain future stages.
+Flight-clearance commands are implemented; physical pilot actions remain a future stage.
 
 ## Flight-operation reads implemented 7 November 2026
 
@@ -40,7 +40,7 @@ Flight-clearance commands and physical pilot actions remain future stages.
 | OPS-03 | As an airline admin, I want to inspect my airline's operational state and control history. | Only owning-airline ADMIN can read summaries and complete event history; no passenger/payment details appear. |
 | OPS-04 | As an API consumer, I want reliable expiry and list results. | Expiry at the exact boundary is computed without writes; pagination/counts are scoped; date filters use Bahrain scheduled times; GETs produce no business audit/SSE. |
 
-These are read-only views. Request/approval/physical-action commands are not implemented by this stage.
+These views remain read-only. Clearance commands are implemented separately; physical-action commands remain a future stage.
 
 ## Operational stories implemented by 28 October 2026
 
@@ -129,3 +129,12 @@ These stories cover the wider ERD as a selection backlog. Choose a coherent subs
 | Webhook processing | `PaymentWebhookEvent` | Proposed addition: unique Stripe event identifier, event type, processing state, timestamps, and failure information for durable deduplication and recovery. |
 
 Extend existing `Booking` with pending-payment/expiry behavior and an agreed price snapshot. A separate seat-hold entity is optional, not required merely to add a model. Persistent job-run tracking can be added if required by US-20; its storage design remains undecided. This mapping proposes future schema work and does not change the implemented ERD.
+
+## Delivered clearance command stories
+
+| ID | Story | Acceptance |
+| --- | --- | --- |
+| OPS-05 | As either assigned pilot, I want to request or withdraw clearance. | Current assignment and active account required; readiness rechecked for requests; pending never expires; withdrawal checks phase and revision without readiness. |
+| OPS-06 | As responsible tower staff, I want to approve, reject, issue directly or revoke. | Own-tower ADMIN/CONTROLLER only; origin/departure and destination/arrival; rejection/revocation require a reason; valid approvals cannot be extended. |
+| OPS-07 | As an operator, I want concurrent/retried commands to have one auditable result. | Revision checked after locks; one atomic event/audit per success; rejected commands leave no success history; time captured after locks; approval expires at exactly 20 minutes. |
+| OPS-08 | As scoped staff, I want committed clearance updates. | Deduplicated active tower/current-pilot/own-airline-admin User IDs receive SSE after commit; rollback sends nothing; reconnect GET remains authoritative. |

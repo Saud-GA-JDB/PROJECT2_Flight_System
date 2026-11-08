@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FlightRepository extends JpaRepository<Flight, Long> {
+    @Query(value = "SELECT airplane_id FROM flights WHERE id = :flightId", nativeQuery = true)
+    Long findAirplaneIdForOperation(@Param("flightId") Long flightId);
+
     @Query(value = """
         SELECT COUNT(*) > 0 FROM flights
         WHERE id <> :flightId AND airplane_id = :airplaneId

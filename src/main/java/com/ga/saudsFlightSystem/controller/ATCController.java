@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.controller;
 import com.ga.saudsFlightSystem.model.Flight;
 import com.ga.saudsFlightSystem.model.FlightOperation;
 import com.ga.saudsFlightSystem.model.request.response.*;
+import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.FlightOperationService;
 import com.ga.saudsFlightSystem.service.ATCService;
 import lombok.AllArgsConstructor;
@@ -54,5 +55,20 @@ public class ATCController {
             @RequestParam(required = false) FlightOperation operation,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return operationService.getTowerEvents(flightId, operation, page, size);
+    }
+
+    @PostMapping("/flights/{flightId}/clearance/decision")
+    public ResponseEntity<OperationResponse> decideClearance(@PathVariable Long flightId, @RequestBody DecideClearanceRequest request) {
+        return operationService.decideClearance(flightId, request.getOperation(), request.getExpectedRevision(), request.getDecision(), request.getReason());
+    }
+
+    @PostMapping("/flights/{flightId}/clearance/direct")
+    public ResponseEntity<OperationResponse> directClearance(@PathVariable Long flightId, @RequestBody DirectClearanceRequest request) {
+        return operationService.directClearance(flightId, request.getOperation(), request.getExpectedRevision(), request.getReason());
+    }
+
+    @PostMapping("/flights/{flightId}/clearance/revoke")
+    public ResponseEntity<OperationResponse> revokeClearance(@PathVariable Long flightId, @RequestBody RevokeClearanceRequest request) {
+        return operationService.revokeClearance(flightId, request.getOperation(), request.getExpectedRevision(), request.getReason());
     }
 }

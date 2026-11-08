@@ -33,6 +33,12 @@ import java.util.logging.Logger;
 public class GlobalExceptionHandler {
     private static final Logger logger = Logger.getLogger(GlobalExceptionHandler.class.getName());
 
+    @ExceptionHandler(BusinessConflictException.class)
+    public ResponseEntity<ErrorResponse> handleBusinessConflict(BusinessConflictException ex, HttpServletRequest request) {
+        logger.warning("Flight operation rejected: " + ex.getMessage());
+        return build(ex.getMessage(), HttpStatus.CONFLICT, request);
+    }
+
     @ExceptionHandler({PessimisticLockingFailureException.class, LockTimeoutException.class, PessimisticLockException.class})
     public ResponseEntity<ErrorResponse> handleLockConflict(Exception ex, HttpServletRequest request) {
         logger.warning("Request rolled back because a database lock could not be acquired");

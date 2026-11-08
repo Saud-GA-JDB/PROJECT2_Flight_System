@@ -12,9 +12,11 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.logging.Logger;
 
 @Service
 public class NotificationService {
+    private static final Logger logger = Logger.getLogger(NotificationService.class.getName());
     private record Connection(Long userId, User.Role role, SseEmitter emitter) {}
 
     private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
@@ -97,7 +99,11 @@ public class NotificationService {
             connections.remove(connection);
         } catch (RuntimeException error) {
             connections.remove(connection);
-            connection.emitter().completeWithError(error);
+            try {
+                connection.emitter().completeWithError(error);
+            } catch (RuntimeException completionError) {
+                logger.warning("Could not complete a failed notification connection");
+            }
         }
     }
 

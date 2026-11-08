@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface CrewAssignmentRepository extends JpaRepository<CrewAssignment, Long> {
+    @Query(value = "SELECT employee_id FROM crew_assignments WHERE flight_id = :flightId ORDER BY employee_id", nativeQuery = true)
+    List<Long> findEmployeeIdsForOperation(@Param("flightId") Long flightId);
+
     List<CrewAssignment> findByFlightId(Long flightId);
     List<CrewAssignment> findByFlightIdOrderByIdAsc(Long flightId);
 

@@ -32,4 +32,14 @@ Concurrency tests are grouped in [ConcurrencyTest.java](../src/test/java/com/ga/
 ATC list/facility reads take no write locks and create no business audits. Setup lock timeout/deadlock failures return 409 with a refresh/retry message; failed writes roll back. `ATCServiceTest` covers the two-provider tower race using independent PostgreSQL transactions and the existing application executor.
 
 
-Flight-operation GETs use read-only transactions with no explicit database locks. Pilot assignment, tower and airline scope are checked before returning data; list queries apply scope before counts/paging. Readiness uses nonlocking occupancy queries and is only a snapshot, not a reservation. Effective clearance expiry performs no write. The later command stage must reacquire resource locks and recheck every relevant condition before changing state.
+Flight-operation GETs use read-only transactions with no explicit database locks. Pilot assignment, tower and airline scope are checked before returning data; list queries apply scope before counts/paging. Readiness uses nonlocking occupancy queries and is only a snapshot, not a reservation. Effective clearance expiry performs no write. Clearance commands acquire the required resource locks and recheck relevant conditions before changing state.
+
+## Clearance commands
+
+Departure request, approval and direct approval use **Airplane -> Flight -> assigned AirlineEmployee rows ascending ID -> event/audit**. A scalar airplane-ID query avoids caching the Flight before waiting. The service rechecks the airplane association after locking Flight, reads sorted crew IDs under that lock (including extras), acquires the existing employee assignment locks, then validates current caller, revision and readiness using time captured after locks. Occupancy queries run after resource locks at PostgreSQL READ_COMMITTED; approval/request do not reserve resources for future take-off.
+
+Arrival request/approval and reject/withdraw/revoke lock Flight only and never acquire later airplane/employee locks. Permission-removing commands require correct phase/actual times, scope and matching clearance, but do not require operational readiness. Crew writes retain their existing Flight -> Employee order; inspection/activation remain Flight-first with no later airplane lock.
+
+Every successful command updates Flight and inserts one unique (flight_id,revision) event plus its audit in the same transaction. NotificationService defers scoped User-ID delivery until commit. Failure rolls everything back; lock timeout/deadlock returns 409 with refresh/retry guidance and no automatic replay. GETs take no write locks and never expire state by writing.
+
+FlightClearanceTransactionTest uses committed isolated fixtures, the existing executor, independent transactions and bounded waits. It verifies PostgreSQL blocking for competing requests/approvals/direct issuance, fresh airplane/extra-crew occupancy after waiting, expiry across a lock wait, event/audit rollback and after-commit notifications. Physical takeOff/land locking and scheduler isolation remain the next stage.

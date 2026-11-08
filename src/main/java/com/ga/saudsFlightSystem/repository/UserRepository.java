@@ -15,6 +15,20 @@ import java.util.List;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
+    @Query(value = """
+        SELECT DISTINCT u.id FROM users u
+        LEFT JOIN atc_employees t ON t.id = u.atc_employee_id
+        LEFT JOIN airline_employees e ON e.id = u.airline_employee_id
+        WHERE u.is_active = true AND u.status = :activeStatus AND (
+          (u.role = 'ATC_EMPLOYEE' AND t.facility_id = :facilityId AND t.atc_role IN ('ADMIN', 'CONTROLLER'))
+          OR (u.role = 'AIRLINE_EMPLOYEE' AND e.airline_id = :airlineId AND e.airline_role = 'ADMIN')
+          OR (u.role = 'AIRLINE_EMPLOYEE' AND e.airline_role = 'PILOT' AND EXISTS (
+            SELECT 1 FROM crew_assignments c WHERE c.flight_id = :flightId
+              AND c.employee_id = e.id AND c.duty IN ('PILOT', 'SECONDARY_PILOT'))))
+        """, nativeQuery = true)
+    List<Long> findClearanceRecipients(@Param("flightId") Long flightId, @Param("facilityId") Long facilityId,
+                                       @Param("airlineId") Long airlineId, @Param("activeStatus") int activeStatus);
+
     boolean existsByEmailAddress(String emailAddress);
     User findUserByEmailAddress(String emailAddress);
     User findByAirlineEmployeeId(Long employeeId);

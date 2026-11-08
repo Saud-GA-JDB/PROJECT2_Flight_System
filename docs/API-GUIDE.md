@@ -549,7 +549,7 @@ Setup audits use `AIR_NAVIGATION_PROVIDER_CREATED`, `CONTROL_FACILITY_CREATED`, 
 
 ## Flight-operation views and readiness
 
-These GET endpoints are available to active accounts. They do not approve a clearance, move a flight, reserve resources, write business audits or send SSE. Command endpoints for requests, decisions, take-off and landing are the next stage.
+These GET endpoints are available to active accounts. They do not approve a clearance, move a flight, reserve resources, write business audits or send SSE. Clearance commands are documented below. Physical take-off and landing remain the next stage.
 
 | GET path | Scope |
 | --- | --- |
@@ -585,7 +585,7 @@ Scope filtering happens in the database before count/paging. Flights sort by sch
 }
 ```
 
-Readiness flags represent lifecycle eligibility, including direct approval eligibility, not permission for a pilot to perform ATC actions. Readiness is a snapshot; future commands must recheck under their resource locks.
+Readiness flags represent lifecycle eligibility, including direct approval eligibility, not permission for a pilot to perform ATC actions. Readiness is a snapshot; clearance commands recheck under their resource locks.
 
 Departure requires ACTIVE with both actual times null, an airplane and both airports, origin tower, all three required crew duties, latest inspection PASSED and FAA airplane ACTIVE. Any airplane/assigned crew (including extras) occupied on another unfinished departed flight blocks readiness, even after its scheduled arrival. IN_AIR conservatively counts as occupied even with inconsistent actual times. A completed landing releases occupancy once the other flight is no longer IN_AIR. There is no scheduled-departure cutoff in these readiness checks; existing mutation/booking guards are unchanged in this stage.
 
@@ -642,3 +642,113 @@ COMMIT;
 Control-event columns are not updatable through JPA and no edit/delete routes exist. No relationship cascades delete event history. The new read endpoints leave event and audit counts unchanged. A clean database still needs the existing base schema before these additions.
 
 Verify on a dedicated PostgreSQL database using `mvn '-Dtest=FlightOperationServiceTest,ATCServiceTest,FlightInspectionServiceTest,MaintenanceRecordServiceTest,DatabaseSeederTest' '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/your_test_database' test`. Tests create isolated fixtures and roll back; existing ATC/inspection race tests commit and clean their own fixtures. The operational suite uses fixed time for exact expiry checks and real JWT requests for HTTP coverage.
+
+### Clearance-command audit schema upgrade
+
+After the flight-operation schema above is installed, stop the application and back up the database. Apply this audit-check upgrade before running clearance commands, then start with `ddl-auto=validate`. This preserves existing audit rows and adds the five clearance actions and event entity type. Apply it to both existing and freshly initialized schemas; Hibernate validation alone does not verify check-constraint contents.
+
+```sql
+BEGIN;
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_action_check;
+ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_action_check CHECK (action IN (
+    'BOOKING_CREATED',
+    'BOOKING_CANCELLED',
+    'USER_REGISTERED',
+    'USER_SETUP_COMPLETED',
+    'PROFILE_UPDATED',
+    'USER_DEACTIVATED',
+    'PASSWORD_CHANGED',
+    'PASSWORD_RESET',
+    'AIRLINE_CREATED',
+    'AIRLINE_ADMIN_CREATED',
+    'AIRPLANE_CREATED',
+    'AIRPLANE_ACTIVATION_REQUESTED',
+    'AIRPLANE_ACTIVATION_ACCEPTED',
+    'AIRPLANE_ACTIVATION_DENIED',
+    'FLIGHT_CREATED',
+    'FLIGHT_STATUS_CHANGED',
+    'CREW_ASSIGNMENT_CREATED',
+    'CREW_ASSIGNMENTS_VIEWED',
+    'CREW_ASSIGNMENT_REMOVED',
+    'MAINTENANCE_PROVIDER_CREATED',
+    'MAINTENANCE_PROVIDER_LINKED',
+    'MAINTENANCE_EMPLOYEE_CREATED',
+    'MAINTENANCE_RECORD_CREATED',
+    'MAINTENANCE_TECHNICIAN_ASSIGNED',
+    'MAINTENANCE_RECORD_COMPLETED',
+    'AIRPORT_OPERATOR_CREATED',
+    'AIRPORT_OPERATOR_LINKED',
+    'AIRPORT_EMPLOYEE_CREATED',
+    'FLIGHT_INSPECTOR_ASSIGNED',
+    'FLIGHT_INSPECTION_COMPLETED',
+    'FLIGHT_REINSPECTION_REQUESTED',
+    'AIR_NAVIGATION_PROVIDER_CREATED',
+    'CONTROL_FACILITY_CREATED',
+    'ATC_EMPLOYEE_CREATED',
+    'FLIGHT_CLEARANCE_REQUESTED',
+    'FLIGHT_CLEARANCE_APPROVED',
+    'FLIGHT_CLEARANCE_REJECTED',
+    'FLIGHT_CLEARANCE_WITHDRAWN',
+    'FLIGHT_CLEARANCE_REVOKED'));
+ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_entity_type_check;
+ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_entity_type_check CHECK (entity_type IN (
+    'BOOKING',
+    'USER',
+    'AIRLINE',
+    'AIRPLANE',
+    'AIRPLANE_REQUEST',
+    'FLIGHT',
+    'CREW_ASSIGNMENT',
+    'MAINTENANCE_PROVIDER',
+    'MAINTENANCE_RECORD',
+    'AIRPORT_OPERATOR',
+    'AIRPORT',
+    'FLIGHT_INSPECTION',
+    'AIR_NAVIGATION_PROVIDER',
+    'CONTROL_FACILITY',
+    'FLIGHT_CONTROL_EVENT'));
+COMMIT;
+```
+
+## Clearance commands
+
+All six routes use POST, bearer JWT and active accounts. Pilots must currently hold PILOT or SECONDARY_PILOT duty; both have equal permission. ATC ADMIN and CONTROLLER act only at their own responsible tower: origin for DEPARTURE, destination for ARRIVAL. Sharing a provider grants no additional access.
+
+| Path | Body | Success |
+| --- | --- | --- |
+| `/pilot/flights/{flightId}/requestTakeOff` | `{"expectedRevision":0}` | 201 |
+| `/pilot/flights/{flightId}/requestLanding` | `{"expectedRevision":3}` | 201 |
+| `/pilot/flights/{flightId}/clearance/withdraw` | `{"operation":"DEPARTURE","expectedRevision":1}` | 200 |
+| `/atc/flights/{flightId}/clearance/decision` | `{"operation":"DEPARTURE","decision":"APPROVED","expectedRevision":1,"reason":null}` | 200 |
+| `/atc/flights/{flightId}/clearance/direct` | `{"operation":"DEPARTURE","expectedRevision":0,"reason":null}` | 200 |
+| `/atc/flights/{flightId}/clearance/revoke` | `{"operation":"DEPARTURE","expectedRevision":2,"reason":"Traffic conflict"}` | 200 |
+
+IDs must be positive; expectedRevision is required and nonnegative. Decision accepts APPROVED or REJECTED only. Reasons are trimmed, at most 2000 characters, and required for rejection/revocation. Optional blank reasons become null. Actor, tower, state and timestamps come from the server; unknown JSON fields follow the existing ignored-field behavior.
+
+Every success returns `OperationResponse`: flightId, flightNumber, status, actualDeparture, actualArrival, clearance and eventId. For example, after approving a pending departure request:
+
+```json
+{"flightId":10,"flightNumber":"SF101","status":"ACTIVE","actualDeparture":null,"actualArrival":null,
+ "clearance":{"operation":"DEPARTURE","status":"APPROVED","facilityId":2,"cycle":1,"revision":2,
+ "approvedAt":"2026-11-08T07:00:00Z","expiresAt":"2026-11-08T07:20:00Z"},"eventId":103}
+```
+
+A request starts a new PENDING cycle. Decisions and withdrawals require matching PENDING state. Direct approval approves a pending cycle or starts a fresh eligible cycle. Valid approval cannot be replaced or extended. Approval expires exactly 20 minutes after the captured action time; equality is expired. Pending requests never time out. Revocation requires an unexpired, unused matching approval and retains its timestamps. A fresh request/direct approval clears the old approval timestamps and increments cycle; every successful command increments revision once. Stale revisions return 409, including retries after a lost response: refresh the scoped GET before deciding what to do next.
+
+Request and approval recheck readiness under locks. Reject/withdraw/revoke enforce phase, actual-time consistency, scope, revision and state without requiring inspection, crew, occupancy or FAA readiness. These commands never change physical flight status or actual times. Airborne arrival requests use the destination tower without fresh inspection, FAA ACTIVE or free-resource requirements. Physical takeOff/land and changes to activation/crew/booking/scheduler guards are not yet delivered.
+
+Each success writes one append-only control event and one audit referencing its event ID, flight, cycle, revision and actor in the same transaction. Failed commands leave no successful event/audit. SSE uses the existing `/notifications` subscription after commit: `Clearance_Requested`, `Clearance_Approved`, `Clearance_Rejected`, `Clearance_Withdrawn`, `Clearance_Revoked`. Recipients are active User IDs for the responsible tower team, both current pilot duties and owning airline admins, deduplicated. Payload fields are eventId, flightId, operation, cycle, revision, status, occurredAt and expiresAt (approval timestamp only; null otherwise). Reasons remain available through scoped history. Delivery is best effort; reconnect with GET. Expiry sends no timed event.
+
+Errors retain the existing ErrorResponse: 400 invalid input; 401 missing/invalid JWT; 403 role/scope/current assignment; 404 missing flight; 409 stale revision, lifecycle/readiness/expiry conflict, duplicate event revision or lock timeout/deadlock. No automatic command replay.
+
+Demo using a ready flight: read its revision as the assigned pilot, requestTakeOff, read the pending request as the origin controller, approve with the returned revision, then revoke with a reason. Either pilot can request again and withdraw the new pending cycle. Try the destination tower against the departure command to see 403, and replay an old revision to see 409. Landing requests require an already-airborne flight; this stage does not provide a takeOff endpoint to create that condition.
+
+Run clearance verification against a dedicated database with both schema sections applied:
+
+```powershell
+mvn '-Dtest=FlightClearanceServiceTest,FlightClearanceTransactionTest,FlightOperationServiceTest,ATCServiceTest' '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/your_test_database' test
+```
+
+Command tests cover service/JWT contracts, lifecycle and scope; transaction tests commit isolated fixtures, use the existing executor with independent PostgreSQL transactions, prove blocking through `pg_blocking_pids`, and clean their fixtures. They cover competing commands, fresh occupancy checks after resource waits, expiry after a lock wait, rollback, scoped after-commit SSE and delivery failure. Physical-action races belong to the following stage.
+
+Verified on 8 November 2026: 85 targeted PostgreSQL tests passed with zero failures/errors/skips (29 clearance command/transaction tests plus 56 existing operation, ATC, inspection, maintenance and seeder tests). The test database used schema validation and the documented audit-check upgrade. Development data was not modified.

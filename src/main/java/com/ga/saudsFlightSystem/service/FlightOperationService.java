@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.saudsFlightSystem.exception.BusinessConflictException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
@@ -8,6 +9,7 @@ import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,8 @@ import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,6 +31,12 @@ public class FlightOperationService {
     private FlightControlEventRepository eventRepository;
     private UserRepository userRepository;
     private FlightReadinessService readinessService;
+    private AirplaneRepository airplaneRepository;
+    private AirlineEmployeeRepository employeeRepository;
+    private ControlFacilityRepository facilityRepository;
+    private AuditLogService auditLogService;
+    private NotificationService notificationService;
+    private static final Logger logger = Logger.getLogger(FlightOperationService.class.getName());
 
     @Transactional(readOnly = true)
     public ResponseEntity<FlightOperationListResponse> getPilotFlights(Flight.FlightStatus status, LocalDate fromDate,
@@ -124,6 +134,217 @@ public class FlightOperationService {
     public ResponseEntity<ControlEventListResponse> getAirlineEvents(Long flightId, FlightOperation operation, int page, int size) {
         airlineFlight(flightId);
         return ResponseEntity.ok(events(flightId, null, operation, page, size));
+    }
+
+    @Transactional
+    public ResponseEntity<OperationResponse> requestClearance(Long flightId, FlightOperation operation, Long expectedRevision) {
+        validateCommand(flightId, operation, expectedRevision);
+        Flight flight = lockOperation(flightId, operation == FlightOperation.DEPARTURE);
+        User user = commandPilot(flight);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
+        checkReadiness(flight, operation, now, "REQUEST");
+        startCycle(flight, operation, tower);
+        flight.setClearanceStatus(ClearanceStatus.PENDING);
+        return ResponseEntity.status(HttpStatus.CREATED).body(finishCommand(flight, user, FlightControlEvent.EventType.REQUESTED, null, now));
+    }
+
+    @Transactional
+    public ResponseEntity<OperationResponse> withdrawClearance(Long flightId, FlightOperation operation, Long expectedRevision) {
+        validateCommand(flightId, operation, expectedRevision);
+        Flight flight = lockOperation(flightId, false);
+        User user = commandPilot(flight);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
+        requireCurrentClearance(flight, operation, tower, ClearanceStatus.PENDING);
+        flight.setClearanceStatus(ClearanceStatus.WITHDRAWN);
+        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.WITHDRAWN, null, now));
+    }
+
+    @Transactional
+    public ResponseEntity<OperationResponse> decideClearance(Long flightId, FlightOperation operation, Long expectedRevision,
+                                                            ClearanceStatus decision, String reason) {
+        validateCommand(flightId, operation, expectedRevision);
+        if (decision != ClearanceStatus.APPROVED && decision != ClearanceStatus.REJECTED)
+            throw new InvalidInformationException("Choose APPROVED or REJECTED.");
+        reason = validateReason(reason, decision == ClearanceStatus.REJECTED);
+        Flight flight = lockOperation(flightId, operation == FlightOperation.DEPARTURE && decision == ClearanceStatus.APPROVED);
+        User user = commandTower(flight, operation);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
+        requireCurrentClearance(flight, operation, tower, ClearanceStatus.PENDING);
+        if (decision == ClearanceStatus.APPROVED) {
+            checkReadiness(flight, operation, now, "APPROVAL");
+            approveClearance(flight, now);
+        } else {
+            flight.setClearanceStatus(ClearanceStatus.REJECTED);
+        }
+        return ResponseEntity.ok(finishCommand(flight, user, decision == ClearanceStatus.APPROVED
+                ? FlightControlEvent.EventType.APPROVED : FlightControlEvent.EventType.REJECTED, reason, now));
+    }
+
+    @Transactional
+    public ResponseEntity<OperationResponse> directClearance(Long flightId, FlightOperation operation, Long expectedRevision, String reason) {
+        validateCommand(flightId, operation, expectedRevision);
+        reason = validateReason(reason, false);
+        Flight flight = lockOperation(flightId, operation == FlightOperation.DEPARTURE);
+        User user = commandTower(flight, operation);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
+        checkReadiness(flight, operation, now, "APPROVAL");
+        if (flight.getClearanceStatus() == ClearanceStatus.PENDING)
+            requireCurrentClearance(flight, operation, tower, ClearanceStatus.PENDING);
+        else
+            startCycle(flight, operation, tower);
+        approveClearance(flight, now);
+        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.APPROVED, reason, now));
+    }
+
+    @Transactional
+    public ResponseEntity<OperationResponse> revokeClearance(Long flightId, FlightOperation operation, Long expectedRevision, String reason) {
+        validateCommand(flightId, operation, expectedRevision);
+        reason = validateReason(reason, true);
+        Flight flight = lockOperation(flightId, false);
+        User user = commandTower(flight, operation);
+        Instant now = Instant.now();
+        ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
+        requireCurrentClearance(flight, operation, tower, ClearanceStatus.APPROVED);
+        if (flight.getClearanceApprovedAt() == null || flight.getClearanceApprovedAt().isAfter(now)
+                || flight.getClearanceExpiresAt() == null || !now.isBefore(flight.getClearanceExpiresAt()))
+            throw new BusinessConflictException("Clearance is expired or has invalid approval times. Refresh the flight.");
+        flight.setClearanceStatus(ClearanceStatus.REVOKED);
+        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.REVOKED, reason, now));
+    }
+
+    private void validateCommand(Long flightId, FlightOperation operation, Long expectedRevision) {
+        if (flightId == null || flightId <= 0)
+            throw new InvalidInformationException("Flight ID must be positive.");
+        if (operation == null)
+            throw new InvalidInformationException("Choose DEPARTURE or ARRIVAL.");
+        if (expectedRevision == null || expectedRevision < 0)
+            throw new InvalidInformationException("expectedRevision is required and must be nonnegative.");
+    }
+
+    private String validateReason(String reason, boolean required) {
+        reason = reason == null ? null : reason.trim();
+        if (required && (reason == null || reason.isEmpty()))
+            throw new InvalidInformationException("A reason is required.");
+        if (reason != null && reason.length() > 2000)
+            throw new InvalidInformationException("Reason must not be more than 2000 characters.");
+        return reason == null || reason.isEmpty() ? null : reason;
+    }
+
+    private Flight lockOperation(Long flightId, boolean resources) {
+        Long airplaneId = null;
+        if (resources) {
+            airplaneId = flightRepository.findAirplaneIdForOperation(flightId);
+            if (airplaneId != null)
+                airplaneRepository.findByIdForUpdate(airplaneId)
+                        .orElseThrow(() -> new BusinessConflictException("The airplane changed. Refresh and retry."));
+        }
+        Flight flight = flightRepository.findByIdForUpdate(flightId)
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find a flight with this ID."));
+        if (resources) {
+            if (airplaneId == null || flight.getAirplane() == null || !airplaneId.equals(flight.getAirplane().getId()))
+                throw new BusinessConflictException("The flight airplane is missing or changed. Refresh and retry.");
+            for (Long employeeId : crewRepository.findEmployeeIdsForOperation(flightId))
+                employeeRepository.findByIdForAssignment(employeeId)
+                        .orElseThrow(() -> new BusinessConflictException("Assigned crew changed. Refresh and retry."));
+        }
+        return flight;
+    }
+
+    private User commandPilot(Flight flight) {
+        User user = requirePilot();
+        if (!crewRepository.isAssignedPilot(flight.getId(), user.getAirlineEmployee().getId()))
+            throw new IllegalEndpoint("You are not currently assigned as a pilot on this flight.");
+        return user;
+    }
+
+    private User commandTower(Flight flight, FlightOperation operation) {
+        User user = requireTower();
+        Airport airport = operation == FlightOperation.DEPARTURE ? flight.getOriginAirport() : flight.getDestinationAirport();
+        if (airport == null || !airport.getId().equals(user.getAtcEmployee().getFacility().getAirport().getId()))
+            throw new IllegalEndpoint("Only the responsible tower may perform this operation.");
+        return user;
+    }
+
+    private ControlFacility checkCommand(Flight flight, FlightOperation operation, Long expectedRevision, Instant now) {
+        if (flight.getClearanceRevision() != expectedRevision)
+            throw new BusinessConflictException("Clearance revision changed. Refresh and retry.");
+        if (operation == FlightOperation.DEPARTURE) {
+            if (flight.getStatus() != Flight.FlightStatus.ACTIVE || flight.getActualDeparture() != null || flight.getActualArrival() != null)
+                throw new BusinessConflictException("Departure requires an active flight that has not taken off.");
+        } else {
+            LocalDateTime localNow = LocalDateTime.ofInstant(now, ZoneId.of("Asia/Bahrain"));
+            if (flight.getStatus() != Flight.FlightStatus.IN_AIR || flight.getActualDeparture() == null
+                    || flight.getActualDeparture().isAfter(localNow) || flight.getActualArrival() != null)
+                throw new BusinessConflictException("Arrival requires an airborne flight with consistent actual times.");
+        }
+        Airport airport = operation == FlightOperation.DEPARTURE ? flight.getOriginAirport() : flight.getDestinationAirport();
+        if (airport == null)
+            throw new BusinessConflictException("The responsible airport is missing.");
+        return facilityRepository.findByAirport_Id(airport.getId())
+                .orElseThrow(() -> new BusinessConflictException("The responsible tower is not configured."));
+    }
+
+    private void checkReadiness(Flight flight, FlightOperation operation, Instant now, String stage) {
+        for (ReadinessBlocker blocker : readinessService.evaluate(flight, operation, now).getBlockers()) {
+            if (blocker.getAppliesTo().contains(stage))
+                throw new BusinessConflictException("Flight operation blocked: " + blocker.getCode());
+        }
+    }
+
+    private void requireCurrentClearance(Flight flight, FlightOperation operation, ControlFacility tower, ClearanceStatus status) {
+        if (flight.getClearanceStatus() != status || flight.getClearanceOperation() != operation
+                || flight.getClearanceFacility() == null || !tower.getId().equals(flight.getClearanceFacility().getId()))
+            throw new BusinessConflictException("Clearance state or operation changed. Refresh and retry.");
+    }
+
+    private void startCycle(Flight flight, FlightOperation operation, ControlFacility tower) {
+        flight.setClearanceCycle(flight.getClearanceCycle() + 1);
+        flight.setClearanceOperation(operation);
+        flight.setClearanceFacility(tower);
+        flight.setClearanceApprovedAt(null);
+        flight.setClearanceExpiresAt(null);
+    }
+
+    private void approveClearance(Flight flight, Instant now) {
+        flight.setClearanceStatus(ClearanceStatus.APPROVED);
+        flight.setClearanceApprovedAt(now);
+        flight.setClearanceExpiresAt(now.plusSeconds(1200));
+    }
+
+    private OperationResponse finishCommand(Flight flight, User user, FlightControlEvent.EventType type, String reason, Instant now) {
+        flight.setClearanceRevision(flight.getClearanceRevision() + 1);
+        flightRepository.save(flight);
+        FlightControlEvent event = new FlightControlEvent();
+        event.setFlight(flight);
+        event.setFacility(flight.getClearanceFacility());
+        event.setActorUser(user);
+        event.setOperation(flight.getClearanceOperation());
+        event.setEventType(type);
+        event.setCycle(flight.getClearanceCycle());
+        event.setRevision(flight.getClearanceRevision());
+        event.setOccurredAt(now);
+        event.setReason(reason);
+        eventRepository.save(event);
+        String description = "Flight " + flight.getId() + " clearance " + type + " cycle " + event.getCycle()
+                + " revision " + event.getRevision() + " by user " + user.getId();
+        auditLogService.addAuditLog(user, AuditLog.Action.valueOf("FLIGHT_CLEARANCE_" + type.name()),
+                AuditLog.EntityType.FLIGHT_CONTROL_EVENT, event.getId(), description);
+        logger.info(description);
+        String eventName = "Clearance_" + type.name().charAt(0) + type.name().substring(1).toLowerCase(java.util.Locale.ROOT);
+        ClearanceNotificationResponse payload = new ClearanceNotificationResponse(event.getId(), flight.getId(),
+                flight.getClearanceOperation(), event.getCycle(), event.getRevision(), flight.getClearanceStatus(), now,
+                type == FlightControlEvent.EventType.APPROVED ? flight.getClearanceExpiresAt() : null);
+        for (Long recipientId : userRepository.findClearanceRecipients(flight.getId(), flight.getClearanceFacility().getId(), flight.getAirline().getId(), User.Status.ACTIVE.ordinal()))
+            notificationService.sendToUser(recipientId, eventName, payload);
+        ClearanceResponse clearance = new ClearanceResponse(flight.getClearanceOperation(), flight.getClearanceStatus().name(),
+                flight.getClearanceFacility().getId(), flight.getClearanceCycle(), flight.getClearanceRevision(),
+                flight.getClearanceApprovedAt(), flight.getClearanceExpiresAt());
+        return new OperationResponse(flight.getId(), flight.getFlightNumber(), flight.getStatus(), flight.getActualDeparture(),
+                flight.getActualArrival(), clearance, event.getId());
     }
 
     // helper methods

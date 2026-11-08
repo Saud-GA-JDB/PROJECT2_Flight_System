@@ -1,6 +1,6 @@
 # Implemented system ERD
 
-This diagram documents the 24 current JPA entities as of 7 November 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
+This diagram documents the 24 current JPA entities as of 8 November 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
 
 Names and types below follow Java fields, rather than PostgreSQL column spelling or SQL types. Relationship attributes use the Java relationship name followed by `Id` to represent their join columns. `PK`, `FK`, and `UK` mean primary, foreign, and unique keys. `Required` marks explicit non-null mappings; other attributes have no explicit non-null constraint in the model. Relationship cardinalities reflect JPA nullability, which can be less strict than service validation.
 
@@ -343,7 +343,7 @@ erDiagram
 - `PendingRegistration` has no mapped relationship to `User`; email and CPR matching happens in application code. `AuditLog.userId` and `entityId` are scalar identifiers, not JPA relationships, so no foreign-key edges are drawn for them.
 - `User.role` uses EnumType.STRING; User.status remains ordinal (SETUP_REQUIRED=0, ACTIVE=1, DEACTIVATED=2). Other enum fields in this diagram explicitly use `EnumType.STRING`. The diagram shows enum names for readability, not their physical database encoding.
 - Airplane capacities are total seats; flight seat counts track remaining availability. There is no separate seat entity. `flightNumber` has no mapped unique constraint, while `bookingRef` does.
-- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. ATC provider/tower/staff setup is implemented. Scoped flight-operation reads, readiness and event-history reads are implemented. Clearance writes, physical pilot actions and generic ground services/baggage remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
+- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. ATC provider/tower/staff setup is implemented. Scoped flight-operation reads, readiness and event-history reads are implemented. Clearance request/withdraw/decision/direct/revoke writes are implemented with one event and audit per successful revision. Physical pilot actions and generic ground services/baggage remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
 - `Email` and the request/response DTOs are not entities. Despite its package name, `model.request.AirplaneRequest` is an entity and is included. SSE connections are in memory, not persisted entities.
 
 ## Entity-to-table reference
@@ -378,3 +378,5 @@ These are the explicit `@Table` names in source. Hibernate's physical naming str
 | ATCEmployee | `atc_employees` |
 
 Source: [entity models](../src/main/java/com/ga/saudsFlightSystem/model/) and [AirplaneRequest](../src/main/java/com/ga/saudsFlightSystem/model/request/AirplaneRequest.java). This is a source-mapping diagram, not a reverse-engineered snapshot of a particular local database.
+
+Clearance commands reuse Flight and FlightControlEvent; no additional entity/table is introduced. AuditLog now accepts the five FLIGHT_CLEARANCE actions and FLIGHT_CONTROL_EVENT entity type. The API guide contains the matching database check upgrade. New cycles clear prior approval times; revoke retains them; expiry is computed without a write.

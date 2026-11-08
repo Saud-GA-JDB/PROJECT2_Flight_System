@@ -301,6 +301,19 @@ public class OpenApiConfiguration {
                 }
             }
 
+            for (String path : List.of("/pilot/flights/{flightId}/requestTakeOff", "/pilot/flights/{flightId}/requestLanding",
+                    "/pilot/flights/{flightId}/clearance/withdraw", "/atc/flights/{flightId}/clearance/decision",
+                    "/atc/flights/{flightId}/clearance/direct", "/atc/flights/{flightId}/clearance/revoke")) {
+                document(openApi, path, PathItem.HttpMethod.POST, "Change flight clearance",
+                        "Active account required: current assigned pilot for pilot routes; responsible own-tower ADMIN/CONTROLLER for ATC routes. "
+                                + "expectedRevision is required and nonnegative. DEPARTURE uses origin; ARRIVAL uses destination. "
+                                + "Decision accepts APPROVED or REJECTED only. Rejection/revocation require a trimmed reason (1-2000 characters). "
+                                + "Approval lasts exactly 20 minutes; expiry is effective at equality. Direct approval uses the pending cycle or starts a new eligible cycle; valid approval cannot be extended. "
+                                + "Each success atomically writes one event and audit, increments revision and sends scoped SSE after commit. "
+                                + "400 invalid input; 401 missing/invalid JWT; 403 scope; 404 missing flight; 409 stale revision, phase/readiness/state/expiry or lock conflict. Refresh before retrying.",
+                        path.endsWith("requestTakeOff") || path.endsWith("requestLanding") ? "201" : "200", OperationResponse.class, false);
+            }
+
             List.of("/auth/users/login", "/auth/users/register/email", "/auth/users/verification")
                     .forEach(path -> makePublic(openApi, path, PathItem.HttpMethod.POST));
             List.of("/payments/success", "/payments/cancel")

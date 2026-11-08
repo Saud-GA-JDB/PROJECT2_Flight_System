@@ -17,6 +17,7 @@ The purpose is to connect three main users: customers who search and book flight
 - Airport operator setup, airport employee accounts, and role-based inspector assignment.
 - FAA navigation-provider and tower setup, tower administrator/controller accounts, scoped paginated lists, and ATC login/profile integration.
 - Scoped pilot/tower/airline flight-operation views, readiness blockers, effective clearance expiry, pending-request lists and control-event history.
+- Pilot clearance requests/withdrawals and own-tower ATC approval, rejection, direct approval and revocation, with revision checks, transactional events/audits and after-commit SSE.
 - Per-flight inspections with pass/fail results, reinspection history, scoped lists, database locking, and one pending attempt per flight.
 - Server-Sent Events (SSE) notifying connected FAA administrators about airplane activation requests.
 - Database audit records, centralized error handling, demo data seeding, and Postman collections.
@@ -458,7 +459,7 @@ These tests create their own fixtures, disable seeding, and validate the schema.
 MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests on 27 October 2026. These results cover the tested services, not application-wide concurrency safety, HTTP routing, or the airport-account setup workflow. Departure-versus-inspection tests remain deferred with the pilot workflow.
 ## Unsolved problems and current limitations
 
-- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; baggage handling and pilot/ATC flight-control operations remain deferred or outside scope.
+- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; clearance commands are implemented; physical pilot actions and baggage handling remain deferred or outside scope.
 - Cross-table CPR uniqueness remains a pre-check and is not guaranteed under simultaneous registration/profile changes.
 - SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
 - Flight times use local date-times without offsets, and time-based checks use server-local time. Full airport time-zone handling remains future work.
@@ -475,7 +476,7 @@ MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests
 
 ## Future improvements
 
-Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. ATC provider/tower/staff setup is implemented; flight-clearance commands, physical pilot actions and baggage handling remain deferred. Operational views, readiness and history reads are available.
+Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. ATC provider/tower/staff setup is implemented; flight-clearance commands are implemented; physical pilot actions and baggage handling remain deferred. Operational views, readiness and history reads are available.
 
 Further improvements include a frontend, reliable notification storage and delivery, consistent response DTOs and validation, a reset-token password recovery flow, time-zone-aware scheduling, schema migrations, and tests that run independently of manually seeded data and external email services.
 
@@ -933,3 +934,7 @@ Thank you to instructor Saad for answering my questions about how to handle diff
 - handleDataIntegrity in the global exception handler
 - OpenApiConfiguration.java is AI generated
 - All documentation files are AI generated with my supervision
+
+### Clearance command delivery
+
+Clearance commands use current pilot assignment or responsible own-tower authorization, required expectedRevision, 20-minute approvals, resource locks and atomic event/audit writes. Request/approval recheck readiness after locking; rejection/withdrawal/revocation can remove permission even when readiness fails. Scoped SSE is delivered after commit. See the [API guide](docs/API-GUIDE.md#clearance-commands) for routes, examples, errors and the audit-check SQL upgrade. Back up and apply the documented schema updates before starting this version with schema validation. Physical take-off/landing and their integration guards remain the next feature.
