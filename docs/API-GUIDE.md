@@ -432,7 +432,7 @@ FAA admins create providers and their admin accounts. Airline admins contract pr
 | GET | `/maintenanceTechnician/maintenanceRecords` | List the technician's assignments |
 | PUT | `/maintenanceTechnician/maintenanceRecords/{recordId}/complete?findings=...` | Complete work; findings optional |
 
-A request starts PENDING without a technician. Assignment keeps it PENDING; completion changes it to COMPLETED. Maintenance staff cannot ground or activate airplanes, and completion does not change an inspection result. Cancellation and airline maintenance-history endpoints remain deferred.
+A request starts PENDING without a technician. Assignment keeps it PENDING; completion changes it to COMPLETED. Maintenance staff cannot ground or activate airplanes, and completion does not change an inspection result. Owning airline/provider admins can cancel PENDING work with a reason; owning airline admins can read paged airplane history across providers. See Maintenance cancellation and airline history below.
 
 Contract linking and request creation lock the provider before checking airline relationships. Assignment locks the maintenance record before the technician; completion locks the record. State checks and audit writes share the transaction. Multiple pending maintenance requests are allowed.
 
@@ -691,7 +691,8 @@ ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_action_check CHECK (action IN (
     'FLIGHT_CLEARANCE_WITHDRAWN',
     'FLIGHT_CLEARANCE_REVOKED',
     'FLIGHT_TAKE_OFF',
-    'FLIGHT_LANDED'));
+    'FLIGHT_LANDED',
+    'MAINTENANCE_CANCELLED'));
 ALTER TABLE audit_logs DROP CONSTRAINT IF EXISTS audit_logs_entity_type_check;
 ALTER TABLE audit_logs ADD CONSTRAINT audit_logs_entity_type_check CHECK (entity_type IN (
     'BOOKING',
@@ -787,3 +788,71 @@ mvn '-Dtest=FlightClearanceServiceTest,FlightClearanceTransactionTest,FlightOper
 ```
 
 Verified 8 November 2026 on `aviation_operations_verify_20261107` with ddl-auto=validate: 82 tests passed, zero failures/errors/skips (FlightClearanceServiceTest 21, FlightClearanceTransactionTest 22, FlightOperationServiceTest 22, FlightInspectionServiceTest 17). This includes the new physical actions, delayed preparation guards, resource races, rollback/SSE and scheduler isolation. Existing ATC, maintenance and seeder suites were not rerun for this stage. Only the isolated verification database received the audit constraint update; development migration remains the operator's next startup step.
+
+
+## Maintenance cancellation and airline history
+
+### Maintenance cancellation schema upgrade
+
+Stop the application and back up the database. This stage adds three nullable columns and a cancellation metadata constraint. Apply the audit-check SQL above again to include `MAINTENANCE_CANCELLED`, then run the following transaction before starting with `spring.jpa.hibernate.ddl-auto=validate`.
+
+Inventory on 8 November 2026 found no CANCELLED records in development `aviation` or `aviation_operations_verify_20261107`. Recheck your target before upgrading:
+
+```sql
+SELECT id, status, completed_at
+FROM maintenance_records WHERE status = 'CANCELLED' ORDER BY id;
+```
+
+The strict upgrade below intentionally fails and rolls back if legacy CANCELLED rows lack metadata. If your target has legacy cancellations, record the exact IDs and explicitly grandfather only those rows with all three cancellation fields null in the check; do not fabricate an actor, time or reason or exempt all future rows. The inspected databases need no exception.
+
+```sql
+BEGIN;
+ALTER TABLE maintenance_records ADD COLUMN IF NOT EXISTS cancellation_reason varchar(2000);
+ALTER TABLE maintenance_records ADD COLUMN IF NOT EXISTS cancelled_at timestamp(6) with time zone;
+ALTER TABLE maintenance_records ADD COLUMN IF NOT EXISTS cancelled_by_user_id bigint REFERENCES users(id);
+ALTER TABLE maintenance_records DROP CONSTRAINT IF EXISTS maintenance_cancellation_check;
+ALTER TABLE maintenance_records ADD CONSTRAINT maintenance_cancellation_check CHECK (
+    (status = 'CANCELLED'
+        AND cancellation_reason IS NOT NULL AND length(btrim(cancellation_reason)) > 0
+        AND cancelled_at IS NOT NULL AND cancelled_by_user_id IS NOT NULL
+        AND completed_at IS NULL)
+    OR (status IN ('PENDING', 'COMPLETED')
+        AND cancellation_reason IS NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL)
+);
+COMMIT;
+```
+
+
+### Endpoints and behavior
+
+| Method/path | Caller | Input | Response |
+| --- | --- | --- | --- |
+| POST `/airlineAdmin/maintenanceRequests/{requestId}/cancel` | Active ADMIN of the airplane's airline | `{"reason":"Work is no longer required"}` | 200 MaintenanceRecordResponse |
+| POST `/maintenanceAdmin/maintenanceRequests/{requestId}/cancel` | Active ADMIN of the record's provider | Same body | 200 MaintenanceRecordResponse |
+| GET `/airlineAdmin/airplanes/{airplaneId}/maintenanceRecords` | Active ADMIN of the airplane's airline | Optional status PENDING/COMPLETED/CANCELLED; page=0, size=20 | 200 MaintenanceRecordListResponse |
+
+Cancellation accepts assigned or unassigned PENDING work. The reason is trimmed and must contain 1–2000 characters. Actor and UTC cancelledAt come from the server; clients cannot choose them. The record retains provider, airplane, technician, description and findings; completedAt remains null. No FAA aircraft state or flight inspection is changed. Cancellation metadata is null on PENDING/COMPLETED responses. Existing provider and technician list responses include the new fields too.
+
+```json
+{
+  "id":10,"airplaneId":2,"providerId":3,"technicianId":4,
+  "description":"Inspect engine","findings":null,"status":"CANCELLED",
+  "createdAt":"2026-11-08T10:00:00","updatedAt":"2026-11-08T11:00:00",
+  "completedAt":null,"cancellationReason":"Work is no longer required",
+  "cancelledAt":"2026-11-08T08:00:00Z","cancelledByUserId":25
+}
+```
+
+History includes records from all providers even when the airline no longer has a contract. It uses zero-based pagination (size 1–100), descending createdAt then id, native LIMIT/OFFSET and separately scoped counts. Its concrete response contains content, page, size, totalElements and totalPages. Empty history or a page beyond the end returns empty content; counts still describe all filtered rows. History creates no audit/SSE and takes no write locks.
+
+Cancellation, completion and assignment share the maintenance-record write lock. Each rechecks state after locking. First committed terminal action wins: repeated cancellation/completion, completion after cancellation, and assignment to a terminal record return 409 without changing findings or completion/cancellation metadata. Assignment retains record -> technician order. Cancellation does not require a current provider contract and cannot be performed by a technician. Missing IDs return 404, invalid IDs/reasons/paging/status 400, missing JWT 401, wrong account/role/airline/provider 403, and terminal state or lock conflicts 409.
+
+A successful cancellation and one MAINTENANCE_CANCELLED audit commit together. After commit, `Maintenance_Cancelled` SSE sends `{recordId,status,cancelledAt}` to deduplicated active User IDs for owning airline admins, responsible provider admins and the assigned technician if present. Unrelated/inactive users are excluded. Reasons are retrieved through scoped reads. Rollback sends no success notification; existing SSE delivery remains best effort and reconnecting clients should GET history.
+
+Demo: create two maintenance requests using the existing airline route. Cancel the first without assigning a technician as the airline admin. Assign the second through its provider admin, then cancel it through that admin's cancellation route. Read airline history with status=CANCELLED. Attempt completion as the assigned technician and expect 409; its findings/completedAt remain unchanged. On another request, complete first and then try cancellation to see the reverse 409. Try another provider or airline to see 403.
+
+```powershell
+mvn '-Dtest=MaintenanceRecordServiceTest,DatabaseSeederTest' '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/your_test_database' '-Dspring.jpa.show-sql=false' test
+```
+
+Verified 8 November 2026 on `aviation_operations_verify_20261107` with schema validation: 16 tests passed, zero failures/errors/skips (MaintenanceRecordServiceTest 15, DatabaseSeederTest 1). Coverage includes both cancellation routes, HTTP errors, cross-provider scoped history, current-account checks, record-lock races, atomic audit rollback and scoped after-commit SSE. Committed fixtures are cleaned up. The physical-flight suites were not rerun for this maintenance stage. Development `aviation` was inventoried read-only and has not received this migration.

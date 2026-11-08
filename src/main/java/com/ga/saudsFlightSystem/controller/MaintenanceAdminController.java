@@ -1,6 +1,8 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceEmployeeRequest;
+import com.ga.saudsFlightSystem.model.request.CancelMaintenanceRequest;
+import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordResponse;
 import com.ga.saudsFlightSystem.service.MaintenanceEmployeeService;
 import com.ga.saudsFlightSystem.service.MaintenanceRecordService;
 import lombok.AllArgsConstructor;
@@ -27,5 +29,10 @@ public class MaintenanceAdminController {
     @PostMapping("/maintenanceRequests/{requestId}")
     public ResponseEntity<?> assignMaintenance(@PathVariable(name = "requestId") Long requestId, @RequestParam Long technicianId) {
         return maintenanceRecordService.assignService(requestId, technicianId);
+    }
+
+    @PostMapping("/maintenanceRequests/{requestId}/cancel")
+    public ResponseEntity<MaintenanceRecordResponse> cancelMaintenance(@PathVariable Long requestId, @RequestBody CancelMaintenanceRequest request) {
+        return maintenanceRecordService.cancelProviderMaintenance(requestId, request.getReason());
     }
 }

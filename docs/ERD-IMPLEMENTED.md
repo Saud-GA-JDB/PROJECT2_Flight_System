@@ -288,6 +288,9 @@ erDiagram
         datetime createdAt "Required"
         datetime updatedAt "Required"
         datetime completedAt "Nullable"
+        string cancellationReason "1-2000 trimmed characters when cancelled"
+        Instant cancelledAt "UTC; required when cancelled"
+        long cancelledByUserId FK "Required when cancelled"
     }
 
     PAYMENT {
@@ -331,6 +334,7 @@ erDiagram
     MAINTENANCE_EMPLOYEE o|--o{ MAINTENANCE_RECORD : performs
     MAINTENANCE_PROVIDER ||--o{ MAINTENANCE_RECORD : receives
     AIRPLANE ||--o{ MAINTENANCE_RECORD : has
+    USER o|--o{ MAINTENANCE_RECORD : cancels
     AIRLINE }o--o{ MAINTENANCE_PROVIDER : contracts
     BOOKING ||--o| PAYMENT : has
 ```
@@ -380,3 +384,6 @@ These are the explicit `@Table` names in source. Hibernate's physical naming str
 Source: [entity models](../src/main/java/com/ga/saudsFlightSystem/model/) and [AirplaneRequest](../src/main/java/com/ga/saudsFlightSystem/model/request/AirplaneRequest.java). This is a source-mapping diagram, not a reverse-engineered snapshot of a particular local database.
 
 Clearance commands reuse Flight and FlightControlEvent; no additional entity/table is introduced. AuditLog now accepts the five FLIGHT_CLEARANCE actions and FLIGHT_CONTROL_EVENT entity type. The API guide contains the matching database check upgrade. New cycles clear prior approval times; revoke retains them; expiry is computed without a write.
+
+
+Maintenance cancellation retains the record and its existing relationships. cancelledBy is a lazy User reference with no delete cascade. Database checks require full cancellation metadata and null completedAt for CANCELLED; PENDING/COMPLETED require null cancellation fields. No legacy cancellations existed in the inventoried development/verification databases, so no grandfathered IDs are needed. Own-airline history spans providers and includes these fields.

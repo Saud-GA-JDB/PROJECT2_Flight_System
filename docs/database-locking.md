@@ -15,7 +15,7 @@ Pessimistic locks stay held until the transaction commits or rolls back. Write l
 | `AirplaneService` / `FAAAdminService` — activation request and review | Airplane write lock | Prevents duplicate requests and competing review decisions. Review loads the request **after locking Airplane**, then updates both. |
 | `FlightInspectionService` — assign, complete, request reinspection | Flight write lock | Serializes inspection changes and latest-inspection checks. **Flight → inspection changes**. |
 | `MaintenanceRecordService` — assign technician | MaintenanceRecord and MaintenanceEmployee write locks | Prevents competing assignments and protects technician validation. **MaintenanceRecord → MaintenanceEmployee**. |
-| `MaintenanceRecordService` — complete maintenance | MaintenanceRecord write lock | Prevents competing completion updates. |
+| `MaintenanceRecordService` — complete/cancel maintenance | MaintenanceRecord write lock | Rechecks PENDING after lock; first terminal action wins. Cancellation and audit commit together. Terminal completion/cancellation/assignment returns 409. |
 | `MaintenanceProviderService`, `MaintenanceRecordService`, `MaintenanceEmployeeService` — contracts, requests, employee creation | MaintenanceProvider write lock | Coordinates contract creation, maintenance requests, and employee creation using that provider. |
 | `AirportOperatorService` / `AirportEmployeeService` | Airport write lock | Coordinates operator assignment with employee creation and their validation checks. |
 | `ATCService` — create tower | Airport write lock | Check the provider and existing tower after locking the airport; the unique airport foreign key protects cross-provider duplicates. Tower and audit commit together. |
@@ -46,3 +46,6 @@ FlightClearanceTransactionTest uses committed isolated fixtures, the existing ex
 
 
 Crew/inspection/activation mutations retain Flight-first locking and now recheck both actual times null. Booking/payment preparation retains Flight-first locking and rejects actualDeparture, including stale ACTIVE status; payment reconciliation remains Booking-only. No Flight-first writer later requests Airplane or another Flight. The scheduler never changes actual timestamps or clearance and never acquires resource locks after Flight.
+
+
+Maintenance cancellation locks the record, reloads the active caller and verifies route-specific owning airline/provider ADMIN scope. It does not acquire Airplane or technician locks. Assignment keeps record -> technician order and cannot assign after cancellation commits. A successful cancellation sends Maintenance_Cancelled to deduplicated active User IDs after commit through NotificationService. History uses scoped native SQL/count queries with no write locks. MaintenanceRecordServiceTest uses the existing application executor, committed fixtures, independent transactions, pg_blocking_pids and bounded waits for cancellation/completion/assignment races; committed fixtures are removed afterward.

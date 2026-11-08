@@ -61,7 +61,6 @@ Inspection mutations serialize through the flight lock; PostgreSQL permits only 
 ## Deferred stories from the broader design
 
 - Baggage handling and other ground services beyond inspections.
-- Maintenance cancellation and airline maintenance-history endpoints.
 
 Maintenance staff do not make aircraft release/grounding decisions. Cross-flight defect carryover was rejected and is not a future requirement. See [Planning](PLANNING.md) and the [README](../README.md).
 
@@ -146,3 +145,12 @@ Extend existing `Booking` with pending-payment/expiry behavior and an agreed pri
 | OPS-06 | As either current pilot, I want to land with destination permission. | Valid ARRIVAL approval and consistent actual times; atomically record actualArrival/CLOSED and release occupancy without fresh inspection or FAA approval. |
 | OPS-07 | As an airline or airport operator, I want to prepare delayed flights safely. | Crew, activation and inspection mutations require both actual times null; preserve existing coverage, qualification and schedule-conflict checks; booking/checkout reject actual departure. |
 | OPS-08 | As an operator, I want reliable history and status correction. | Both towers/current pilots/owning airline receive after-commit SSE; duplicates never overwrite times; scheduler corrects consistent actual-time status in separate per-flight transactions and continues after failures. |
+
+
+## Maintenance cancellation/history implemented 8 November 2026
+
+| ID | User story | Acceptance criteria |
+| --- | --- | --- |
+| MAINT-01 | As an owning airline or provider admin, I want to cancel pending maintenance. | Assigned or unassigned PENDING work; required trimmed reason; authenticated actor and UTC cancellation time; preserve technician/history; no FAA or inspection changes. |
+| MAINT-02 | As an airline admin, I want maintenance history for my airplanes across providers. | Scoped status filter, native pagination/counts, cancellation metadata and stable newest-first ordering; no current contract required; foreign airplane denied. |
+| MAINT-03 | As an operator, I want competing maintenance actions to stay consistent. | Shared record lock; first terminal action wins; terminal assignment/completion/cancellation returns 409; one atomic cancellation audit and after-commit SSE to active owning airline/provider admins and assigned technician. |

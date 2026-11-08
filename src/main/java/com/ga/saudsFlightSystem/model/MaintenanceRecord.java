@@ -7,6 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @Entity
@@ -57,4 +58,14 @@ public class MaintenanceRecord {
     private LocalDateTime updatedAt;
 
     private LocalDateTime completedAt;
+
+    @Column(length = 2000)
+    private String cancellationReason;
+
+    private Instant cancelledAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cancelled_by_user_id")
+    @JsonIgnore
+    private User cancelledBy;
 }

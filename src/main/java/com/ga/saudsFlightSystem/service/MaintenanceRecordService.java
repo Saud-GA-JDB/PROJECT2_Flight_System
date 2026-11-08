@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.saudsFlightSystem.exception.BusinessConflictException;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -8,6 +9,9 @@ import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceRecordRequest;
 import com.ga.saudsFlightSystem.model.request.CompleteMaintenanceRecordRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordResponse;
+import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordListResponse;
+import com.ga.saudsFlightSystem.model.request.response.MaintenanceCancellationNotificationResponse;
+import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
@@ -19,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -32,6 +37,8 @@ public class MaintenanceRecordService {
     private MaintenanceProviderRepository maintenanceProviderRepository;
     private AirplaneRepository airplaneRepository;
     private AuditLogService auditLogService;
+    private UserRepository userRepository;
+    private NotificationService notificationService;
     private static final Logger logger = Logger.getLogger(MaintenanceRecordService.class.getName());
 
     @Transactional
@@ -90,7 +97,9 @@ public class MaintenanceRecordService {
                 new MaintenanceRecordResponse(
                         record.getId(), airplane.getId(), provider.getId(), null,
                         record.getDescription(), record.getFindings(), record.getStatus(),
-                        record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt()
+                        record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt(),
+                        record.getCancellationReason(), record.getCancelledAt(),
+                        record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
                 )
         );
 
@@ -123,7 +132,10 @@ public class MaintenanceRecordService {
                     record.getStatus(),
                     record.getCreatedAt(),
                     record.getUpdatedAt(),
-                    record.getCompletedAt()
+                    record.getCompletedAt(),
+                    record.getCancellationReason(),
+                    record.getCancelledAt(),
+                    record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
             ));
         }
 
@@ -152,7 +164,7 @@ public class MaintenanceRecordService {
             throw new IllegalEndpoint("This record does not belong to your organization");
 
         if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING)
-            throw new InvalidInformationException("Can't assign because this record status is not PENDING.");
+            throw new BusinessConflictException("Can't assign because this record status is not PENDING.");
 
         if (record.getTechnician() != null)
             throw new InformationExistException("This request already has an assigned technician.");
@@ -193,7 +205,10 @@ public class MaintenanceRecordService {
                 record.getStatus(),
                 record.getCreatedAt(),
                 record.getUpdatedAt(), // TODO: test later, could use .saveFlush() or pass LocalDateTime instead.
-                record.getCompletedAt()
+                record.getCompletedAt(),
+                record.getCancellationReason(),
+                record.getCancelledAt(),
+                record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
         ));
     }
 
@@ -217,7 +232,10 @@ public class MaintenanceRecordService {
                     record.getStatus(),
                     record.getCreatedAt(),
                     record.getUpdatedAt(),
-                    record.getCompletedAt()
+                    record.getCompletedAt(),
+                    record.getCancellationReason(),
+                    record.getCancelledAt(),
+                    record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
             ));
         }
 
@@ -242,7 +260,7 @@ public class MaintenanceRecordService {
             throw new IllegalEndpoint("This record does not belong to your provider.");
 
         if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING)
-            throw new InvalidInformationException("Only pending maintenance can be done.");
+            throw new BusinessConflictException("Only pending maintenance can be done.");
 
         if (findings != null)
             record.setFindings(findings.trim());
@@ -262,6 +280,120 @@ public class MaintenanceRecordService {
         logger.info(description + " (user id: " + user.getId() + ")");
 
         return ResponseEntity.ok("Maintenance completed successfully.");
+    }
+
+    @Transactional
+    public ResponseEntity<MaintenanceRecordResponse> cancelAirlineMaintenance(Long requestId, String reason) {
+        validateRecordId(requestId);
+        reason = validateCancellationReason(reason);
+        MaintenanceRecord record = maintenanceRecordRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance record with this id."));
+        User user = activeUser();
+        AirlineEmployee admin = requireAirlineAdmin(user);
+        if (!Objects.equals(record.getAirplane().getAirline().getId(), admin.getAirline().getId()))
+            throw new IllegalEndpoint("You can only cancel maintenance for your airline's airplanes.");
+        return ResponseEntity.ok(cancelMaintenance(record, user, reason));
+    }
+
+    @Transactional
+    public ResponseEntity<MaintenanceRecordResponse> cancelProviderMaintenance(Long requestId, String reason) {
+        validateRecordId(requestId);
+        reason = validateCancellationReason(reason);
+        MaintenanceRecord record = maintenanceRecordRepository.findByIdForUpdate(requestId)
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance record with this id."));
+        User user = activeUser();
+        MaintenanceEmployee admin = user.getMaintenanceEmployee();
+        if (user.getRole() != User.Role.MAINTENANCE_EMPLOYEE || admin == null || admin.getProvider() == null
+                || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN)
+            throw new IllegalEndpoint("Only maintenance admins can cancel their provider's maintenance.");
+        if (!Objects.equals(record.getProvider().getId(), admin.getProvider().getId()))
+            throw new IllegalEndpoint("This record does not belong to your provider.");
+        return ResponseEntity.ok(cancelMaintenance(record, user, reason));
+    }
+
+    @Transactional
+    public ResponseEntity<MaintenanceRecordListResponse> getAirlineMaintenanceHistory(Long airplaneId,
+            MaintenanceRecord.MaintenanceStatus status, int page, int size) {
+        AirlineEmployee admin = requireAirlineAdmin(activeUser());
+        if (airplaneId == null || airplaneId <= 0)
+            throw new InvalidInformationException("Airplane ID must be positive.");
+        if (page < 0 || size < 1 || size > 100)
+            throw new InvalidInformationException("Page must be nonnegative and size must be between 1 and 100.");
+        Airplane airplane = airplaneRepository.findById(airplaneId)
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find airplane with this id."));
+        Long airlineId = admin.getAirline().getId();
+        if (!Objects.equals(airplane.getAirline().getId(), airlineId))
+            throw new IllegalEndpoint("You can only view maintenance for your airline's airplanes.");
+        List<MaintenanceRecord> records = maintenanceRecordRepository.findAirlineHistory(airplaneId, airlineId,
+                status == null ? null : status.name(), size, (long) page * size);
+        long totalElements = maintenanceRecordRepository.countAirlineHistory(airplaneId, airlineId,
+                status == null ? null : status.name());
+        long totalPages = totalElements / size;
+        if (totalElements % size != 0)
+            totalPages++;
+        List<MaintenanceRecordResponse> content = new ArrayList<>();
+        for (MaintenanceRecord record : records)
+            content.add(toMaintenanceResponse(record));
+        return ResponseEntity.ok(new MaintenanceRecordListResponse(content, page, size, totalElements, totalPages));
+    }
+
+    // helper methods
+    private User activeUser() {
+        User principal = UserService.getCurrentLoggedInUser();
+        User user = principal == null ? null : userRepository.findById(principal.getId()).orElse(null);
+        if (user == null || !user.isActive() || user.getStatus() != User.Status.ACTIVE)
+            throw new IllegalEndpoint("An active account is required.");
+        return user;
+    }
+
+    private AirlineEmployee requireAirlineAdmin(User user) {
+        AirlineEmployee admin = user.getAirlineEmployee();
+        if (user.getRole() != User.Role.AIRLINE_EMPLOYEE || admin == null || admin.getAirline() == null
+                || admin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("Only airline admins can access this endpoint.");
+        return admin;
+    }
+
+    private void validateRecordId(Long requestId) {
+        if (requestId == null || requestId <= 0)
+            throw new InvalidInformationException("Maintenance record ID must be positive.");
+    }
+
+    private String validateCancellationReason(String reason) {
+        reason = reason == null ? null : reason.trim();
+        if (reason == null || reason.isEmpty() || reason.length() > 2000)
+            throw new InvalidInformationException("A cancellation reason between 1 and 2000 characters is required.");
+        return reason;
+    }
+
+    private MaintenanceRecordResponse cancelMaintenance(MaintenanceRecord record, User user, String reason) {
+        if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING || record.getCompletedAt() != null)
+            throw new BusinessConflictException("Only pending maintenance without a completion time can be cancelled. Refresh the record.");
+        record.setStatus(MaintenanceRecord.MaintenanceStatus.CANCELLED);
+        record.setCancellationReason(reason);
+        record.setCancelledAt(Instant.now());
+        record.setCancelledBy(user);
+        maintenanceRecordRepository.save(record);
+        maintenanceRecordRepository.flush();
+
+        String description = "User " + user.getId() + " cancelled maintenance record " + record.getId();
+        auditLogService.addAuditLog(user, AuditLog.Action.MAINTENANCE_CANCELLED,
+                AuditLog.EntityType.MAINTENANCE_RECORD, record.getId(), description);
+        logger.info(description);
+
+        MaintenanceCancellationNotificationResponse payload = new MaintenanceCancellationNotificationResponse(
+                record.getId(), record.getStatus(), record.getCancelledAt());
+        for (Long recipientId : userRepository.findMaintenanceCancellationRecipients(record.getId(),
+                record.getAirplane().getAirline().getId(), record.getProvider().getId(), User.Status.ACTIVE.ordinal()))
+            notificationService.sendToUser(recipientId, "Maintenance_Cancelled", payload);
+        return toMaintenanceResponse(record);
+    }
+
+    private MaintenanceRecordResponse toMaintenanceResponse(MaintenanceRecord record) {
+        return new MaintenanceRecordResponse(record.getId(), record.getAirplane().getId(), record.getProvider().getId(),
+                record.getTechnician() == null ? null : record.getTechnician().getId(), record.getDescription(), record.getFindings(),
+                record.getStatus(), record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt(),
+                record.getCancellationReason(), record.getCancelledAt(), record.getCancelledBy() == null ? null : record.getCancelledBy().getId());
     }
 
     private MaintenanceEmployee getCurrentTechnician() {

@@ -17,6 +17,19 @@ import java.util.List;
 public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = """
         SELECT DISTINCT u.id FROM users u
+        LEFT JOIN airline_employees a ON a.id = u.airline_employee_id
+        LEFT JOIN maintenance_employees m ON m.id = u.maintenance_employee_id
+        WHERE u.is_active = true AND u.status = :activeStatus AND (
+          (u.role = 'AIRLINE_EMPLOYEE' AND a.airline_id = :airlineId AND a.airline_role = 'ADMIN')
+          OR (u.role = 'MAINTENANCE_EMPLOYEE' AND m.provider_id = :providerId AND m.maintenance_role = 'ADMIN')
+          OR (u.role = 'MAINTENANCE_EMPLOYEE' AND m.maintenance_role = 'TECHNICIAN' AND EXISTS (
+            SELECT 1 FROM maintenance_records r WHERE r.id = :recordId AND r.technician_id = m.id)))
+        """, nativeQuery = true)
+    List<Long> findMaintenanceCancellationRecipients(@Param("recordId") Long recordId, @Param("airlineId") Long airlineId,
+            @Param("providerId") Long providerId, @Param("activeStatus") int activeStatus);
+
+    @Query(value = """
+        SELECT DISTINCT u.id FROM users u
         LEFT JOIN atc_employees t ON t.id = u.atc_employee_id
         LEFT JOIN control_facilities cf ON cf.id = t.facility_id
         LEFT JOIN airline_employees e ON e.id = u.airline_employee_id

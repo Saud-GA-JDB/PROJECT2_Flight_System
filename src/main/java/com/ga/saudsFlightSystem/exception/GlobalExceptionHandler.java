@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessConflictException.class)
     public ResponseEntity<ErrorResponse> handleBusinessConflict(BusinessConflictException ex, HttpServletRequest request) {
-        logger.warning("Flight operation rejected: " + ex.getMessage());
+        logger.warning("Operation rejected: " + ex.getMessage());
         return build(ex.getMessage(), HttpStatus.CONFLICT, request);
     }
 

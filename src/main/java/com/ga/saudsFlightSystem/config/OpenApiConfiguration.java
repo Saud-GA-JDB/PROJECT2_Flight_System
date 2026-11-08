@@ -208,7 +208,7 @@ public class OpenApiConfiguration {
                     "200", MaintenanceRecordResponse.class, true);
             document(openApi, "/maintenanceAdmin/maintenanceRequests/{requestId}", PathItem.HttpMethod.POST,
                     "Assign maintenance technician",
-                    "Admin of the request's provider. Assigns a technician from the same provider to a pending request.",
+                    "Admin of the request's provider. Assigns a technician from the same provider to a pending request. Terminal records return 409.",
                     "200", MaintenanceRecordResponse.class, false);
             document(openApi, "/maintenanceTechnician/maintenanceRecords", PathItem.HttpMethod.GET,
                     "List assigned maintenance",
@@ -216,8 +216,28 @@ public class OpenApiConfiguration {
                     "200", MaintenanceRecordResponse.class, true);
             document(openApi, "/maintenanceTechnician/maintenanceRecords/{recordId}/complete", PathItem.HttpMethod.PUT,
                     "Complete maintenance",
-                    "Assigned technician only. Completes a pending record with optional findings. Does not activate the airplane or change inspection results.",
+                    "Assigned technician only. Completes a pending record with optional findings. Cancelled/completed records return 409 without changing findings. Does not activate the airplane or change inspection results.",
                     "200", String.class, false);
+            for (String path : List.of("/airlineAdmin/maintenanceRequests/{requestId}/cancel",
+                    "/maintenanceAdmin/maintenanceRequests/{requestId}/cancel")) {
+                document(openApi, path, PathItem.HttpMethod.POST, "Cancel pending maintenance",
+                        "Active own-airline ADMIN or own-provider ADMIN required according to the route. "
+                                + "Body: {\"reason\":\"Work is no longer required\"}; trimmed reason must be 1-2000 characters. "
+                                + "Assigned and unassigned PENDING work can be cancelled. Record lock serializes cancellation, completion and assignment; first terminal action wins. "
+                                + "Preserves technician, findings and history; records server UTC cancelledAt and authenticated cancelledByUserId. "
+                                + "Cancellation and audit commit together. After-commit Maintenance_Cancelled SSE reaches active owning airline admins, responsible provider admins and assigned technician. "
+                                + "400 invalid input; 401 missing JWT; 403 role/scope; 404 missing record; 409 terminal state or lock conflict. No FAA or inspection changes.",
+                        "200", MaintenanceRecordResponse.class, false);
+            }
+            document(openApi, "/airlineAdmin/airplanes/{airplaneId}/maintenanceRecords", PathItem.HttpMethod.GET,
+                    "Read airline airplane maintenance history",
+                    "Active owning-airline ADMIN only. History across providers without requiring a current contract. "
+                            + "Optional status PENDING/COMPLETED/CANCELLED; page defaults to 0, size to 20 (1-100). "
+                            + "Scope/filter apply before count and pagination. Sorts createdAt descending, then id descending. "
+                            + "Includes cancellationReason, UTC cancelledAt and cancelledByUserId. Empty history returns empty content. "
+                            + "400 invalid filters; 401 missing JWT; 403 foreign airplane/role; 404 missing airplane. No business audits or notifications.",
+                    "200", MaintenanceRecordListResponse.class, false);
+
             document(openApi, "/payments/bookings/{bookingId}/checkout", PathItem.HttpMethod.POST,
                     "Start Stripe checkout",
                     "Booking owner only. Creates or reuses a sandbox checkout session. Requires an active booking and flight with no actual departure, positive pricing, and scheduled departure more than five minutes away. Existing payment reconciliation remains allowed after departure.",

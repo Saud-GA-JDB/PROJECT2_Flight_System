@@ -1,6 +1,8 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.FlightOperation;
+import com.ga.saudsFlightSystem.model.MaintenanceRecord;
+import com.ga.saudsFlightSystem.model.request.CancelMaintenanceRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
@@ -90,5 +92,17 @@ public class AirlineAdminController {
             @RequestParam(required = false) FlightOperation operation,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return operationService.getAirlineEvents(flightId, operation, page, size);
+    }
+
+    @PostMapping("/maintenanceRequests/{requestId}/cancel")
+    public ResponseEntity<MaintenanceRecordResponse> cancelMaintenance(@PathVariable Long requestId, @RequestBody CancelMaintenanceRequest request) {
+        return maintenanceRecordService.cancelAirlineMaintenance(requestId, request.getReason());
+    }
+
+    @GetMapping("/airplanes/{airplaneId}/maintenanceRecords")
+    public ResponseEntity<MaintenanceRecordListResponse> getMaintenanceHistory(@PathVariable Long airplaneId,
+            @RequestParam(required = false) MaintenanceRecord.MaintenanceStatus status,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return maintenanceRecordService.getAirlineMaintenanceHistory(airplaneId, status, page, size);
     }
 }

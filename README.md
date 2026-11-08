@@ -259,7 +259,7 @@ FAA admins create providers and their admin accounts. Airline admins contract pr
 | GET | `/maintenanceTechnician/maintenanceRecords` | List the technician's assignments |
 | PUT | `/maintenanceTechnician/maintenanceRecords/{recordId}/complete?findings=...` | Complete work; findings optional |
 
-A request starts PENDING without a technician. Assignment keeps it PENDING; completion changes it to COMPLETED. Maintenance staff cannot ground or activate airplanes, and completion does not change an inspection result. Cancellation and airline maintenance-history endpoints remain deferred.
+A request starts PENDING without a technician. Assignment keeps it PENDING; completion changes it to COMPLETED. Maintenance staff cannot ground or activate airplanes, and completion does not change an inspection result. Owning airline/provider admins can cancel PENDING maintenance with a reason, including assigned work. Owning airline admins can read paged airplane history across providers. See [Maintenance cancellation and history](docs/API-GUIDE.md#maintenance-cancellation-and-airline-history).
 
 Contract linking and request creation lock the provider before checking airline relationships. Assignment locks the maintenance record before the technician; completion locks the record. State checks and audit writes share the transaction. Multiple pending maintenance requests are allowed.
 
@@ -459,7 +459,7 @@ These tests create their own fixtures, disable seeding, and validate the schema.
 MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests on 27 October 2026. These results cover the tested services, not application-wide concurrency safety, HTTP routing, or the airport-account setup workflow. Physical-action verification is documented in the API guide; these historical results alone do not establish that workflow.
 ## Unsolved problems and current limitations
 
-- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; clearance commands are implemented; physical pilot actions are implemented; maintenance cancellation/history and baggage handling remain deferred or outside scope.
+- The full aviation workflow is unfinished. Maintenance, airport accounts, crew coverage checks, and flight inspections are implemented. ATC provider/tower/staff setup is implemented; clearance commands are implemented; physical pilot actions are implemented; maintenance cancellation/history is implemented; baggage handling remains outside this operational scope.
 - Cross-table CPR uniqueness remains a pre-check and is not guaranteed under simultaneous registration/profile changes.
 - SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
 - Scheduled/actual flight times use local date-times without offsets. Pilot actual timestamps and scheduler checks explicitly use Asia/Bahrain; new event/clearance timestamps use UTC Instant. Older booking/scheduling cutoffs use server-local time. Full airport time-zone handling remains future work.
@@ -898,7 +898,7 @@ Concurrency and database locking introduced new concepts that I had to read abou
 
 ### Future Improvements
 
-- Complete the remaining business logic for the wider workflow shown in the ERD, including maintenance cancellation/history and any separately agreed baggage workflow.
+- Complete the remaining business logic for the wider workflow shown in the ERD, for any separately agreed features such as baggage handling.
 - Introduce a separate model/table for individual flight seats. Currently, booking and cancellation lock the whole flight row, so operations on different seats of the same flight must wait for one another. A more granular design could reduce contention while preserving booking and seat-availability consistency.
 - Expand SSE notifications to cover more application events.
 - Add WebSocket support for live chat.
@@ -937,7 +937,10 @@ Thank you to instructor Saad for answering my questions about how to handle diff
 
 ### Clearance command delivery
 
-Clearance commands use current pilot assignment or responsible own-tower authorization, required expectedRevision, 20-minute approvals, resource locks and atomic event/audit writes. Request/approval recheck readiness after locking; rejection/withdrawal/revocation can remove permission even when readiness fails. Scoped SSE is delivered after commit. See the [API guide](docs/API-GUIDE.md#clearance-commands) for routes, examples, errors and the audit-check SQL upgrade. Back up and apply the documented schema updates before starting this version with schema validation. Physical take-off/landing and their integration guards are implemented; see [Pilot physical actions](docs/API-GUIDE.md#pilot-physical-actions). Maintenance cancellation/history is the next feature.
+Clearance commands use current pilot assignment or responsible own-tower authorization, required expectedRevision, 20-minute approvals, resource locks and atomic event/audit writes. Request/approval recheck readiness after locking; rejection/withdrawal/revocation can remove permission even when readiness fails. Scoped SSE is delivered after commit. See the [API guide](docs/API-GUIDE.md#clearance-commands) for routes, examples, errors and the audit-check SQL upgrade. Back up and apply the documented schema updates before starting this version with schema validation. Physical take-off/landing and their integration guards are implemented; see [Pilot physical actions](docs/API-GUIDE.md#pilot-physical-actions). Maintenance cancellation/history is also implemented; apply its schema upgrade before local startup.
 
 
 Pilot actions use `POST /pilot/flights/{flightId}/takeOff` and `/land` with `{"expectedRevision":2}`. Both current pilot duties are allowed. Each action consumes matching unexpired approval and atomically records status, actual time, one event and one audit; duplicates return 409. `Flight_Departed` / `Flight_Landed` SSE reaches both tower teams, current pilots and owning airline admins after commit. The five-minute scheduler uses a separate transaction per flight and skips inconsistent actual times. Crew/activation/inspection remain possible after scheduled departure until actual departure; booking/payment scheduled cutoffs remain in place.
+
+
+Maintenance cancellation: `POST /airlineAdmin/maintenanceRequests/{requestId}/cancel` or `POST /maintenanceAdmin/maintenanceRequests/{requestId}/cancel` with `{"reason":"Work is no longer required"}`. Active owning admins only; first terminal action wins under the record lock, competing/repeated actions return 409. `GET /airlineAdmin/airplanes/{airplaneId}/maintenanceRecords?status=CANCELLED&page=0&size=20` returns scoped history with cancellation metadata. Audit and cancellation commit together; scoped `Maintenance_Cancelled` SSE follows commit. The [API guide](docs/API-GUIDE.md#maintenance-cancellation-schema-upgrade) includes the required columns/checks and audit upgrade SQL.
