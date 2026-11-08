@@ -269,6 +269,38 @@ public class OpenApiConfiguration {
                 }
             }
 
+            for (String path : List.of("/pilot/flights/{flightId}", "/atc/flights/{flightId}",
+                    "/airlineAdmin/flights/{flightId}/operations")) {
+                document(openApi, path, PathItem.HttpMethod.GET, "View scoped flight operations",
+                        "Active account required. Pilot: currently assigned PILOT or SECONDARY_PILOT. ATC: flight touches own tower's airport. Airline: own-airline ADMIN. "
+                                + "Includes current crew, latest inspection and effective clearance status; expiry never writes state. No passenger or payment details. Missing flight 404; forbidden scope 403.",
+                        "200", FlightOperationSummary.class, false);
+            }
+            document(openApi, "/pilot/flights/{flightId}/readiness", PathItem.HttpMethod.GET,
+                    "Check assigned flight readiness",
+                    "Current assigned pilot only. Operation derives from phase; terminal flights return no operation and all readiness flags false. "
+                            + "Blocked readiness is 200 with blocker codes and appliesTo stages. Flags describe lifecycle eligibility, not permission to perform another role's action. "
+                            + "Read-only snapshot: no approval, resource reservation, audit or SSE. evaluatedAt is UTC; actual flight times use Asia/Bahrain.",
+                    "200", ReadinessResponse.class, false);
+            document(openApi, "/atc/flights/{flightId}/readiness", PathItem.HttpMethod.GET,
+                    "Check responsible tower's flight readiness",
+                    "Active tower ADMIN or CONTROLLER. operation is required: DEPARTURE for the origin tower, ARRIVAL for the destination. "
+                            + "Shared provider grants no wider access. Blocked readiness returns 200; wrong scope 403; invalid/missing operation 400. "
+                            + "Departure checks crew, latest inspection, FAA status and actual occupancy. Arrival requires airborne phase and consistent actual times; no fresh inspection/FAA/resource checks.",
+                    "200", ReadinessResponse.class, false);
+            for (String path : List.of("/pilot/flights", "/atc/flights", "/atc/requests",
+                    "/pilot/flights/{flightId}/controlEvents", "/atc/flights/{flightId}/controlEvents",
+                    "/airlineAdmin/flights/{flightId}/controlEvents")) {
+                Operation list = operation(openApi, path, PathItem.HttpMethod.GET);
+                if (list != null) {
+                    list.setDescription("Active scoped account required. Pilot: current pilot assignment; ATC: own airport/tower; airline: owning ADMIN. "
+                            + "ATC history includes only own-tower events; pilot and owning airline history includes all flight events. "
+                            + "page defaults to 0, size to 20 (1–100); scope applies before counts/paging. Flight lists sort by scheduledDeparture then id; requests by flight id; history by event id descending. "
+                            + "Flight date filters are inclusive Asia/Bahrain scheduled-departure dates. Requests include only PENDING clearances for the current tower. "
+                            + "No writes/audits/notifications. Invalid filters return 400; forbidden scope 403; missing flight 404.");
+                }
+            }
+
             List.of("/auth/users/login", "/auth/users/register/email", "/auth/users/verification")
                     .forEach(path -> makePublic(openApi, path, PathItem.HttpMethod.POST));
             List.of("/payments/success", "/payments/cancel")

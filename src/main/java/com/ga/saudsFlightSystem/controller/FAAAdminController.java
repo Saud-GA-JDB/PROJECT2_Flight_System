@@ -3,7 +3,8 @@ package com.ga.saudsFlightSystem.controller;
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
 import com.ga.saudsFlightSystem.model.request.response.ATCEmployeeResponse;
 import com.ga.saudsFlightSystem.model.request.response.FacilityResponse;
-import com.ga.saudsFlightSystem.model.request.response.PageResponse;
+import com.ga.saudsFlightSystem.model.request.response.ProviderListResponse;
+import com.ga.saudsFlightSystem.model.request.response.FacilityListResponse;
 import com.ga.saudsFlightSystem.model.request.response.ProviderResponse;
 import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.*;
@@ -32,7 +33,7 @@ public class FAAAdminController {
     }
 
     @GetMapping("/airNavigationProviders")
-    public ResponseEntity<PageResponse<ProviderResponse>> getAirNavigationProviders(
+    public ResponseEntity<ProviderListResponse> getAirNavigationProviders(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return atcService.getProviders(page, size);
     }
@@ -43,7 +44,7 @@ public class FAAAdminController {
     }
 
     @GetMapping("/airNavigationProviders/{providerId}/controlFacilities")
-    public ResponseEntity<PageResponse<FacilityResponse>> getControlFacilities(@PathVariable Long providerId,
+    public ResponseEntity<FacilityListResponse> getControlFacilities(@PathVariable Long providerId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return atcService.getFacilities(providerId, page, size);
     }

@@ -7,10 +7,10 @@ import java.util.List;
 
 @Getter
 @AllArgsConstructor
-public class PageResponse<T> {
-    private List<T> content;
+public class ControlEventListResponse {
+    private List<ControlEventResponse> content;
     private int page;
     private int size;
     private long totalElements;
-    private int totalPages;
+    private long totalPages;
 }

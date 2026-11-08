@@ -30,3 +30,6 @@ Unique constraints also reject duplicate values when no existing row can be lock
 Concurrency tests are grouped in [ConcurrencyTest.java](../src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java).
 
 ATC list/facility reads take no write locks and create no business audits. Setup lock timeout/deadlock failures return 409 with a refresh/retry message; failed writes roll back. `ATCServiceTest` covers the two-provider tower race using independent PostgreSQL transactions and the existing application executor.
+
+
+Flight-operation GETs use read-only transactions with no explicit database locks. Pilot assignment, tower and airline scope are checked before returning data; list queries apply scope before counts/paging. Readiness uses nonlocking occupancy queries and is only a snapshot, not a reservation. Effective clearance expiry performs no write. The later command stage must reacquire resource locks and recheck every relevant condition before changing state.

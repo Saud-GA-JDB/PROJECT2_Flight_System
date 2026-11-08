@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Entity
@@ -72,6 +73,31 @@ public class Flight {
 
     @OneToMany(mappedBy = "flight", fetch = FetchType.LAZY)
     private List<Booking> bookingsList;
+
+    @Enumerated(EnumType.STRING)
+    @Column
+    private FlightOperation clearanceOperation;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(255) default 'NONE'")
+    private ClearanceStatus clearanceStatus = ClearanceStatus.NONE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clearance_facility_id")
+    @JsonIgnore
+    private ControlFacility clearanceFacility;
+
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long clearanceCycle;
+
+    @Column(nullable = false, columnDefinition = "bigint default 0")
+    private long clearanceRevision;
+
+    @Column
+    private Instant clearanceApprovedAt;
+
+    @Column
+    private Instant clearanceExpiresAt;
 
     public enum FlightStatus{PENDING_CREW, ACTIVE, IN_AIR, CLOSED, CANCELLED}
 

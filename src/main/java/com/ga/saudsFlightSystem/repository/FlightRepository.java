@@ -13,6 +13,79 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FlightRepository extends JpaRepository<Flight, Long> {
+    @Query(value = """
+        SELECT COUNT(*) > 0 FROM flights
+        WHERE id <> :flightId AND airplane_id = :airplaneId
+          AND ((actual_departure IS NOT NULL AND actual_arrival IS NULL) OR status = 'IN_AIR')
+        """, nativeQuery = true)
+    boolean hasOccupiedAirplane(@Param("flightId") Long flightId, @Param("airplaneId") Long airplaneId);
+
+    @Query(value = """
+        SELECT f.* FROM flights f WHERE EXISTS (
+            SELECT 1 FROM crew_assignments c WHERE c.flight_id = f.id
+              AND c.employee_id = :employeeId AND c.duty IN ('PILOT', 'SECONDARY_PILOT'))
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        ORDER BY f.scheduled_departure ASC, f.id ASC
+        LIMIT :size OFFSET :offset
+        """, nativeQuery = true)
+    List<Flight> findPilotOperations(@Param("employeeId") Long employeeId,
+            @Param("status") String status, @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate, @Param("size") int size, @Param("offset") long offset);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM flights f WHERE EXISTS (
+            SELECT 1 FROM crew_assignments c WHERE c.flight_id = f.id
+              AND c.employee_id = :employeeId AND c.duty IN ('PILOT', 'SECONDARY_PILOT'))
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        """, nativeQuery = true)
+    long countPilotOperations(@Param("employeeId") Long employeeId,
+            @Param("status") String status, @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate);
+
+    @Query(value = """
+        SELECT f.* FROM flights f WHERE ((CAST(:operation AS text) IS NULL AND (f.origin_airport_id = :airportId OR f.destination_airport_id = :airportId))
+          OR (:operation = 'DEPARTURE' AND f.origin_airport_id = :airportId)
+          OR (:operation = 'ARRIVAL' AND f.destination_airport_id = :airportId))
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        ORDER BY f.scheduled_departure ASC, f.id ASC
+        LIMIT :size OFFSET :offset
+        """, nativeQuery = true)
+    List<Flight> findTowerOperations(@Param("airportId") Long airportId, @Param("operation") String operation,
+            @Param("status") String status, @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate, @Param("size") int size, @Param("offset") long offset);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM flights f WHERE ((CAST(:operation AS text) IS NULL AND (f.origin_airport_id = :airportId OR f.destination_airport_id = :airportId))
+          OR (:operation = 'DEPARTURE' AND f.origin_airport_id = :airportId)
+          OR (:operation = 'ARRIVAL' AND f.destination_airport_id = :airportId))
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        """, nativeQuery = true)
+    long countTowerOperations(@Param("airportId") Long airportId, @Param("operation") String operation,
+            @Param("status") String status, @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate);
+
+    @Query(value = """
+        SELECT f.* FROM flights f WHERE f.clearance_facility_id = :facilityId AND f.clearance_status = 'PENDING'
+          AND (CAST(:operation AS text) IS NULL OR f.clearance_operation = :operation)
+        ORDER BY f.id ASC
+        LIMIT :size OFFSET :offset
+        """, nativeQuery = true)
+    List<Flight> findPendingClearances(@Param("facilityId") Long facilityId, @Param("operation") String operation, @Param("size") int size, @Param("offset") long offset);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM flights f WHERE f.clearance_facility_id = :facilityId AND f.clearance_status = 'PENDING'
+          AND (CAST(:operation AS text) IS NULL OR f.clearance_operation = :operation)
+        """, nativeQuery = true)
+    long countPendingClearances(@Param("facilityId") Long facilityId, @Param("operation") String operation);
+
     @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("SELECT f FROM Flight f WHERE f.id = :flightId")
     Optional<Flight> findByIdForCrewRead(@Param("flightId") Long flightId);

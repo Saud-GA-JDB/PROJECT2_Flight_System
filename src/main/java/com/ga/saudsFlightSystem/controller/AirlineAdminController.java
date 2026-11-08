@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
+import com.ga.saudsFlightSystem.model.FlightOperation;
+import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.AddAirplaneRequest;
@@ -21,6 +23,7 @@ public class AirlineAdminController {
     private MaintenanceRecordService maintenanceRecordService;
     private MaintenanceProviderService maintenanceProviderService;
     private FlightInspectionService flightInspectionService;
+    private FlightOperationService operationService;
 
     @PostMapping("/airplanes")
     public ResponseEntity<?> addAirplane(@RequestBody AddAirplaneRequest request) {
@@ -77,4 +80,15 @@ public class AirlineAdminController {
         return flightInspectionService.getFlightInspections(flightId);
     }
 
+    @GetMapping("/flights/{flightId}/operations")
+    public ResponseEntity<FlightOperationSummary> getOperations(@PathVariable Long flightId) {
+        return operationService.getAirlineFlight(flightId);
+    }
+
+    @GetMapping("/flights/{flightId}/controlEvents")
+    public ResponseEntity<ControlEventListResponse> getControlEvents(@PathVariable Long flightId,
+            @RequestParam(required = false) FlightOperation operation,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return operationService.getAirlineEvents(flightId, operation, page, size);
+    }
 }

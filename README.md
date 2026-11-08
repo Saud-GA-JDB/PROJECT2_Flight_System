@@ -16,6 +16,7 @@ The purpose is to connect three main users: customers who search and book flight
 - Maintenance provider setup and airline contracts, maintenance requests, technician assignment, completion, and audit records.
 - Airport operator setup, airport employee accounts, and role-based inspector assignment.
 - FAA navigation-provider and tower setup, tower administrator/controller accounts, scoped paginated lists, and ATC login/profile integration.
+- Scoped pilot/tower/airline flight-operation views, readiness blockers, effective clearance expiry, pending-request lists and control-event history.
 - Per-flight inspections with pass/fail results, reinspection history, scoped lists, database locking, and one pending attempt per flight.
 - Server-Sent Events (SSE) notifying connected FAA administrators about airplane activation requests.
 - Database audit records, centralized error handling, demo data seeding, and Postman collections.
@@ -79,7 +80,7 @@ See [User stories](docs/USER-STORIES.md) for the current customer, airline admin
 
 ## ERD
 
-See the [ERD below](#erd-diagram) for the updated maintenance, airport-account, and inspection relationships. The separate [implemented system ERD](docs/ERD-IMPLEMENTED.md) documents all 23 current entities, including these additions and payment mappings.
+See the [ERD below](#erd-diagram) for the updated maintenance, airport-account, and inspection relationships. The separate [implemented system ERD](docs/ERD-IMPLEMENTED.md) documents all 24 current entities, including these additions and payment mappings.
 
 ## Planning
 
@@ -474,7 +475,7 @@ MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests
 
 ## Future improvements
 
-Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. ATC provider/tower/staff setup is implemented; flight clearances, control-event history and baggage handling remain deferred.
+Maintenance providers/records, airport operators/employees, crew coverage checks, and per-flight inspections are implemented. Pilot take-off and inspection/FAA departure enforcement are deferred to a future pilot workflow. ATC provider/tower/staff setup is implemented; flight-clearance commands, physical pilot actions and baggage handling remain deferred. Operational views, readiness and history reads are available.
 
 Further improvements include a frontend, reliable notification storage and delivery, consistent response DTOs and validation, a reset-token password recovery flow, time-zone-aware scheduling, schema migrations, and tests that run independently of manually seeded data and external email services.
 

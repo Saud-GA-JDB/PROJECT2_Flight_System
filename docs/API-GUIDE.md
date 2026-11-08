@@ -545,3 +545,100 @@ Operational responses contain no CPR, phone, passwords or security answers. List
 Invalid fields, nonpositive IDs and invalid pagination return 400; missing/invalid authentication returns 401; wrong role/profile/tower or inactive status is denied; missing references return 404; duplicate airport tower, email, CPR or employee number returns 409. Database lock conflicts roll back and return 409 with a refresh/retry message. Business errors retain `timestamp`, `status`, `error`, `message`, `path`; the existing security filter can return its own error shape. Cross-profile CPR uniqueness uses service checks, not a globally atomic database identity registry.
 
 Setup audits use `AIR_NAVIGATION_PROVIDER_CREATED`, `CONTROL_FACILITY_CREATED`, and `ATC_EMPLOYEE_CREATED`, recording the actor and created entity. Failed/rolled-back commands leave no success audit. GETs do not create business audits.
+
+
+## Flight-operation views and readiness
+
+These GET endpoints are available to active accounts. They do not approve a clearance, move a flight, reserve resources, write business audits or send SSE. Command endpoints for requests, decisions, take-off and landing are the next stage.
+
+| GET path | Scope |
+| --- | --- |
+| `/pilot/flights` | Current primary/secondary pilot assignments |
+| `/pilot/flights/{flightId}` | Currently assigned pilot |
+| `/pilot/flights/{flightId}/readiness` | Currently assigned pilot; operation derives from phase |
+| `/pilot/flights/{flightId}/controlEvents` | Currently assigned pilot; all flight events |
+| `/atc/flights` | Flight originates or arrives at own tower airport |
+| `/atc/flights/{flightId}` | Same airport scope |
+| `/atc/flights/{flightId}/readiness?operation=DEPARTURE` | Origin tower for DEPARTURE, destination tower for ARRIVAL |
+| `/atc/requests` | PENDING clearance cycles belonging to own tower |
+| `/atc/flights/{flightId}/controlEvents` | Flight touches own airport; only own-tower events |
+| `/airlineAdmin/flights/{flightId}/operations` | Owning-airline ADMIN |
+| `/airlineAdmin/flights/{flightId}/controlEvents` | Owning-airline ADMIN; all flight events |
+
+ATC ADMIN and CONTROLLER have equal read permissions. Shared provider or airline membership alone does not grant pilot/tower access. Removed pilots immediately lose assignment-based access. Other airline roles and FAA accounts have no global access to these operations.
+
+Lists use `page=0`, `size=20` by default; page must be nonnegative and size 1–100. Flight lists accept optional `status`, `fromDate`, `toDate` (`yyyy-MM-dd` inclusive scheduled-departure dates in Asia/Bahrain). ATC flight lists additionally accept `operation=DEPARTURE|ARRIVAL` to select the own-origin/own-destination side. Requests/events accept optional `operation`. Invalid/reversed dates and invalid IDs/enums/paging return 400; missing flight 404; forbidden access 403; missing/invalid authentication 401. Readiness blockers return 200.
+
+Scope filtering happens in the database before count/paging. Flights sort by scheduledDeparture ascending then id; requests by flight id ascending; events by event id descending. There is no client-selected sorting. Responses use the existing `content,page,size,totalElements,totalPages` envelope.
+
+`FlightOperationSummary` includes flight/airline/airplane/airport IDs, flight number, scheduled/actual times, status, clearance, crew (`employeeId,duty`) and latest inspection (`id,status`, or null). It excludes passengers, bookings, payment data and staff identity details. History returns `id,flightId,facilityId,actorUserId,operation,eventType,cycle,revision,occurredAt,reason`.
+
+```json
+{
+  "flightId":10,"operation":"DEPARTURE","evaluatedAt":"2026-11-07T07:00:00Z",
+  "readyForRequest":false,"readyForApproval":false,"readyForAction":false,
+  "clearanceRevision":0,
+  "blockers":[
+    {"code":"INSPECTION_NOT_PASSED","appliesTo":["REQUEST","APPROVAL","ACTION"]},
+    {"code":"CLEARANCE_REQUIRED","appliesTo":["ACTION"]}
+  ]
+}
+```
+
+Readiness flags represent lifecycle eligibility, including direct approval eligibility, not permission for a pilot to perform ATC actions. Readiness is a snapshot; future commands must recheck under their resource locks.
+
+Departure requires ACTIVE with both actual times null, an airplane and both airports, origin tower, all three required crew duties, latest inspection PASSED and FAA airplane ACTIVE. Any airplane/assigned crew (including extras) occupied on another unfinished departed flight blocks readiness, even after its scheduled arrival. IN_AIR conservatively counts as occupied even with inconsistent actual times. A completed landing releases occupancy once the other flight is no longer IN_AIR. There is no scheduled-departure cutoff in these readiness checks; existing mutation/booking guards are unchanged in this stage.
+
+Arrival requires IN_AIR, a departure time present and no later than the captured Bahrain time, no actual arrival and a configured destination tower. It does not require a fresh inspection, active FAA airplane status or free resources. Terminal pilot readiness has `operation:null` and all flags false.
+
+Clearance starts NONE/cycle 0/revision 0. PENDING never expires and prevents another request; valid APPROVED prevents another request/approval. Action needs a matching tower/operation with unexpired approval. At `now >= expiresAt`, stored APPROVED is returned as effective EXPIRED without any write or event. REJECTED/WITHDRAWN/REVOKED/EXPIRED permit a fresh cycle; consumed DEPARTURE permits starting ARRIVAL while airborne. Readiness changes retain approval and its original expiry. Current clearance times and event times are UTC `Instant` JSON with `Z`; existing flight times remain Bahrain `LocalDateTime`. New seed schedules explicitly use Asia/Bahrain; existing imported schedules are not converted.
+
+Blocker codes: `WRONG_FLIGHT_PHASE`, `ACTUAL_TIME_CONFLICT`, `TOWER_NOT_CONFIGURED`, `CREW_INCOMPLETE`, `INSPECTION_NOT_PASSED`, `AIRPLANE_NOT_ACTIVE`, `AIRPLANE_IN_USE`, `CREW_IN_USE`, `REQUEST_ALREADY_PENDING`, `CLEARANCE_ALREADY_APPROVED`, `CLEARANCE_REQUIRED`, `CLEARANCE_EXPIRED`, `CLEARANCE_OPERATION_MISMATCH`. Missing route references also block the flight phase checks; missing airplane blocks `AIRPLANE_NOT_ACTIVE`.
+
+### Flight-operation schema additions
+
+Stop the application and back up the database before applying these additions once to an existing ATC-enabled schema. Existing flights start with clearance NONE; actual flight times and historical rows are preserved. Apply before Hibernate update creates these columns/table, then verify with `ddl-auto=validate`. The SQL is included here with the API documentation. Do not rerun on an already-updated database.
+
+```sql
+BEGIN;
+ALTER TABLE flights
+    ADD COLUMN clearance_operation varchar(255),
+    ADD COLUMN clearance_status varchar(255) NOT NULL DEFAULT 'NONE',
+    ADD COLUMN clearance_facility_id bigint REFERENCES control_facilities(id),
+    ADD COLUMN clearance_cycle bigint NOT NULL DEFAULT 0,
+    ADD COLUMN clearance_revision bigint NOT NULL DEFAULT 0,
+    ADD COLUMN clearance_approved_at timestamp(6) with time zone,
+    ADD COLUMN clearance_expires_at timestamp(6) with time zone;
+ALTER TABLE flights ADD CONSTRAINT flight_clearance_state_check CHECK (
+    clearance_cycle >= 0 AND clearance_revision >= 0
+    AND (clearance_operation IS NULL OR clearance_operation IN ('DEPARTURE', 'ARRIVAL'))
+    AND ((clearance_status = 'NONE' AND clearance_cycle = 0 AND clearance_operation IS NULL
+          AND clearance_facility_id IS NULL AND clearance_approved_at IS NULL AND clearance_expires_at IS NULL)
+      OR (clearance_cycle > 0 AND clearance_operation IS NOT NULL AND clearance_facility_id IS NOT NULL
+          AND ((clearance_status IN ('PENDING', 'REJECTED', 'WITHDRAWN') AND clearance_approved_at IS NULL AND clearance_expires_at IS NULL)
+            OR (clearance_status IN ('APPROVED', 'REVOKED', 'CONSUMED') AND clearance_approved_at IS NOT NULL
+                AND clearance_expires_at IS NOT NULL AND clearance_expires_at > clearance_approved_at))))
+);
+CREATE TABLE flight_control_events (
+    id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    flight_id bigint NOT NULL REFERENCES flights(id),
+    facility_id bigint NOT NULL REFERENCES control_facilities(id),
+    actor_user_id bigint NOT NULL REFERENCES users(id),
+    operation varchar(255) NOT NULL CHECK (operation IN ('DEPARTURE', 'ARRIVAL')),
+    event_type varchar(255) NOT NULL CHECK (event_type IN ('REQUESTED','APPROVED','REJECTED','WITHDRAWN','REVOKED','TAKE_OFF','LANDED')),
+    cycle bigint NOT NULL CHECK (cycle > 0),
+    revision bigint NOT NULL CHECK (revision > 0),
+    occurred_at timestamp(6) with time zone NOT NULL,
+    reason varchar(2000),
+    UNIQUE (flight_id, revision)
+);
+CREATE INDEX control_events_flight_idx ON flight_control_events(flight_id,id);
+CREATE INDEX control_events_facility_time_idx ON flight_control_events(facility_id,occurred_at);
+CREATE INDEX IF NOT EXISTS crew_assignment_employee_idx ON crew_assignments(employee_id);
+CREATE INDEX IF NOT EXISTS crew_assignment_flight_idx ON crew_assignments(flight_id);
+COMMIT;
+```
+
+Control-event columns are not updatable through JPA and no edit/delete routes exist. No relationship cascades delete event history. The new read endpoints leave event and audit counts unchanged. A clean database still needs the existing base schema before these additions.
+
+Verify on a dedicated PostgreSQL database using `mvn '-Dtest=FlightOperationServiceTest,ATCServiceTest,FlightInspectionServiceTest,MaintenanceRecordServiceTest,DatabaseSeederTest' '-Dspring.datasource.url=jdbc:postgresql://localhost:5432/your_test_database' test`. Tests create isolated fixtures and roll back; existing ATC/inspection race tests commit and clean their own fixtures. The operational suite uses fixed time for exact expiry checks and real JWT requests for HTTP coverage.

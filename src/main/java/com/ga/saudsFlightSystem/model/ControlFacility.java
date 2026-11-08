@@ -6,7 +6,7 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "control_facilities", indexes = @Index(name = "control_facilities_provider_idx", columnList = "provider_id"))
+@Table(name = "control_facilities")
 public class ControlFacility {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -83,6 +83,7 @@ public class User {
     @JoinColumn(name = "airport_employee_id", referencedColumnName = "id", unique = true)
     private AirportEmployee airportEmployee;
 
+    // Save and update the ATC profile with its account, but do not cascade deletion.
     @OneToOne(cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @JoinColumn(name = "atc_employee_id", referencedColumnName = "id", unique = true)
     private ATCEmployee atcEmployee;

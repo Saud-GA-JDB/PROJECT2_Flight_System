@@ -15,6 +15,22 @@ import java.util.Optional;
 
 public interface CrewAssignmentRepository extends JpaRepository<CrewAssignment, Long> {
     List<CrewAssignment> findByFlightId(Long flightId);
+    List<CrewAssignment> findByFlightIdOrderByIdAsc(Long flightId);
+
+    @Query(value = """
+        SELECT COUNT(*) > 0 FROM crew_assignments
+        WHERE flight_id = :flightId AND employee_id = :employeeId
+          AND duty IN ('PILOT', 'SECONDARY_PILOT')
+        """, nativeQuery = true)
+    boolean isAssignedPilot(@Param("flightId") Long flightId, @Param("employeeId") Long employeeId);
+
+    @Query(value = """
+        SELECT COUNT(*) > 0 FROM crew_assignments c JOIN flights f ON f.id = c.flight_id
+        WHERE f.id <> :flightId AND c.employee_id IN :employeeIds
+          AND ((f.actual_departure IS NOT NULL AND f.actual_arrival IS NULL) OR f.status = 'IN_AIR')
+        """, nativeQuery = true)
+    boolean hasOccupiedCrew(@Param("flightId") Long flightId, @Param("employeeIds") List<Long> employeeIds);
+
     List<CrewAssignment> findByAirlineEmployeeId(Long employeeId);
 
     boolean existsByFlightIdAndAirlineEmployeeId(Long flightId, Long employeeId);

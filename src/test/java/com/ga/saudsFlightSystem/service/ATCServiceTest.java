@@ -109,7 +109,7 @@ public class ATCServiceTest {
     public final void whenProviderHasTwoTowersThenPagingAndAuditAreScoped() {
         FacilityResponse first = tower(providerId, airport);
         FacilityResponse second = tower(providerId, secondAirport);
-        PageResponse<FacilityResponse> page = service.getFacilities(providerId, 0, 1).getBody();
+        FacilityListResponse page = service.getFacilities(providerId, 0, 1).getBody();
         Assert.assertEquals(2, page.getTotalElements());
         Assert.assertEquals(2, page.getTotalPages());
         Assert.assertEquals(first.getId(), page.getContent().get(0).getId());
@@ -143,7 +143,7 @@ public class ATCServiceTest {
         Assert.assertNull(saved.getCustomer());
         Assert.assertEquals(ATCEmployee.ATCRole.CONTROLLER, controller.getAtcRole());
         Assert.assertEquals(request.getEmployeeNumber().trim().toUpperCase(), controller.getEmployeeNumber());
-        PageResponse<ATCEmployeeResponse> page = service.getControllers(0, 20).getBody();
+        ATCEmployeeListResponse page = service.getControllers(0, 20).getBody();
         Assert.assertEquals(1, page.getTotalElements());
         Assert.assertEquals(controller.getId(), page.getContent().get(0).getId());
         Assert.assertEquals(facilityId, service.getOwnFacility().getBody().getId());

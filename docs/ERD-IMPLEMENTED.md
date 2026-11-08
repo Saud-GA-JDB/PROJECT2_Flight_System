@@ -1,6 +1,6 @@
 # Implemented system ERD
 
-This diagram documents the 23 current JPA entities as of 7 November 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
+This diagram documents the 24 current JPA entities as of 7 November 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.
 
 Names and types below follow Java fields, rather than PostgreSQL column spelling or SQL types. Relationship attributes use the Java relationship name followed by `Id` to represent their join columns. `PK`, `FK`, and `UK` mean primary, foreign, and unique keys. `Required` marks explicit non-null mappings; other attributes have no explicit non-null constraint in the model. Relationship cardinalities reflect JPA nullability, which can be less strict than service validation.
 
@@ -66,6 +66,23 @@ erDiagram
         Long operatorId FK "Nullable"
     }
 
+    FLIGHT_CONTROL_EVENT {
+        Long id PK
+        Long flightId FK "Required"
+        Long facilityId FK "Required"
+        Long actorUserId FK "Required"
+        FlightOperation operation "DEPARTURE or ARRIVAL"
+        EventType eventType "REQUESTED, APPROVED, REJECTED, WITHDRAWN, REVOKED, TAKE_OFF, LANDED"
+        long cycle "Required"
+        long revision "Unique with flightId"
+        Instant occurredAt "UTC"
+        String reason "Nullable, maximum 2000"
+    }
+    FLIGHT ||--o{ FLIGHT_CONTROL_EVENT : records
+    CONTROL_FACILITY ||--o{ FLIGHT_CONTROL_EVENT : responsibleTower
+    USER ||--o{ FLIGHT_CONTROL_EVENT : performs
+    CONTROL_FACILITY o|--o{ FLIGHT : currentClearanceTower
+
     FLIGHT {
         Long id PK
         String flightNumber
@@ -76,6 +93,13 @@ erDiagram
         LocalDateTime actualDeparture
         LocalDateTime actualArrival
         FlightStatus status "PENDING_CREW, ACTIVE, IN_AIR, CLOSED, CANCELLED"
+        FlightOperation clearanceOperation "Nullable"
+        ClearanceStatus clearanceStatus "Required, default NONE; EXPIRED is computed only"
+        Long clearanceFacilityId FK "Nullable before first cycle"
+        long clearanceCycle "Required, default 0"
+        long clearanceRevision "Required, default 0"
+        Instant clearanceApprovedAt "Nullable UTC"
+        Instant clearanceExpiresAt "Nullable UTC"
         Long firstClassPrice
         Long standardPrice
         Currency currency "BHD or USD"
@@ -319,7 +343,7 @@ erDiagram
 - `PendingRegistration` has no mapped relationship to `User`; email and CPR matching happens in application code. `AuditLog.userId` and `entityId` are scalar identifiers, not JPA relationships, so no foreign-key edges are drawn for them.
 - `User.role` uses EnumType.STRING; User.status remains ordinal (SETUP_REQUIRED=0, ACTIVE=1, DEACTIVATED=2). Other enum fields in this diagram explicitly use `EnumType.STRING`. The diagram shows enum names for readability, not their physical database encoding.
 - Airplane capacities are total seats; flight seat counts track remaining availability. There is no separate seat entity. `flightNumber` has no mapped unique constraint, while `bookingRef` does.
-- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. ATC provider/tower/staff setup is implemented. Generic ground services/baggage and flight-control operations remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
+- Airport accounts, crew assignments, maintenance, and FlightInspection are implemented. ATC provider/tower/staff setup is implemented. Scoped flight-operation reads, readiness and event-history reads are implemented. Clearance writes, physical pilot actions and generic ground services/baggage remain deferred or outside scope. FlightInspection has a database partial unique index allowing only one PENDING attempt per flight; its inspector is nullable until assignment. Departure enforcement remains deferred to the pilot workflow.
 - `Email` and the request/response DTOs are not entities. Despite its package name, `model.request.AirplaneRequest` is an entity and is included. SSE connections are in memory, not persisted entities.
 
 ## Entity-to-table reference
@@ -332,6 +356,7 @@ These are the explicit `@Table` names in source. Hibernate's physical naming str
 | Airplane | `airplanes` |
 | Airport | `airports` |
 | Flight | `flights` |
+| FlightControlEvent | `flight_control_events` |
 | Booking | `bookings` |
 | User | `users` |
 | Customer | `customers` |

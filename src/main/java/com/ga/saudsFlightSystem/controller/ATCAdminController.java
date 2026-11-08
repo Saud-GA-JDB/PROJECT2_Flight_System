@@ -2,7 +2,7 @@ package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.request.AddATCEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.ATCEmployeeResponse;
-import com.ga.saudsFlightSystem.model.request.response.PageResponse;
+import com.ga.saudsFlightSystem.model.request.response.ATCEmployeeListResponse;
 import com.ga.saudsFlightSystem.service.ATCService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +20,7 @@ public class ATCAdminController {
     }
 
     @GetMapping("/controllers")
-    public ResponseEntity<PageResponse<ATCEmployeeResponse>> getControllers(
+    public ResponseEntity<ATCEmployeeListResponse> getControllers(
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
         return atcService.getControllers(page, size);
     }

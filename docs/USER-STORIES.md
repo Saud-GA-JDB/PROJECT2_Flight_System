@@ -29,7 +29,18 @@ These stories were recorded retrospectively from the implemented API and the wid
 | ATC-02 | As a tower administrator, I want to create and list my tower's controllers. | Role and tower come from the route/current account; controllers cannot provision staff; paging and counts are scoped to the admin's tower, even when providers are shared. |
 | ATC-03 | As an ATC employee, I want to sign in, maintain my contact details and view my tower. | Shared JWT login, active-account checks, encoded credentials, existing profile updates and an operational response without CPR, phone or credentials. |
 
-Flight clearances, pilot actions and control-event history remain future stages.
+Flight-clearance commands and physical pilot actions remain future stages.
+
+## Flight-operation reads implemented 7 November 2026
+
+| ID | User story | Acceptance criteria |
+| --- | --- | --- |
+| OPS-01 | As an assigned pilot, I want to see my flights and their readiness. | Both pilot duties have equal access; removed/unassigned pilots and attendants are denied; readiness includes phase, crew, latest inspection, FAA status, occupancy and clearance eligibility. |
+| OPS-02 | As a tower employee, I want to view flights and pending requests at my tower. | ADMIN/CONTROLLER see own-airport flights; readiness uses origin/departure and destination/arrival scope; requests and event history are restricted to own tower even across shared providers. |
+| OPS-03 | As an airline admin, I want to inspect my airline's operational state and control history. | Only owning-airline ADMIN can read summaries and complete event history; no passenger/payment details appear. |
+| OPS-04 | As an API consumer, I want reliable expiry and list results. | Expiry at the exact boundary is computed without writes; pagination/counts are scoped; date filters use Bahrain scheduled times; GETs produce no business audit/SSE. |
+
+These are read-only views. Request/approval/physical-action commands are not implemented by this stage.
 
 ## Operational stories implemented by 28 October 2026
 

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -55,7 +56,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         activationRequest(grounded, admin);
         advanceSequence("airplane_requests");
 
-        LocalDateTime departure = LocalDateTime.now().plusDays(3).withNano(0);
+        LocalDateTime departure = LocalDateTime.now(ZoneId.of("Asia/Bahrain")).plusDays(3).withNano(0);
         Flight fixture = flight("GF501", bookingPlane, bah, dxb, departure);
         fixedBooking(customer, fixture);
         advanceSequence("bookings");

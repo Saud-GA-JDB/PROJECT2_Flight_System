@@ -12,15 +12,14 @@ import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 @Service
@@ -62,12 +61,14 @@ public class ATCService {
     }
 
     @Transactional
-    public ResponseEntity<PageResponse<ProviderResponse>> getProviders(int page, int size) {
+    public ResponseEntity<ProviderListResponse> getProviders(int page, int size) {
         requireFAAAdmin();
-        Page<ProviderResponse> result = providerRepository.findAll(pageRequest(page, size, "id"))
-                .map(this::providerResponse);
-        return ResponseEntity.ok(new PageResponse<>(result.getContent(), page, size,
-                result.getTotalElements(), result.getTotalPages()));
+        validatePagination(page, size);
+        List<ProviderResponse> content = new ArrayList<>();
+        for (AirNavigationServiceProvider provider : providerRepository.findProviders(size, (long) page * size))
+            content.add(providerResponse(provider));
+        long totalElements = providerRepository.count();
+        return ResponseEntity.ok(new ProviderListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
     }
 
     @Transactional
@@ -102,16 +103,17 @@ public class ATCService {
     }
 
     @Transactional
-    public ResponseEntity<PageResponse<FacilityResponse>> getFacilities(Long providerId, int page, int size) {
+    public ResponseEntity<FacilityListResponse> getFacilities(Long providerId, int page, int size) {
         requireFAAAdmin();
         checkId(providerId);
-        PageRequest paging = pageRequest(page, size, "id");
+        validatePagination(page, size);
         if (!providerRepository.existsById(providerId))
             throw new InformationNotFoundException("Couldn't find an air navigation provider with this ID.");
-        Page<FacilityResponse> result = facilityRepository.findByProvider_Id(providerId, paging)
-                .map(this::facilityResponse);
-        return ResponseEntity.ok(new PageResponse<>(result.getContent(), page, size,
-                result.getTotalElements(), result.getTotalPages()));
+        List<FacilityResponse> content = new ArrayList<>();
+        for (ControlFacility facility : facilityRepository.findByProviderId(providerId, size, (long) page * size))
+            content.add(facilityResponse(facility));
+        long totalElements = facilityRepository.countByProvider_Id(providerId);
+        return ResponseEntity.ok(new FacilityListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
     }
 
     @Transactional
@@ -139,13 +141,15 @@ public class ATCService {
     }
 
     @Transactional
-    public ResponseEntity<PageResponse<ATCEmployeeResponse>> getControllers(int page, int size) {
+    public ResponseEntity<ATCEmployeeListResponse> getControllers(int page, int size) {
         User user = requireATCEmployee(true);
-        Page<ATCEmployeeResponse> result = userRepository.findByRoleAndAtcEmployee_Facility_IdAndAtcEmployee_AtcRole(
-                User.Role.ATC_EMPLOYEE, user.getAtcEmployee().getFacility().getId(), ATCEmployee.ATCRole.CONTROLLER,
-                pageRequest(page, size, "atcEmployee.id")).map(this::employeeResponse);
-        return ResponseEntity.ok(new PageResponse<>(result.getContent(), page, size,
-                result.getTotalElements(), result.getTotalPages()));
+        validatePagination(page, size);
+        Long facilityId = user.getAtcEmployee().getFacility().getId();
+        List<ATCEmployeeResponse> content = new ArrayList<>();
+        for (User controller : userRepository.findTowerControllers(facilityId, size, (long) page * size))
+            content.add(employeeResponse(controller));
+        long totalElements = userRepository.countTowerControllers(facilityId);
+        return ResponseEntity.ok(new ATCEmployeeListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
     }
 
     @Transactional
@@ -251,10 +255,16 @@ public class ATCService {
             throw new InvalidInformationException("IDs must be positive.");
     }
 
-    private PageRequest pageRequest(int page, int size, String sort) {
+    private void validatePagination(int page, int size) {
         if (page < 0 || size < 1 || size > 100)
             throw new InvalidInformationException("Page must be nonnegative and size must be between 1 and 100.");
-        return PageRequest.of(page, size, Sort.by(sort).ascending());
+    }
+
+    private long totalPages(long totalElements, int size) {
+        long totalPages = totalElements / size;
+        if (totalElements % size != 0)
+            totalPages++;
+        return totalPages;
     }
 
     private ProviderResponse providerResponse(AirNavigationServiceProvider provider) {
