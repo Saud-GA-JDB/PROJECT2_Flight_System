@@ -4,8 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
 
 import java.util.List;
 import java.time.LocalDate;
@@ -68,12 +66,6 @@ public class User {
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "faa_admin_id", referencedColumnName = "id", unique = true)
     private FAAAdmin faaAdmin;
-
-    @OneToMany(mappedBy = "user", fetch = FetchType.EAGER)
-    @JsonIgnore
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    private List<Booking> bookingsList;
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "maintenance_employee_id", referencedColumnName = "id", unique = true)

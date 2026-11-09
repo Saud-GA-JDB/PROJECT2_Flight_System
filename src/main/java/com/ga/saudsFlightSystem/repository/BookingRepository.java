@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository <Booking, Long> {
+    List<Booking> findByUser_Id(Long userId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select b from Booking b where b.id = :bookingId")
     Optional<Booking> findByIdForPayment(@Param("bookingId") Long bookingId);

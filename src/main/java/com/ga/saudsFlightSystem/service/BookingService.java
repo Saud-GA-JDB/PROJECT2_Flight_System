@@ -39,7 +39,7 @@ public class BookingService {
     public List<Booking> getBookings() {
         User user = UserService.getCurrentLoggedInUser();
         if (user.getRole() != User.Role.AIRLINE_EMPLOYEE)
-            return user.getBookingsList();
+            return bookingRepository.findByUser_Id(user.getId());
         if (user.getAirlineEmployee() != null && user.getAirlineEmployee().getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN)
             return bookingRepository.findByFlight_Airline_IdOrderByBookedAtDesc(user.getAirlineEmployee().getAirline().getId());
         throw new IllegalEndpoint("You are not allowed to view these bookings");
