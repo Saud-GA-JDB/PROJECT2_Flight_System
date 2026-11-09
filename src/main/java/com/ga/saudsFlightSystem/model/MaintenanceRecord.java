@@ -64,8 +64,7 @@ public class MaintenanceRecord {
 
     private Instant cancelledAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cancelled_by_user_id")
+    @Column(name = "cancelled_by_user_id")
     @JsonIgnore
-    private User cancelledBy;
+    private Long cancelledByUserId;
 }

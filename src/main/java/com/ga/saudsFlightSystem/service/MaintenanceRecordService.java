@@ -104,7 +104,7 @@ public class MaintenanceRecordService {
                         record.getDescription(), record.getFindings(), record.getStatus(),
                         record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt(),
                         record.getCancellationReason(), record.getCancelledAt(),
-                        record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
+                        record.getCancelledByUserId()
                 )
         );
 
@@ -140,7 +140,7 @@ public class MaintenanceRecordService {
                     record.getCompletedAt(),
                     record.getCancellationReason(),
                     record.getCancelledAt(),
-                    record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
+                    record.getCancelledByUserId()
             ));
         }
 
@@ -212,7 +212,7 @@ public class MaintenanceRecordService {
                 record.getCompletedAt(),
                 record.getCancellationReason(),
                 record.getCancelledAt(),
-                record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
+                record.getCancelledByUserId()
         ));
     }
 
@@ -239,7 +239,7 @@ public class MaintenanceRecordService {
                     record.getCompletedAt(),
                     record.getCancellationReason(),
                     record.getCancelledAt(),
-                    record.getCancelledBy() == null ? null : record.getCancelledBy().getId()
+                    record.getCancelledByUserId()
             ));
         }
 
@@ -375,8 +375,8 @@ public class MaintenanceRecordService {
         record.setStatus(MaintenanceRecord.MaintenanceStatus.CANCELLED);
         record.setCancellationReason(reason);
         record.setCancelledAt(Instant.now());
-        // Retain the legacy relationship until the scalar-ID migration.
-        record.setCancelledBy(userRepository.getReferenceById(actor.userId()));
+
+        record.setCancelledByUserId(actor.userId());
         maintenanceRecordRepository.save(record);
         maintenanceRecordRepository.flush();
 
@@ -397,7 +397,7 @@ public class MaintenanceRecordService {
         return new MaintenanceRecordResponse(record.getId(), record.getAirplane().getId(), record.getProvider().getId(),
                 record.getTechnician() == null ? null : record.getTechnician().getId(), record.getDescription(), record.getFindings(),
                 record.getStatus(), record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt(),
-                record.getCancellationReason(), record.getCancelledAt(), record.getCancelledBy() == null ? null : record.getCancelledBy().getId());
+                record.getCancellationReason(), record.getCancelledAt(), record.getCancelledByUserId());
     }
 
     private MaintenanceEmployee getCurrentTechnician() {
