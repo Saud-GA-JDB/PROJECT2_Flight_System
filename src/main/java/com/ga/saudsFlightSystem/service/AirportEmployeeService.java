@@ -12,6 +12,7 @@ import com.ga.saudsFlightSystem.model.request.response.AirportEmployeeResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -153,7 +154,7 @@ public class AirportEmployeeService {
         if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}"))
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
 
-        if (!EmailService.validateEmailFormat(request.getEmailAddress().trim()))
+        if (!EmailValidation.isValid(request.getEmailAddress().trim()))
             throw new InvalidInformationException("Invalid email format.");
 
         if (!phoneValidationService.isValidPhoneNumber(request.getPhoneNumber().trim(), request.getPhoneNumberOpeningCode().trim()))

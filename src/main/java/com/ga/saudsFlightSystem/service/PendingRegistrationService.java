@@ -9,6 +9,7 @@ import com.ga.saudsFlightSystem.model.Customer;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.RegistrationResponse;
 import com.ga.saudsFlightSystem.repository.*;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -64,7 +65,7 @@ public class PendingRegistrationService {
      */
     @Transactional
     public ResponseEntity<?> sendCode(String email, String cpr) {
-        if(!EmailService.validateEmailFormat(email)) throw new InvalidInformationException("invalid Email Format");
+        if(!EmailValidation.isValid(email)) throw new InvalidInformationException("invalid Email Format");
         if (cpr == null || !cpr.matches("[0-9]{9}")) {
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
         }

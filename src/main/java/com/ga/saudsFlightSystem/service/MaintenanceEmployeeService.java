@@ -11,6 +11,7 @@ import com.ga.saudsFlightSystem.model.request.AddMaintenanceEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceEmployeeResponse;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -135,7 +136,7 @@ public class MaintenanceEmployeeService {
         if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}"))
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
 
-        if (!EmailService.validateEmailFormat(request.getEmailAddress().trim()))
+        if (!EmailValidation.isValid(request.getEmailAddress().trim()))
             throw new InvalidInformationException("Invalid email format.");
 
         if (!phoneValidationService.isValidPhoneNumber(request.getPhoneNumber().trim(), request.getPhoneNumberOpeningCode().trim()))

@@ -10,6 +10,7 @@ import com.ga.saudsFlightSystem.model.request.AddAirNavigationProviderRequest;
 import com.ga.saudsFlightSystem.model.request.AddControlFacilityRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -45,7 +46,7 @@ public class ATCService {
             throw new InvalidInformationException("Please fill in all the required fields.");
         checkField(request.getName(), 150);
         checkField(request.getContactEmail(), 254);
-        if (!EmailService.validateEmailFormat(request.getContactEmail().trim()))
+        if (!EmailValidation.isValid(request.getContactEmail().trim()))
             throw new InvalidInformationException("Please enter a valid email address.");
 
         AirNavigationServiceProvider provider = new AirNavigationServiceProvider();
@@ -235,7 +236,7 @@ public class ATCService {
         checkField(request.getEmployeeNumber().trim().toUpperCase(Locale.ROOT), 50);
         if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}"))
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
-        if (!EmailService.validateEmailFormat(request.getEmailAddress().trim()))
+        if (!EmailValidation.isValid(request.getEmailAddress().trim()))
             throw new InvalidInformationException("Invalid email format.");
         if (!phoneValidationService.isValidPhoneNumber(request.getPhoneNumber().trim(), request.getPhoneNumberOpeningCode().trim()))
             throw new InvalidInformationException("Invalid phone number or country code.");

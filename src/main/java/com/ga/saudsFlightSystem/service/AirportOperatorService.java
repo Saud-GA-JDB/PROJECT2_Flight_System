@@ -13,6 +13,7 @@ import com.ga.saudsFlightSystem.repository.AirportOperatorRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -48,7 +49,7 @@ public class AirportOperatorService {
         if (name.length() > 255 || contactEmail.length() > 255)
             throw new InvalidInformationException("Fields must be less than 255 characters.");
 
-        if (!EmailService.validateEmailFormat(contactEmail))
+        if (!EmailValidation.isValid(contactEmail))
             throw new InvalidInformationException("Please enter a valid email address.");
 
         AirportOperator operator = new AirportOperator();

@@ -8,6 +8,7 @@ import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.response.AddFlightResponse;
 import com.ga.saudsFlightSystem.repository.*;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -59,7 +60,7 @@ public class AirlineEmployeeService {
         if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}")) {
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
         }
-        if (!EmailService.validateEmailFormat(request.getEmailAddress())) {
+        if (!EmailValidation.isValid(request.getEmailAddress())) {
             throw new InvalidInformationException("invalid Email Format");
         }
         if (request.getFName() == null || request.getFName().isBlank()

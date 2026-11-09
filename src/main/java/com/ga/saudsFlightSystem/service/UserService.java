@@ -18,6 +18,7 @@ import com.ga.saudsFlightSystem.model.request.response.LoginResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import com.ga.saudsFlightSystem.security.JWTUtils;
 import com.ga.saudsFlightSystem.security.MyUserDetails;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -406,7 +407,7 @@ public class UserService {
         }
 
         if (request.getEmailAddress() != null) {
-            if (!EmailService.validateEmailFormat(request.getEmailAddress())) {
+            if (!EmailValidation.isValid(request.getEmailAddress())) {
                 throw new InvalidInformationException("Invalid email format");
             }
 

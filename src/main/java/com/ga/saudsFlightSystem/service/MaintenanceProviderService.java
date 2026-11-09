@@ -8,6 +8,7 @@ import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceProviderRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceProviderResponse;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
+import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,7 +34,7 @@ public class MaintenanceProviderService {
         if (request.getName() == null || request.getName().isBlank() || request.getContactEmail() == null || request.getContactEmail().isBlank())
             throw new InvalidInformationException("Please fill in all the required fields.");
 
-        if (!EmailService.validateEmailFormat(request.getContactEmail().trim()))
+        if (!EmailValidation.isValid(request.getContactEmail().trim()))
             throw new InvalidInformationException("Pleas put a valid email address.");
 
         if (request.getName().trim().length() > 255)
