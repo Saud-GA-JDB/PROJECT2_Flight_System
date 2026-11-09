@@ -93,11 +93,5 @@ public class EmailService {
             sendAsyncEmail(email);
     }
 
-
-    // helper methods
-
-    public static boolean validateEmailFormat(String email) {
-        return EmailValidator.getInstance().isValid(email);
-    }
 }
 
