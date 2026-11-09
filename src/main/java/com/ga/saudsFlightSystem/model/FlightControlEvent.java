@@ -21,9 +21,8 @@ public class FlightControlEvent {
     @JoinColumn(name = "facility_id", nullable = false, updatable = false)
     private ControlFacility facility;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "actor_user_id", nullable = false, updatable = false)
-    private User actorUser;
+    @Column(name = "actor_user_id", nullable = false, updatable = false)
+    private Long actorUserId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false)

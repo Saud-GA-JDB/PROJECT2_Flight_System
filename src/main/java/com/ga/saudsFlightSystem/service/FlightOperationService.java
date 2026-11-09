@@ -364,8 +364,7 @@ public class FlightOperationService {
         FlightControlEvent event = new FlightControlEvent();
         event.setFlight(flight);
         event.setFacility(flight.getClearanceFacility());
-        // Retain the legacy relationship until the scalar-ID migration.
-        event.setActorUser(userRepository.getReferenceById(actor.userId()));
+        event.setActorUserId(actor.userId());
         event.setOperation(flight.getClearanceOperation());
         event.setEventType(type);
         event.setCycle(flight.getClearanceCycle());
@@ -524,7 +523,7 @@ public class FlightOperationService {
         long totalElements = eventRepository.countHistory(flightId, facilityId, operation == null ? null : operation.name());
         List<ControlEventResponse> content = new ArrayList<>();
         for (FlightControlEvent event : events)
-            content.add(new ControlEventResponse(event.getId(), flightId, event.getFacility().getId(), event.getActorUser().getId(),
+            content.add(new ControlEventResponse(event.getId(), flightId, event.getFacility().getId(), event.getActorUserId(),
                     event.getOperation(), event.getEventType(), event.getCycle(), event.getRevision(), event.getOccurredAt(), event.getReason()));
         return new ControlEventListResponse(content, page, size, totalElements, totalPages(totalElements, size));
     }

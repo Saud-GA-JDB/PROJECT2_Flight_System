@@ -141,7 +141,7 @@ public class FlightClearanceServiceTest {
         OperationResponse result = service.withdrawClearance(flight.getId(), FlightOperation.DEPARTURE, 1L).getBody();
         Assert.assertEquals("WITHDRAWN", result.getClearance().getStatus());
         Assert.assertEquals(1, result.getClearance().getCycle());
-        Assert.assertEquals(secondary.getId(), events.findById(result.getEventId()).get().getActorUser().getId());
+        Assert.assertEquals(secondary.getId(), events.findById(result.getEventId()).get().getActorUserId());
         assertWrites(1);
     }
 

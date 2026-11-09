@@ -445,7 +445,7 @@ public class FlightOperationServiceTest {
         FlightControlEvent duplicate = new FlightControlEvent();
         duplicate.setFlight(flight);
         duplicate.setFacility(origin);
-        duplicate.setActorUser(pilot);
+        duplicate.setActorUserId(pilot.getId());
         duplicate.setOperation(FlightOperation.DEPARTURE);
         duplicate.setEventType(FlightControlEvent.EventType.APPROVED);
         duplicate.setCycle(1);
@@ -480,7 +480,7 @@ public class FlightOperationServiceTest {
         FlightControlEvent event = new FlightControlEvent();
         event.setFlight(flight);
         event.setFacility(tower);
-        event.setActorUser(originController);
+        event.setActorUserId(originController.getId());
         event.setOperation(operation);
         event.setEventType(FlightControlEvent.EventType.REQUESTED);
         event.setCycle(revision);
