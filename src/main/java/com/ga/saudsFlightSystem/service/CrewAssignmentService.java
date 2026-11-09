@@ -11,6 +11,8 @@ import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,6 +36,7 @@ public class CrewAssignmentService {
     private UserRepository userRepository;
     private ApplicationEventPublisher eventPublisher;
     private NotificationService notificationService;
+    private CurrentActorProvider currentActorProvider;
 
     private static final Logger logger = Logger.getLogger(CrewAssignmentService.class.getName());
 
@@ -48,14 +51,8 @@ public class CrewAssignmentService {
 
     @Transactional
     public ResponseEntity<?> addCrewAssignment(Long flightId, AddCrewAssignmentRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
-
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
-
-        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
-        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        AirlineEmployee airlineAdmin = requireAirlineAdmin(actor);
 
         if (request.getEmployeeId() == null || request.getDuty() == null)
             throw new InvalidInformationException("Please fill in all the fields.");
@@ -107,21 +104,22 @@ public class CrewAssignmentService {
 
 
         String description = "Airline admin assigned employee with id " + employee.getId() + " to flight with id " + flightId + " with duty " + assignment.getDuty();
-        auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_CREATED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.CREW_ASSIGNMENT_CREATED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         notificationService.sendToUser(
-                user.getId(),
+                actor.userId(),
                 "Assignment_Created",
                 "employee " + employee.getFName()+" "+employee.getLName() + " assigned to Flight " +
                         flight.getFlightNumber() + " as " + assignment.getDuty()
         );
-        notificationService.sendToUser(
-                employeeUser.getId(),
-                "Flight_Assignment",
-                "You are assigned to flight " + flight.getFlightNumber() + " as " + assignment.getDuty() +
-                        " please check you assignment to view more details"
-        );
+        if (employeeUser != null) {
+            notificationService.sendToUser(employeeUser.getId(),
+                    "Flight_Assignment",
+                    "You are assigned to flight " + flight.getFlightNumber() + " as " + assignment.getDuty()
+                            + " please check you assignment to view more details"
+            );
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new CrewAssignmentResponse(assignment.getId(), flight.getId(), employee.getId(), assignment.getDuty(), assignment.getAssignedAt())
@@ -130,15 +128,8 @@ public class CrewAssignmentService {
 
     @Transactional
     public ResponseEntity<?> getCrewAssignments(Long flightId) {
-        User user = UserService.getCurrentLoggedInUser();
-
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
-
-        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
-
-        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        AirlineEmployee airlineAdmin = requireAirlineAdmin(actor);
 
         Flight flight = flightRepository.findByIdForCrewRead(flightId)
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find flight with this id."));
@@ -157,22 +148,16 @@ public class CrewAssignmentService {
         }
 
         String description = "Airline admin viewed " + assignmentsResponseList.size() + " crew assignments for flight with id " + flightId;
-        auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENTS_VIEWED, AuditLog.EntityType.FLIGHT, flightId, description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.CREW_ASSIGNMENTS_VIEWED, AuditLog.EntityType.FLIGHT, flightId, description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.OK).body(assignmentsResponseList);
     }
 
     @Transactional
     public ResponseEntity<?> removeCrewAssignment(Long flightId, Long employeeId) {
-        User user = UserService.getCurrentLoggedInUser();
-
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
-
-        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
-        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        AirlineEmployee airlineAdmin = requireAirlineAdmin(actor);
 
         Flight flight = flightRepository.findByIdForCrewWrite(flightId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find flight with this id."));
@@ -201,20 +186,23 @@ public class CrewAssignmentService {
         }
 
         String description = "Airline admin removed employee with id " + employeeId + " from flight with id " + flightId + " with duty " + assignment.getDuty();
-        auditLogService.addAuditLog(user, AuditLog.Action.CREW_ASSIGNMENT_REMOVED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.CREW_ASSIGNMENT_REMOVED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         notificationService.sendToUser(
-                user.getId(),
+                actor.userId(),
                 "Assignment_Removed",
                 "employee " + employee.getFName()+" "+employee.getLName() + " removed from Flight " +
                         flight.getFlightNumber()
         );
-        notificationService.sendToUser(
-                employee.getId(),
-                "Flight_Assignment",
-                "You are removed from flight " + flight.getFlightNumber() + " as " + assignment.getDuty()
-        );
+        User employeeUser = userRepository.findByAirlineEmployeeId(employee.getId());
+        if (employeeUser != null) {
+            notificationService.sendToUser(employeeUser.getId(),
+                    "Flight_Assignment",
+                    "You are removed from flight " + flight.getFlightNumber()
+                            + " as " + assignment.getDuty()
+            );
+        }
 
         return ResponseEntity.noContent().build();
     }
@@ -230,5 +218,14 @@ public class CrewAssignmentService {
 
     public boolean hasRequiredCrew(Long flightId) {
         return hasRequiredCrew(crewAssignmentRepository.findByFlightId(flightId));
+    }
+
+    private AirlineEmployee requireAirlineAdmin(CurrentActor actor) {
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role())) {
+            throw new IllegalEndpoint("You are not allowed this endpoint!");
+        }
+
+        return airlineEmployeeRepository.findByUserIdAndRole(actor.userId(), AirlineEmployee.AirlineRole.ADMIN)
+                .orElseThrow( () -> new IllegalEndpoint("You are not allowed this endpoint!"));
     }
 }
