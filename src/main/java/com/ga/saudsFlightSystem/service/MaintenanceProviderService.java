@@ -7,7 +7,10 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceProviderRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceProviderResponse;
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
@@ -22,13 +25,15 @@ import java.util.logging.Logger;
 public class MaintenanceProviderService {
     private MaintenanceProviderRepository maintenanceProviderRepository;
     private AuditLogService auditLogService;
+    private CurrentActorProvider currentActorProvider;
+    private AirlineEmployeeRepository airlineEmployeeRepository;
     private static final Logger logger = Logger.getLogger(MaintenanceProviderService.class.getName());
 
     @Transactional
     public ResponseEntity<?> addMaintenanceProvider(AddMaintenanceProviderRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()))
+        if (!"FAA_ADMIN".equals(actor.role()) )
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
         if (request.getName() == null || request.getName().isBlank() || request.getContactEmail() == null || request.getContactEmail().isBlank())
@@ -48,14 +53,14 @@ public class MaintenanceProviderService {
 
         String description = "FAA admin created maintenance provider with id " + maintenanceProvider.getId();
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.MAINTENANCE_PROVIDER_CREATED,
                 AuditLog.EntityType.MAINTENANCE_PROVIDER,
                 maintenanceProvider.getId(),
                 description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new MaintenanceProviderResponse(maintenanceProvider.getId(), maintenanceProvider.getName(), maintenanceProvider.getContactEmail())
@@ -64,20 +69,19 @@ public class MaintenanceProviderService {
 
     @Transactional
     public ResponseEntity<?> contractMaintenanceProvider(Long providerId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()) )
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
-
-        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
-            throw new IllegalEndpoint("only airline admins can access this endpoint.");
+        AirlineEmployee airlineAdmin = airlineEmployeeRepository.findByUserIdAndRole(actor.userId(), AirlineEmployee.AirlineRole.ADMIN)
+                .orElseThrow( () -> new IllegalEndpoint("only airline admins can access this endpoint"));
 
         MaintenanceProvider maintenanceProvider = maintenanceProviderRepository.findByIdForUpdate(providerId)
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find Maintenance provider with this id"));
 
         Airline airline = airlineAdmin.getAirline();
+
         if (maintenanceProviderRepository.existsByIdAndAirlines_Id(providerId, airline.getId()))
             throw new InformationExistException("Already contracted");
 
@@ -89,13 +93,13 @@ public class MaintenanceProviderService {
         String description = "Airline admin contracted maintenance provider with id " + maintenanceProvider.getId()
                         + " to airline with id " + airline.getId();
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.MAINTENANCE_PROVIDER_LINKED,
                 AuditLog.EntityType.MAINTENANCE_PROVIDER,
                 maintenanceProvider.getId(), description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.OK).body(
                 new MaintenanceProviderResponse(maintenanceProvider.getId(), maintenanceProvider.getName(), maintenanceProvider.getContactEmail())
