@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -31,7 +31,7 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class AirplaneService {
-    private UserRepository userRepository;
+    private AccountLookup accountLookup;
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
@@ -85,7 +85,7 @@ public class AirplaneService {
         String description = "Airline admin requested activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRPLANE_ACTIVATION_REQUESTED, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
 
-        emailService.sendEmail(userRepository.findEmailAddressById(actor.userId())
+        emailService.sendEmail(accountLookup.findEmailAddressById(actor.userId())
                 .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists.")), "Activation Request Submitted", String.format(
                 """
                         Your airplane activation request has been submitted for FAA review.
@@ -166,7 +166,7 @@ public class AirplaneService {
         String description = "Airline admin added airplane with id " + airplane.getId();
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRPLANE_CREATED, AuditLog.EntityType.AIRPLANE, airplane.getId(), description);
 
-        emailService.sendEmail(userRepository.findEmailAddressById(actor.userId())
+        emailService.sendEmail(accountLookup.findEmailAddressById(actor.userId())
                 .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists.")), "Airplane Added", String.format(
                 """
                         Your airplane has been added successfully.

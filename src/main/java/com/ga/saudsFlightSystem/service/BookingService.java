@@ -11,7 +11,7 @@ import com.ga.saudsFlightSystem.model.request.response.BookingSummaryResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
@@ -31,7 +31,7 @@ import java.util.logging.Logger;
 public class BookingService {
     private FlightRepository flightRepository;
     private BookingRepository bookingRepository;
-    private UserRepository userRepository;
+    private AccountLookup accountLookup;
     private EmailService emailService;
     private AuditLogService auditLogService;
     private PaymentRepository paymentRepository;
@@ -148,7 +148,7 @@ public class BookingService {
 
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.BOOKING_CANCELLED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
 
-        String bookingOwnerEmail = userRepository.findEmailAddressById(savedBooking.getUserId())
+        String bookingOwnerEmail = accountLookup.findEmailAddressById(savedBooking.getUserId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         emailService.sendEmail(bookingOwnerEmail, "Booking Cancelled", String.format(
                 """
@@ -180,7 +180,7 @@ public class BookingService {
         //validate input
         Flight flight = flightRepository.findByIdForUpdate(flightId)
                 .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
-        String bookingOwnerEmail = userRepository.findEmailAddressById(userId)
+        String bookingOwnerEmail = accountLookup.findEmailAddressById(userId)
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         if (flight.getStatus() != Flight.FlightStatus.ACTIVE || flight.getActualDeparture() != null)
             throw new InvalidInformationException("This flight is not Open for booking");
