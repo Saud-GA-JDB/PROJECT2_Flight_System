@@ -25,4 +25,13 @@ public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM AirlineEmployee e WHERE e.id = :employeeId")
     Optional<AirlineEmployee> findByIdForAssignment(@Param("employeeId") Long employeeId);
+
+    @Query("""
+    SELECT e FROM User u
+    JOIN u.airlineEmployee e
+    JOIN FETCH e.airline
+    WHERE u.id = :userId
+      AND e.airlineRole = :role
+    """)
+    Optional<AirlineEmployee> findByUserIdAndRole(@Param("userId") Long userId, @Param("role") AirlineEmployee.AirlineRole role);
 }

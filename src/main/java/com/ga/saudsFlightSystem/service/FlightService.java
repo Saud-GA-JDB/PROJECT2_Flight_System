@@ -6,7 +6,10 @@ import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.request.response.FlightResponse;
 import com.ga.saudsFlightSystem.model.request.response.FlightSearchResponse;
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,6 +30,8 @@ public class FlightService {
     private AuditLogService auditLogService;
     private CrewAssignmentService crewAssignmentService;
     private FlightStatusService flightStatusService;
+    private CurrentActorProvider currentActorProvider;
+    private AirlineEmployeeRepository airlineEmployeeRepository;
 
     private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
@@ -119,14 +124,13 @@ public class FlightService {
 
     @Transactional
     public ResponseEntity<?> activateFlight(Long flightId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role() ))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
-        if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
-            throw new IllegalEndpoint("You are not allowed this endpoint!");
+        AirlineEmployee airlineAdmin = airlineEmployeeRepository.findByUserIdAndRole(actor.userId(), AirlineEmployee.AirlineRole.ADMIN)
+                .orElseThrow( () -> new IllegalEndpoint("You are not allowed this endpoint!"));
 
         Flight flight = flightRepository.findByIdForCrewWrite(flightId)
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find a flight with this ID."));
@@ -144,11 +148,11 @@ public class FlightService {
         flightRepository.save(flight);
 
         String description = "Airline admin activated flight with id " + flightId;
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.FLIGHT_STATUS_CHANGED,
                 AuditLog.EntityType.FLIGHT,
                 flightId, description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.ok("Flight activated successfully.");
     }
