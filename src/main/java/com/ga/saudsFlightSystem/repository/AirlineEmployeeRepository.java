@@ -14,6 +14,14 @@ import java.util.Optional;
 public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee, Long> {
     boolean existsByCpr(String cpr);
 
+    @Query("""
+    SELECT e FROM User u
+    JOIN u.airlineEmployee e
+    LEFT JOIN FETCH e.airline
+    WHERE u.id = :userId
+    """)
+    Optional<AirlineEmployee> findByUserId(@Param("userId") Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM AirlineEmployee e WHERE e.id = :employeeId")
     Optional<AirlineEmployee> findByIdForAssignment(@Param("employeeId") Long employeeId);

@@ -7,10 +7,12 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.BookingResponse;
-import com.ga.saudsFlightSystem.repository.AirlineRepository;
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,31 +31,33 @@ public class BookingService {
     private FlightRepository flightRepository;
     private BookingRepository bookingRepository;
     private UserRepository userRepository;
-    private AirlineRepository airlineRepository;
     private EmailService emailService;
     private AuditLogService auditLogService;
     private PaymentRepository paymentRepository;
+    private CurrentActorProvider currentActorProvider;
+    private AirlineEmployeeRepository airlineEmployeeRepository;
 
     private static final Logger logger = Logger.getLogger(BookingService.class.getName());
 
     public List<Booking> getBookings() {
-        User user = UserService.getCurrentLoggedInUser();
-        if (user.getRole() != User.Role.AIRLINE_EMPLOYEE)
-            return bookingRepository.findByUser_Id(user.getId());
-        if (user.getAirlineEmployee() != null && user.getAirlineEmployee().getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN)
-            return bookingRepository.findByFlight_Airline_IdOrderByBookedAtDesc(user.getAirlineEmployee().getAirline().getId());
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
+            return bookingRepository.findByUser_Id(actor.userId());
+        AirlineEmployee employee = requireAirlineEmployee(actor.userId());
+        if (employee.getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN)
+            return bookingRepository.findByFlight_Airline_IdOrderByBookedAtDesc(employee.getAirline().getId());
         throw new IllegalEndpoint("You are not allowed to view these bookings");
     }
 
     public List<Booking> getUserBookings(Long userId, Long flightId, Booking.BookingStatus status) {
-        User user = UserService.getCurrentLoggedInUser();
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint");
 
-
-        if (user.getAirlineEmployee().getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+        AirlineEmployee employee = requireAirlineEmployee(actor.userId());
+        if (employee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
             throw new IllegalEndpoint("You are not allowed this endpoint.");
-        Long airlineId = user.getAirlineEmployee().getAirline().getId();
+        Long airlineId = employee.getAirline().getId();
 
         return bookingRepository.searchBookings(airlineId, userId, flightId, status);
     }
@@ -67,7 +71,7 @@ public class BookingService {
      */
     @Transactional
     public ResponseEntity<?> cancelBooking(Long bookingId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
         Long flightId = bookingRepository.findFlightIdByBookingId(bookingId)
                 .orElseThrow( () -> new InformationNotFoundException("No Booking with that id found"));
         Flight flight = flightRepository.findByIdForUpdate(flightId)
@@ -75,14 +79,13 @@ public class BookingService {
         Booking booking = bookingRepository.findByIdForPayment(bookingId).orElseThrow( () -> {
             throw new InformationNotFoundException("No Booking with that id found");
         });
-        if (user.getRole() == User.Role.AIRLINE_EMPLOYEE &&
-                (user.getAirlineEmployee() == null || user.getAirlineEmployee().getAirline() == null))
-            throw new IllegalEndpoint("No airline employee information found");
-        boolean isAirlineAdmin = user.getRole() == User.Role.AIRLINE_EMPLOYEE &&
-                user.getAirlineEmployee().getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN &&
-                Objects.equals(user.getAirlineEmployee().getAirline().getId(), booking.getFlight().getAirline().getId());
+        AirlineEmployee employee = "AIRLINE_EMPLOYEE".equals(actor.role())
+                ? requireAirlineEmployee(actor.userId()) : null;
+        boolean isAirlineAdmin = employee != null &&
+                employee.getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN &&
+                Objects.equals(employee.getAirline().getId(), booking.getFlight().getAirline().getId());
         //check that only airline admin can change other people bookings
-        if (!Objects.equals(user.getId(), booking.getUser().getId()) && !isAirlineAdmin)
+        if (!Objects.equals(actor.userId(), booking.getUser().getId()) && !isAirlineAdmin)
             throw new IllegalEndpoint("Only airline admins can cancel other people bookings for their airline");
 
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
@@ -106,7 +109,7 @@ public class BookingService {
             if (!LocalDateTime.now().isAfter(booking.getFlight().getScheduledDeparture().minusHours(48))) {
                 booking.setStatus(Booking.BookingStatus.CANCELLED);
             } else {
-                logger.warning("User with id " + user.getId() + " could not cancel booking with id " + bookingId + " because departure is less than 48 hours away");
+                logger.warning("User with id " + actor.userId() + " could not cancel booking with id " + bookingId + " because departure is less than 48 hours away");
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body("Sorry, Bookings must be cancelled 48 hours before flight departure. You can contact the airline customer service if you have special circumstances.");
             }
@@ -125,7 +128,7 @@ public class BookingService {
             description = "User cancelled booking with id " + savedBooking.getId() + " for their own account";
 
 
-        auditLogService.addAuditLog(user, AuditLog.Action.BOOKING_CANCELLED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.BOOKING_CANCELLED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
 
         emailService.sendEmail(savedBooking.getUser().getEmailAddress(), "Booking Cancelled", String.format(
                 """
@@ -135,7 +138,7 @@ public class BookingService {
                 savedBooking.getBookingRef(),
                 flight.getFlightNumber()
         ));
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new BookingResponse(
                         savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUser().getId(),
@@ -176,18 +179,18 @@ public class BookingService {
             throw new InvalidInformationException("sorry this seat is already booked");
         if (flight.getAirplane().getStatus() != Airplane.Status.ACTIVE)
             throw new InvalidInformationException("the plane assigned for this flight is InActive, please choose another flight");
-        User user = UserService.getCurrentLoggedInUser();
-        User.Role role = user.getRole();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
         Airline flightAirline = flight.getAirline();
         // not booking for himself
-        if (!Objects.equals(user.getId(), userId)) {
-            if (role != User.Role.AIRLINE_EMPLOYEE || user.getAirlineEmployee() == null) {
+        if (!Objects.equals(actor.userId(), userId)) {
+            if (!"AIRLINE_EMPLOYEE".equals(actor.role())) {
                 throw new IllegalEndpoint("only airline admin can book a flight for another user");
             }
-            if (role == User.Role.AIRLINE_EMPLOYEE && !Objects.equals(user.getAirlineEmployee().getAirline().getId(), flightAirline.getId())) {
+            AirlineEmployee employee = requireAirlineEmployee(actor.userId());
+            if (!Objects.equals(employee.getAirline().getId(), flightAirline.getId())) {
                 throw new IllegalEndpoint("You are not allowed to book for another airline");
             }
-            if (role == User.Role.AIRLINE_EMPLOYEE && user.getAirlineEmployee().getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
+            if (employee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
                 throw new IllegalEndpoint("only airline admin can book a flight for customers");
             }
         }
@@ -208,13 +211,13 @@ public class BookingService {
         Booking savedBooking = bookingRepository.save(booking);
 
         String description;
-        if (Objects.equals(user.getId(), bookingOwner.getId()))
+        if (Objects.equals(actor.userId(), bookingOwner.getId()))
             description = "User created booking with id " + savedBooking.getId() + " for their own account";
         else
             description = "Airline admin created booking with id " + savedBooking.getId() + " for user with id " + bookingOwner.getId();
 
 
-        auditLogService.addAuditLog(user, AuditLog.Action.BOOKING_CREATED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.BOOKING_CREATED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
 
         emailService.sendEmail(bookingOwner.getEmailAddress(), "Booking Confirmation", String.format(
                 """
@@ -234,11 +237,17 @@ public class BookingService {
                 flight.getDestinationAirport().getIataCode(),
                 flight.getScheduledDeparture()
         ));
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(201).body(new BookingResponse(
                 savedBooking.getId(), savedBooking.getBookingRef(), bookingOwner.getId(),
                 flight.getId(), savedBooking.getSeatNumber(), savedBooking.getStatus(),
                 savedBooking.getBookedAt()));
+    }
+
+    private AirlineEmployee requireAirlineEmployee(Long userId) {
+        return airlineEmployeeRepository.findByUserId(userId)
+                .filter(employee -> employee.getAirline() != null)
+                .orElseThrow(() -> new IllegalEndpoint("No airline employee information found"));
     }
 }
