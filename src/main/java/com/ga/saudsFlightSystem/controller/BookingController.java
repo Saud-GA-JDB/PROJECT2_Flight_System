@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.Booking;
+import com.ga.saudsFlightSystem.model.request.response.BookingSummaryResponse;
 import com.ga.saudsFlightSystem.service.BookingService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +16,7 @@ public class BookingController {
     private BookingService bookingService;
 
     @GetMapping
-    public List<Booking> getBookings() {
+    public List<BookingSummaryResponse> getBookings() {
         return bookingService.getBookings();
     }
 
@@ -25,9 +26,8 @@ public class BookingController {
     }
 
     @GetMapping("/search")
-    public List<Booking> searchBookings(@RequestParam(required = false) Long userId,
-                                        @RequestParam(required = false) Long flightId,
-                                        @RequestParam(required = false) Booking.BookingStatus status) {
+    public List<BookingSummaryResponse> searchBookings(@RequestParam(required = false) Long userId,
+            @RequestParam(required = false) Long flightId, @RequestParam(required = false) Booking.BookingStatus status) {
         return bookingService.getUserBookings(userId, flightId, status);
     }
 }

@@ -7,6 +7,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.BookingResponse;
+import com.ga.saudsFlightSystem.model.request.response.BookingSummaryResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -39,27 +40,44 @@ public class BookingService {
 
     private static final Logger logger = Logger.getLogger(BookingService.class.getName());
 
-    public List<Booking> getBookings() {
+    public List<BookingSummaryResponse> getBookings() {
         CurrentActor actor = currentActorProvider.getCurrentActor();
-        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
-            return bookingRepository.findByUser_Id(actor.userId());
+
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role())) {
+            return bookingRepository.findByUser_Id(actor.userId())
+                    .stream()
+                    .map(this::toBookingSummary)
+                    .toList();
+        }
+
         AirlineEmployee employee = requireAirlineEmployee(actor.userId());
-        if (employee.getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN)
-            return bookingRepository.findByFlight_Airline_IdOrderByBookedAtDesc(employee.getAirline().getId());
-        throw new IllegalEndpoint("You are not allowed to view these bookings");
+
+        if (employee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("You are not allowed to view these bookings");
+
+        return bookingRepository.findByFlight_Airline_IdOrderByBookedAtDesc(employee.getAirline().getId())
+                .stream()
+                .map(this::toBookingSummary)
+                .toList();
     }
 
-    public List<Booking> getUserBookings(Long userId, Long flightId, Booking.BookingStatus status) {
+    public List<BookingSummaryResponse> getUserBookings(Long userId, Long flightId, Booking.BookingStatus status) {
         CurrentActor actor = currentActorProvider.getCurrentActor();
+
         if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint");
 
         AirlineEmployee employee = requireAirlineEmployee(actor.userId());
+
         if (employee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
             throw new IllegalEndpoint("You are not allowed this endpoint.");
+
         Long airlineId = employee.getAirline().getId();
 
-        return bookingRepository.searchBookings(airlineId, userId, flightId, status);
+        return bookingRepository.searchBookings(airlineId, userId, flightId, status)
+                .stream()
+                .map(this::toBookingSummary)
+                .toList();
     }
 
     /**
@@ -243,6 +261,17 @@ public class BookingService {
                 savedBooking.getId(), savedBooking.getBookingRef(), bookingOwner.getId(),
                 flight.getId(), savedBooking.getSeatNumber(), savedBooking.getStatus(),
                 savedBooking.getBookedAt()));
+    }
+
+    private BookingSummaryResponse toBookingSummary(Booking booking) {
+        return new BookingSummaryResponse(
+                booking.getId(),
+                booking.getBookedAt(),
+                booking.getUpdatedAt(),
+                booking.getBookingRef(),
+                booking.getSeatNumber(),
+                booking.getStatus() == null ? null : booking.getStatus().name()
+        );
     }
 
     private AirlineEmployee requireAirlineEmployee(Long userId) {
