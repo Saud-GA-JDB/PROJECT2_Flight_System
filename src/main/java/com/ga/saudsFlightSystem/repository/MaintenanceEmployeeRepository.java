@@ -17,4 +17,11 @@ public interface MaintenanceEmployeeRepository extends JpaRepository<Maintenance
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM MaintenanceEmployee e WHERE e.id = :employeeId")
     Optional<MaintenanceEmployee> findByIdForUpdate(@Param("employeeId") Long employeeId);
+
+    @Query("""
+        SELECT e FROM User u JOIN u.maintenanceEmployee e
+        LEFT JOIN FETCH e.provider
+        WHERE u.id = :userId
+        """)
+    Optional<MaintenanceEmployee> findByUserId(@Param("userId") Long userId);
 }

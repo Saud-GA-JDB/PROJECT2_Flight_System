@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.BusinessConflictException;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
@@ -32,6 +35,8 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class MaintenanceRecordService {
+    private AirlineEmployeeRepository airlineEmployeeRepository;
+    private CurrentActorProvider currentActorProvider;
     private MaintenanceRecordRepository maintenanceRecordRepository;
     private MaintenanceEmployeeRepository maintenanceEmployeeRepository;
     private MaintenanceProviderRepository maintenanceProviderRepository;
@@ -43,12 +48,12 @@ public class MaintenanceRecordService {
 
     @Transactional
     public ResponseEntity<?> addMaintenanceRecord(Long airplaneId, AddMaintenanceRecordRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirlineEmployee airlineAdmin = user.getAirlineEmployee();
+        AirlineEmployee airlineAdmin = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (airlineAdmin == null || airlineAdmin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN || airlineAdmin.getAirline() == null)
             throw new IllegalEndpoint("Only airline admins can request maintenance.");
@@ -85,13 +90,13 @@ public class MaintenanceRecordService {
         String description = "Airline admin requested maintenance for airplane with id " + airplaneId
                 + " from provider with id " + provider.getId() + " (record id: " + record.getId() + ")";
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.MAINTENANCE_RECORD_CREATED,
                 AuditLog.EntityType.MAINTENANCE_RECORD,
                 record.getId(), description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new MaintenanceRecordResponse(
@@ -107,12 +112,12 @@ public class MaintenanceRecordService {
 
     @Transactional
     public ResponseEntity<?> getMaintenanceRequests() {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("maintenanceEmployee", user.getRole()))
+        if (!"MAINTENANCE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        MaintenanceEmployee admin = user.getMaintenanceEmployee();
+        MaintenanceEmployee admin = maintenanceEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getProvider() == null || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN)
             throw new IllegalEndpoint("You are not allowed this endpoint!");
@@ -144,15 +149,15 @@ public class MaintenanceRecordService {
 
     @Transactional
     public ResponseEntity<?> assignService(Long requestId, Long technicianId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("maintenanceEmployee", user.getRole()))
+        if (!"MAINTENANCE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
         if (requestId == null || technicianId == null)
             throw new InvalidInformationException("Please fill the fields");
 
-        MaintenanceEmployee admin = user.getMaintenanceEmployee();
+        MaintenanceEmployee admin = maintenanceEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getProvider() == null || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN)
             throw new IllegalEndpoint("You are not allowed this endpoint!");
@@ -185,15 +190,14 @@ public class MaintenanceRecordService {
                 + assignedEmployee.getId()
                 + " to maintenance record with id " + record.getId();
 
-        auditLogService.addAuditLog(
-                user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.MAINTENANCE_TECHNICIAN_ASSIGNED,
                 AuditLog.EntityType.MAINTENANCE_RECORD,
                 record.getId(),
                 description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.ok(new MaintenanceRecordResponse(
                 record.getId(),
@@ -269,15 +273,15 @@ public class MaintenanceRecordService {
 
         maintenanceRecordRepository.save(record);
 
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
         String description = "Technician with id " + technician.getId() + " completed maintenance record with id " + recordId;
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.MAINTENANCE_RECORD_COMPLETED, AuditLog.EntityType.MAINTENANCE_RECORD, recordId, description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.ok("Maintenance completed successfully.");
     }
@@ -288,11 +292,11 @@ public class MaintenanceRecordService {
         reason = validateCancellationReason(reason);
         MaintenanceRecord record = maintenanceRecordRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance record with this id."));
-        User user = activeUser();
-        AirlineEmployee admin = requireAirlineAdmin(user);
+        CurrentActor actor = activeActor();
+        AirlineEmployee admin = requireAirlineAdmin(actor);
         if (!Objects.equals(record.getAirplane().getAirline().getId(), admin.getAirline().getId()))
             throw new IllegalEndpoint("You can only cancel maintenance for your airline's airplanes.");
-        return ResponseEntity.ok(cancelMaintenance(record, user, reason));
+        return ResponseEntity.ok(cancelMaintenance(record, actor, reason));
     }
 
     @Transactional
@@ -301,20 +305,20 @@ public class MaintenanceRecordService {
         reason = validateCancellationReason(reason);
         MaintenanceRecord record = maintenanceRecordRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance record with this id."));
-        User user = activeUser();
-        MaintenanceEmployee admin = user.getMaintenanceEmployee();
-        if (user.getRole() != User.Role.MAINTENANCE_EMPLOYEE || admin == null || admin.getProvider() == null
+        CurrentActor actor = activeActor();
+        MaintenanceEmployee admin = maintenanceEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"MAINTENANCE_EMPLOYEE".equals(actor.role()) || admin == null || admin.getProvider() == null
                 || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN)
             throw new IllegalEndpoint("Only maintenance admins can cancel their provider's maintenance.");
         if (!Objects.equals(record.getProvider().getId(), admin.getProvider().getId()))
             throw new IllegalEndpoint("This record does not belong to your provider.");
-        return ResponseEntity.ok(cancelMaintenance(record, user, reason));
+        return ResponseEntity.ok(cancelMaintenance(record, actor, reason));
     }
 
     @Transactional
     public ResponseEntity<MaintenanceRecordListResponse> getAirlineMaintenanceHistory(Long airplaneId,
             MaintenanceRecord.MaintenanceStatus status, int page, int size) {
-        AirlineEmployee admin = requireAirlineAdmin(activeUser());
+        AirlineEmployee admin = requireAirlineAdmin(activeActor());
         if (airplaneId == null || airplaneId <= 0)
             throw new InvalidInformationException("Airplane ID must be positive.");
         if (page < 0 || size < 1 || size > 100)
@@ -338,17 +342,16 @@ public class MaintenanceRecordService {
     }
 
     // helper methods
-    private User activeUser() {
-        User principal = UserService.getCurrentLoggedInUser();
-        User user = principal == null ? null : userRepository.findById(principal.getId()).orElse(null);
-        if (user == null || !user.isActive() || user.getStatus() != User.Status.ACTIVE)
+    private CurrentActor activeActor() {
+        CurrentActor actor = currentActorProvider.getFreshCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()))
             throw new IllegalEndpoint("An active account is required.");
-        return user;
+        return actor;
     }
 
-    private AirlineEmployee requireAirlineAdmin(User user) {
-        AirlineEmployee admin = user.getAirlineEmployee();
-        if (user.getRole() != User.Role.AIRLINE_EMPLOYEE || admin == null || admin.getAirline() == null
+    private AirlineEmployee requireAirlineAdmin(CurrentActor actor) {
+        AirlineEmployee admin = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()) || admin == null || admin.getAirline() == null
                 || admin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
             throw new IllegalEndpoint("Only airline admins can access this endpoint.");
         return admin;
@@ -366,18 +369,19 @@ public class MaintenanceRecordService {
         return reason;
     }
 
-    private MaintenanceRecordResponse cancelMaintenance(MaintenanceRecord record, User user, String reason) {
+    private MaintenanceRecordResponse cancelMaintenance(MaintenanceRecord record, CurrentActor actor, String reason) {
         if (record.getStatus() != MaintenanceRecord.MaintenanceStatus.PENDING || record.getCompletedAt() != null)
             throw new BusinessConflictException("Only pending maintenance without a completion time can be cancelled. Refresh the record.");
         record.setStatus(MaintenanceRecord.MaintenanceStatus.CANCELLED);
         record.setCancellationReason(reason);
         record.setCancelledAt(Instant.now());
-        record.setCancelledBy(user);
+        // Retain the legacy relationship until the scalar-ID migration.
+        record.setCancelledBy(userRepository.getReferenceById(actor.userId()));
         maintenanceRecordRepository.save(record);
         maintenanceRecordRepository.flush();
 
-        String description = "User " + user.getId() + " cancelled maintenance record " + record.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.MAINTENANCE_CANCELLED,
+        String description = "User " + actor.userId() + " cancelled maintenance record " + record.getId();
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.MAINTENANCE_CANCELLED,
                 AuditLog.EntityType.MAINTENANCE_RECORD, record.getId(), description);
         logger.info(description);
 
@@ -397,12 +401,12 @@ public class MaintenanceRecordService {
     }
 
     private MaintenanceEmployee getCurrentTechnician() {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("maintenanceEmployee", user.getRole()))
+        if (!"MAINTENANCE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        MaintenanceEmployee technician = user.getMaintenanceEmployee();
+        MaintenanceEmployee technician = maintenanceEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (technician == null || technician.getProvider() == null || technician.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.TECHNICIAN)
             throw new IllegalEndpoint("Only maintenance technicians can access this endpoint.");

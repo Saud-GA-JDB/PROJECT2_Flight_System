@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -25,6 +27,7 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class AirportEmployeeService {
+    private CurrentActorProvider currentActorProvider;
 
     private AirportRepository airportRepository;
     private UserRepository userRepository;
@@ -40,9 +43,9 @@ public class AirportEmployeeService {
     @Transactional
     public ResponseEntity<?> addAirportOperatorAdmin(Long airportId, AddAirportEmployeeRequest request) {
 
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()))
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
         //checks that the fields are populated and validates the cpr, email, phone number, and password
@@ -54,18 +57,18 @@ public class AirportEmployeeService {
         if (airport.getOperator() == null)
             throw new InvalidInformationException("You need an operator before.");
 
-        return createAirportEmployee(user, airport, AirportEmployee.AirportRole.ADMIN, request);
+        return createAirportEmployee(actor, airport, AirportEmployee.AirportRole.ADMIN, request);
     }
 
     @Transactional
     public ResponseEntity<?> addAirportEmployee(AirportEmployee.AirportRole role, AddAirportEmployeeRequest request) {
 
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+        if (!"AIRPORT_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirportEmployee admin = user.getAirportEmployee();
+        AirportEmployee admin = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getAirport() == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN)
             throw new IllegalEndpoint("You are not allowed this endpoint!");
@@ -83,11 +86,11 @@ public class AirportEmployeeService {
                 || airport.getOperator() == null || !admin.getOperator().getId().equals(airport.getOperator().getId()))
             throw new IllegalEndpoint("Only an admin of this airport can create its employees.");
 
-        return createAirportEmployee(user, airport, role, request);
+        return createAirportEmployee(actor, airport, role, request);
     }
 
     // helper methods
-    private ResponseEntity<?> createAirportEmployee(User user, Airport airport, AirportEmployee.AirportRole role, AddAirportEmployeeRequest request) {
+    private ResponseEntity<?> createAirportEmployee(CurrentActor actor, Airport airport, AirportEmployee.AirportRole role, AddAirportEmployeeRequest request) {
         Long airportId = airport.getId();
 
         pendingRegistrationService.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
@@ -117,11 +120,11 @@ public class AirportEmployeeService {
         String description = "Created airport employee with id " + employee.getId() + " and role " + role
                 + " for airport with id " + airportId + " and operator with id " + airport.getOperator().getId();
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.AIRPORT_EMPLOYEE_CREATED, AuditLog.EntityType.USER, employeeUser.getId(), description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new AirportEmployeeResponse(

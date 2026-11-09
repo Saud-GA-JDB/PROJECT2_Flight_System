@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
@@ -26,6 +29,8 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class ATCService {
+    private FAAAdminRepository faaAdminRepository;
+    private CurrentActorProvider currentActorProvider;
     private AirNavigationServiceProviderRepository providerRepository;
     private ControlFacilityRepository facilityRepository;
     private ATCEmployeeRepository employeeRepository;
@@ -41,7 +46,7 @@ public class ATCService {
 
     @Transactional
     public ResponseEntity<ProviderResponse> addProvider(AddAirNavigationProviderRequest request) {
-        User user = requireFAAAdmin();
+        CurrentActor actor = requireFAAAdmin();
         if (request == null)
             throw new InvalidInformationException("Please fill in all the required fields.");
         checkField(request.getName(), 150);
@@ -55,9 +60,9 @@ public class ATCService {
         providerRepository.save(provider);
 
         String description = "FAA admin created air navigation provider with id " + provider.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.AIR_NAVIGATION_PROVIDER_CREATED,
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIR_NAVIGATION_PROVIDER_CREATED,
                 AuditLog.EntityType.AIR_NAVIGATION_PROVIDER, provider.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED).body(providerResponse(provider));
     }
 
@@ -74,7 +79,7 @@ public class ATCService {
 
     @Transactional
     public ResponseEntity<FacilityResponse> addFacility(Long providerId, AddControlFacilityRequest request) {
-        User user = requireFAAAdmin();
+        CurrentActor actor = requireFAAAdmin();
         checkId(providerId);
         if (request == null)
             throw new InvalidInformationException("Please fill in all the required fields.");
@@ -97,9 +102,9 @@ public class ATCService {
 
         String description = "FAA admin created control facility with id " + facility.getId()
                 + " for airport with id " + airport.getId() + " and provider with id " + providerId;
-        auditLogService.addAuditLog(user, AuditLog.Action.CONTROL_FACILITY_CREATED,
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.CONTROL_FACILITY_CREATED,
                 AuditLog.EntityType.CONTROL_FACILITY, facility.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED).body(facilityResponse(facility));
     }
 
@@ -119,33 +124,36 @@ public class ATCService {
 
     @Transactional
     public ResponseEntity<ATCEmployeeResponse> addAdmin(Long facilityId, AddATCEmployeeRequest request) {
-        User user = requireFAAAdmin();
+        CurrentActor actor = requireFAAAdmin();
         checkId(facilityId);
         validateEmployee(request);
         ControlFacility facility = facilityRepository.findByIdForUpdate(facilityId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find a control facility with this ID."));
         requireFAAAdmin();
-        return createEmployee(user, facility, ATCEmployee.ATCRole.ADMIN, request);
+        return createEmployee(actor, facility, ATCEmployee.ATCRole.ADMIN, request);
     }
 
     @Transactional
     public ResponseEntity<ATCEmployeeResponse> addController(AddATCEmployeeRequest request) {
-        User user = requireATCEmployee(true);
+        CurrentActor actor = requireActiveActor();
+        ATCEmployee currentEmployee = requireATCEmployee(actor, true);
         validateEmployee(request);
-        Long facilityId = user.getAtcEmployee().getFacility().getId();
+        Long facilityId = currentEmployee.getFacility().getId();
         ControlFacility facility = facilityRepository.findByIdForUpdate(facilityId)
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find a control facility with this ID."));
-        user = requireATCEmployee(true);
-        if (!facilityId.equals(user.getAtcEmployee().getFacility().getId()))
+        actor = requireActiveActor();
+        currentEmployee = requireATCEmployee(actor, true);
+        if (!facilityId.equals(currentEmployee.getFacility().getId()))
             throw new IllegalEndpoint("Only an admin of this tower can create its controllers.");
-        return createEmployee(user, facility, ATCEmployee.ATCRole.CONTROLLER, request);
+        return createEmployee(actor, facility, ATCEmployee.ATCRole.CONTROLLER, request);
     }
 
     @Transactional
     public ResponseEntity<ATCEmployeeListResponse> getControllers(int page, int size) {
-        User user = requireATCEmployee(true);
+        CurrentActor actor = requireActiveActor();
+        ATCEmployee currentEmployee = requireATCEmployee(actor, true);
         validatePagination(page, size);
-        Long facilityId = user.getAtcEmployee().getFacility().getId();
+        Long facilityId = currentEmployee.getFacility().getId();
         List<ATCEmployeeResponse> content = new ArrayList<>();
         for (User controller : userRepository.findTowerControllers(facilityId, size, (long) page * size))
             content.add(employeeResponse(controller));
@@ -155,12 +163,13 @@ public class ATCService {
 
     @Transactional
     public ResponseEntity<FacilityResponse> getOwnFacility() {
-        User user = requireATCEmployee(false);
-        return ResponseEntity.ok(facilityResponse(user.getAtcEmployee().getFacility()));
+        CurrentActor actor = requireActiveActor();
+        ATCEmployee currentEmployee = requireATCEmployee(actor, false);
+        return ResponseEntity.ok(facilityResponse(currentEmployee.getFacility()));
     }
 
     // helper methods
-    private ResponseEntity<ATCEmployeeResponse> createEmployee(User user, ControlFacility facility,
+    private ResponseEntity<ATCEmployeeResponse> createEmployee(CurrentActor actor, ControlFacility facility,
                                                              ATCEmployee.ATCRole role, AddATCEmployeeRequest request) {
         pendingRegistrationService.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
         String employeeNumber = request.getEmployeeNumber().trim().toUpperCase(Locale.ROOT);
@@ -190,36 +199,33 @@ public class ATCService {
 
         String description = "Created ATC employee with id " + employee.getId() + " and role " + role
                 + " for control facility with id " + facility.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.ATC_EMPLOYEE_CREATED,
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.ATC_EMPLOYEE_CREATED,
                 AuditLog.EntityType.USER, employeeUser.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED).body(employeeResponse(employeeUser));
     }
 
-    private User requireActiveUser() {
-        User user = UserService.getCurrentLoggedInUser();
-        if (user != null && user.getId() != null)
-            user = userRepository.findById(user.getId()).orElse(null);
-        if (user == null || !user.isActive() || user.getStatus() != User.Status.ACTIVE)
+    private CurrentActor requireActiveActor() {
+        CurrentActor actor = currentActorProvider.getFreshCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()))
             throw new IllegalEndpoint("An active account is required.");
-        return user;
+        return actor;
     }
 
-    private User requireFAAAdmin() {
-        User user = requireActiveUser();
-        if (user.getRole() != User.Role.FAA_ADMIN || user.getFaaAdmin() == null)
+    private CurrentActor requireFAAAdmin() {
+        CurrentActor actor = requireActiveActor();
+        if (!"FAA_ADMIN".equals(actor.role()) || faaAdminRepository.findByUserId(actor.userId()).isEmpty())
             throw new IllegalEndpoint("Only FAA admins can manage air navigation providers and towers.");
-        return user;
+        return actor;
     }
 
-    private User requireATCEmployee(boolean adminOnly) {
-        User user = requireActiveUser();
-        ATCEmployee employee = user.getAtcEmployee();
-        if (user.getRole() != User.Role.ATC_EMPLOYEE || employee == null || employee.getFacility() == null
+    private ATCEmployee requireATCEmployee(CurrentActor actor, boolean adminOnly) {
+        ATCEmployee employee = employeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"ATC_EMPLOYEE".equals(actor.role()) || employee == null || employee.getFacility() == null
                 || (employee.getAtcRole() != ATCEmployee.ATCRole.ADMIN && employee.getAtcRole() != ATCEmployee.ATCRole.CONTROLLER)
                 || (adminOnly && employee.getAtcRole() != ATCEmployee.ATCRole.ADMIN))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
-        return user;
+        return employee;
     }
 
     private void validateEmployee(AddATCEmployeeRequest request) {

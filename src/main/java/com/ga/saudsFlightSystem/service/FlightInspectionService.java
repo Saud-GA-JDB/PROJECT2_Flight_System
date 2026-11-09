@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -22,6 +25,8 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class FlightInspectionService {
+    private AirlineEmployeeRepository airlineEmployeeRepository;
+    private CurrentActorProvider currentActorProvider;
 
     private FlightRepository flightRepository;
     private FlightInspectionRepository flightInspectionRepository;
@@ -31,12 +36,12 @@ public class FlightInspectionService {
 
     @Transactional
     public ResponseEntity<?> assignInspector(Long flightId, Long inspectorId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+        if (!"AIRPORT_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirportEmployee admin = user.getAirportEmployee();
+        AirportEmployee admin = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN
                 || admin.getAirport() == null || admin.getOperator() == null)
@@ -84,23 +89,23 @@ public class FlightInspectionService {
         String description = "Airport admin assigned inspector " + inspectorId
                 + " to inspection " + inspection.getId() + " for flight " + flightId;
 
-        auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_INSPECTOR_ASSIGNED,
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.FLIGHT_INSPECTOR_ASSIGNED,
                 AuditLog.EntityType.FLIGHT_INSPECTION, inspection.getId(), description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.ok("Inspector assigned successfully. Inspection ID: " + inspection.getId());
     }
 
     @Transactional
     public ResponseEntity<?> completeInspection(Long flightId, Long inspectionId, FlightInspection.InspectionStatus result, String reason) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+        if (!"AIRPORT_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirportEmployee inspector = user.getAirportEmployee();
+        AirportEmployee inspector = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (inspector == null || inspector.getAirportRole() != AirportEmployee.AirportRole.INSPECTOR
                 || inspector.getAirport() == null || inspector.getOperator() == null)
@@ -147,23 +152,23 @@ public class FlightInspectionService {
         String description = "Inspector " + inspector.getId() + " completed inspection " + inspectionId
                 + " for flight " + flightId + " with result " + result;
 
-        auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_INSPECTION_COMPLETED,
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.FLIGHT_INSPECTION_COMPLETED,
                 AuditLog.EntityType.FLIGHT_INSPECTION, inspectionId, description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.ok("Inspection completed with result " + result + ".");
     }
 
     @Transactional
     public ResponseEntity<?> requestReInspection(Long flightId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirlineEmployee admin = user.getAirlineEmployee();
+        AirlineEmployee admin = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN || admin.getAirline() == null)
             throw new IllegalEndpoint("Only airline admins can request re-inspection.");
@@ -198,25 +203,23 @@ public class FlightInspectionService {
         String description = "Airline admin requested inspection " + inspection.getId() + " for flight " + flightId
                 + " after failed inspection " + previousInspection.getId();
 
-        auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_REINSPECTION_REQUESTED,
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.FLIGHT_REINSPECTION_REQUESTED,
                 AuditLog.EntityType.FLIGHT_INSPECTION, inspection.getId(), description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body("Re-inspection requested. Inspection ID: " + inspection.getId());
     }
 
     @Transactional
     public ResponseEntity<?> getAirportInspections() {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+        if (!"AIRPORT_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirportEmployee principalAdmin = user.getAirportEmployee();
-        AirportEmployee admin = principalAdmin == null ? null : airportEmployeeRepository
-                .findById(principalAdmin.getId()).orElse(null);
+        AirportEmployee admin = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN
                 || admin.getAirport() == null || admin.getOperator() == null || admin.getAirport().getOperator() == null
@@ -230,12 +233,12 @@ public class FlightInspectionService {
 
     @Transactional
     public ResponseEntity<?> getMyInspections() {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airportEmployee", user.getRole()))
+        if (!"AIRPORT_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirportEmployee inspector = user.getAirportEmployee();
+        AirportEmployee inspector = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (inspector == null || inspector.getAirportRole() != AirportEmployee.AirportRole.INSPECTOR)
             throw new IllegalEndpoint("Only inspectors can access their inspection assignments.");
@@ -247,12 +250,12 @@ public class FlightInspectionService {
 
     @Transactional
     public ResponseEntity<?> getFlightInspections(Long flightId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()))
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        AirlineEmployee admin = user.getAirlineEmployee();
+        AirlineEmployee admin = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN || admin.getAirline() == null)
             throw new IllegalEndpoint("Only airline admins can access this endpoint.");

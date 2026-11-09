@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.exception.LoginLimitExceededException;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
@@ -56,6 +58,7 @@ public class UserService {
     private static final ZoneId LOGIN_TIME_ZONE = ZoneId.of("Asia/Bahrain");
 
     private final UserRepository userRepository;
+    private final CurrentActorProvider currentActorProvider;
     private final PasswordEncoder passwordEncoder;
     private final JWTUtils jwtUtils;
     private final AuthenticationManager authenticationManager;
@@ -81,8 +84,10 @@ public class UserService {
                        PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
                        CustomerRepository customerRepository, AirlineEmployeeRepository airlineEmployeeRepository,
                        FAAAdminRepository faaAdminRepository, AirportEmployeeRepository airportEmployeeRepository, MaintenanceEmployeeRepository maintenanceEmployeeRepository,
-                       ATCEmployeeRepository atcEmployeeRepository, AuditLogService auditLogService) {
+                       ATCEmployeeRepository atcEmployeeRepository, AuditLogService auditLogService,
+                       CurrentActorProvider currentActorProvider) {
         this.userRepository = userRepository;
+        this.currentActorProvider = currentActorProvider;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
         this.authenticationManager = authenticationManager;
@@ -108,9 +113,9 @@ public class UserService {
      */
     @Transactional
     public User finishSetup(RegistrationRequest request) {
-        User user = getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (user == null || user.getStatus() != User.Status.SETUP_REQUIRED)
+        if (!"SETUP_REQUIRED".equals(actor.status()))
             throw new InvalidInformationException("This account does not require setup.");
         if (request.getPassword() == null || request.getPassword().isBlank())
             throw new InvalidInformationException("Password is required.");
@@ -135,9 +140,11 @@ public class UserService {
             throw new InvalidInformationException("Security question and answer are required.");
         }
 
-        PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(user.getEmailAddress());
+        String emailAddress = userRepository.findEmailAddressById(actor.userId())
+                .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists."));
+        PendingRegistration pending = pendingRegistrationService.getVerifiedRegistration(emailAddress);
 
-        user = userRepository.findByIdForUpdate(user.getId())
+        User user = userRepository.findByIdForUpdate(actor.userId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
 
         if (user.getStatus() != User.Status.SETUP_REQUIRED)
@@ -166,7 +173,7 @@ public class UserService {
         // Only delete pending after the user saves successfully.
         pendingRegistrationRepository.delete(pending);
         String description = "User completed their account setup";
-        auditLogService.addAuditLog(user, AuditLog.Action.USER_SETUP_COMPLETED, AuditLog.EntityType.USER, savedUser.getId(), description);
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.USER_SETUP_COMPLETED, AuditLog.EntityType.USER, savedUser.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
         return savedUser;
     }
@@ -320,12 +327,13 @@ public class UserService {
                     .body("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
         }
 
-        User user = userRepository.findByIdForUpdate(getCurrentLoggedInUser().getId())
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        User user = userRepository.findByIdForUpdate(actor.userId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         String description = "User changed their own password";
-        auditLogService.addAuditLog(user, AuditLog.Action.PASSWORD_CHANGED, AuditLog.EntityType.USER, user.getId(), description);
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.PASSWORD_CHANGED, AuditLog.EntityType.USER, user.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
         return ResponseEntity.status(HttpStatus.OK).body("Success! New Password Has Been Set");
     }
@@ -341,11 +349,11 @@ public class UserService {
      */
     @Transactional
     public ResponseEntity<?> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
-        User user = getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
         if (userId != null) {
-            if (!UserService.isAllowedEndpoint("faaadmin", user.getRole())
-                    || user.getFaaAdmin() == null) {
+            if (!"FAA_ADMIN".equals(actor.role())
+                    || faaAdminRepository.findByUserId(actor.userId()).isEmpty()) {
                 throw new IllegalEndpoint("Only FAA admins can update other users profiles");
             }
 
@@ -363,7 +371,7 @@ public class UserService {
             }
         }
 
-        User profileOwner = userRepository.findByIdForUpdate(userId != null ? userId : user.getId())
+        User profileOwner = userRepository.findByIdForUpdate(userId != null ? userId : actor.userId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
 
         Person person = null;
@@ -514,15 +522,15 @@ public class UserService {
                 description = "User updated their own profile";
 
 
-            auditLogService.addAuditLog(user, AuditLog.Action.PROFILE_UPDATED, AuditLog.EntityType.USER, profileOwner.getId(), description);
+            auditLogService.addAuditLogForActor(actor, AuditLog.Action.PROFILE_UPDATED, AuditLog.EntityType.USER, profileOwner.getId(), description);
 
-            logger.info(description + " (user id: " + user.getId() + ")");
+            logger.info(description + " (user id: " + actor.userId() + ")");
         }
 
         if (isDeactivation) {
             String description = "FAA admin deactivated user with id " + profileOwner.getId();
-            auditLogService.addAuditLog(user, AuditLog.Action.USER_DEACTIVATED, AuditLog.EntityType.USER, profileOwner.getId(), description);
-            logger.info(description + " (user id: " + user.getId() + ")");
+            auditLogService.addAuditLogForActor(actor, AuditLog.Action.USER_DEACTIVATED, AuditLog.EntityType.USER, profileOwner.getId(), description);
+            logger.info(description + " (user id: " + actor.userId() + ")");
         }
 
         return ResponseEntity.status(HttpStatus.OK)
@@ -603,6 +611,8 @@ public class UserService {
         return false;
     }
 
+    /** Legacy adapter for existing test fixtures; application callers use CurrentActorProvider. */
+    @Deprecated
     public static User getCurrentLoggedInUser() {
         MyUserDetails userDetails = (MyUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         return userDetails.getUser();

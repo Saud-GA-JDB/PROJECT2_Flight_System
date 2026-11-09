@@ -15,6 +15,19 @@ import java.util.List;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
+    interface AccountState {
+        Long getId();
+        User.Role getRole();
+        User.Status getStatus();
+        boolean isActive();
+    }
+
+    @Query("select u.id as id, u.role as role, u.status as status, u.isActive as active from User u where u.id = :userId")
+    Optional<AccountState> findAccountStateById(@Param("userId") Long userId);
+
+    @Query("select u.emailAddress from User u where u.id = :userId")
+    Optional<String> findEmailAddressById(@Param("userId") Long userId);
+
     @Query(value = """
         SELECT DISTINCT u.id FROM users u
         LEFT JOIN airline_employees a ON a.id = u.airline_employee_id

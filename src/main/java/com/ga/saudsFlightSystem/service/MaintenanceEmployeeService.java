@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.MaintenanceEmployeeRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -24,6 +27,8 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class MaintenanceEmployeeService {
+    private MaintenanceEmployeeRepository maintenanceEmployeeRepository;
+    private CurrentActorProvider currentActorProvider;
     private MaintenanceProviderRepository maintenanceProviderRepository;
     private UserRepository userRepository;
     private PendingRegistrationService pendingRegistrationService;
@@ -35,31 +40,31 @@ public class MaintenanceEmployeeService {
 
     @Transactional
     public ResponseEntity<?> addMaintenanceAdmin(Long providerId, AddMaintenanceEmployeeRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("faaAdmin", user.getRole()))
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        return createMaintenanceEmployee(providerId, request, MaintenanceEmployee.MaintenanceRole.ADMIN);
+        return createMaintenanceEmployee(actor, providerId, request, MaintenanceEmployee.MaintenanceRole.ADMIN);
     }
 
     @Transactional
     public ResponseEntity<?> addMaintenanceTechnician(AddMaintenanceEmployeeRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("maintenanceEmployee", user.getRole()))
+        if (!"MAINTENANCE_EMPLOYEE".equals(actor.role()))
             throw new IllegalEndpoint("You ae not allowed this endpoint!");
 
-        MaintenanceEmployee admin = user.getMaintenanceEmployee();
+        MaintenanceEmployee admin = maintenanceEmployeeRepository.findByUserId(actor.userId()).orElse(null);
 
         if (admin == null || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN || admin.getProvider() == null)
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
-        return createMaintenanceEmployee(admin.getProvider().getId(), request, MaintenanceEmployee.MaintenanceRole.TECHNICIAN);
+        return createMaintenanceEmployee(actor, admin.getProvider().getId(), request, MaintenanceEmployee.MaintenanceRole.TECHNICIAN);
     }
 
     // helper methods
-    private ResponseEntity<?> createMaintenanceEmployee(Long providerId, AddMaintenanceEmployeeRequest request, MaintenanceEmployee.MaintenanceRole role) {
+    private ResponseEntity<?> createMaintenanceEmployee(CurrentActor actor, Long providerId, AddMaintenanceEmployeeRequest request, MaintenanceEmployee.MaintenanceRole role) {
         validateAddMaintenanceEmployeeRequest(request, role);
 
         MaintenanceProvider maintenanceProvider = maintenanceProviderRepository.findByIdForUpdate(providerId)
@@ -95,15 +100,15 @@ public class MaintenanceEmployeeService {
         String description = "Created maintenance employee with id " + maintenanceEmployee.getId() +
                 " and role " + role + " for provider with id " + providerId;
 
-        auditLogService.addAuditLog(
-                UserService.getCurrentLoggedInUser(),
+        auditLogService.addAuditLogForActor(
+                actor,
                 AuditLog.Action.MAINTENANCE_EMPLOYEE_CREATED,
                 AuditLog.EntityType.USER,
                 maintenanceEmployeeUser.getId(),
                 description
         );
 
-        logger.info(description + " (user id: " + UserService.getCurrentLoggedInUser().getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new MaintenanceEmployeeResponse(

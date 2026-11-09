@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.model.User;
 import jakarta.annotation.PreDestroy;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,20 +18,20 @@ import java.util.logging.Logger;
 @Service
 public class NotificationService {
     private static final Logger logger = Logger.getLogger(NotificationService.class.getName());
-    private record Connection(Long userId, User.Role role, SseEmitter emitter) {}
+    private record Connection(Long userId, String role, SseEmitter emitter) {}
 
     private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
 
     /**
      * Opens a notification stream and removes its connection when it ends.
      *
-     * @param user logged in user receiving notifications
+     * @param actor authenticated caller receiving notifications
      * @return the notification stream
      * @throws IOException if the first connection message cannot be sent
      */
-    public SseEmitter subscribe(User user) throws IOException {
+    public SseEmitter subscribe(CurrentActor actor) throws IOException {
         SseEmitter emitter = createEmitter();
-        Connection connection = new Connection(user.getId(), user.getRole(), emitter);
+        Connection connection = new Connection(actor.userId(), actor.role(), emitter);
         emitter.onCompletion(() -> connections.remove(connection));
         emitter.onError(error -> connections.remove(connection));
         emitter.onTimeout(() -> {
@@ -48,6 +49,13 @@ public class NotificationService {
         return emitter;
     }
 
+    /** Compatibility for existing fixtures; HTTP callers pass a CurrentActor. */
+    @Deprecated
+    public SseEmitter subscribe(User user) throws IOException {
+        return subscribe(new CurrentActor(user.getId(), user.getRole().name(),
+                user.getStatus() == null ? null : user.getStatus().name(), user.isActive()));
+    }
+
     SseEmitter createEmitter() {
         // Reconnecting periodically re-runs JWT authentication and account checks.
         return new SseEmitter(300_000L);
@@ -58,7 +66,7 @@ public class NotificationService {
     }
 
     public void sendToRole(User.Role role, String eventName, Object data) {
-        afterCommit(() -> send(c -> c.role() == role, eventName, data));
+        afterCommit(() -> send(c -> role.name().equals(c.role()), eventName, data));
     }
 
     // wait for the transaction to succeed so users do not receive notifications for rolled back changes

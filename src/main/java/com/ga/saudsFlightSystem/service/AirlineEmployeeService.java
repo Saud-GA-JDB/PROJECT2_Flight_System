@@ -8,6 +8,8 @@ import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.response.AddFlightResponse;
 import com.ga.saudsFlightSystem.repository.*;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,7 +24,6 @@ import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.logging.Logger;
 
-import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.ACTIVE;
 import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.PENDING_CREW;
 
 @Service
@@ -40,6 +41,7 @@ public class AirlineEmployeeService {
     PendingRegistrationService pendingRegistrationService;
     NotificationService notificationService;
     AuditLogService auditLogService;
+    private CurrentActorProvider currentActorProvider;
 
     private static final Logger logger = Logger.getLogger(AirlineEmployeeService.class.getName());
 
@@ -52,10 +54,10 @@ public class AirlineEmployeeService {
      */
     @Transactional
     public ResponseEntity<?> addAirlineAdmin(Long airlineId, AddAirlineAdminRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
-        if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole())) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"FAA_ADMIN".equals(actor.role()) )
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
-        }
+
         //validation
         if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}")) {
             throw new InvalidInformationException("CPR must contain exactly 9 digits.");
@@ -117,8 +119,8 @@ public class AirlineEmployeeService {
         newUser.setStatus(User.Status.ACTIVE);
         airlineEmployeeRepository.save(airlineEmployee);
         String description = "FAA admin created airline admin with user id " + newUser.getId() + " for airline with id " + airlineId;
-        auditLogService.addAuditLog(user, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, newUser.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, newUser.getId(), description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
         request.setSecurityQuestionAnswer(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(request);
     }
@@ -132,12 +134,12 @@ public class AirlineEmployeeService {
      */
     @Transactional
     public ResponseEntity<?> addFlight(Long airplaneId, AddFlightRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
-        if(!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()) ) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if(!"AIRLINE_EMPLOYEE".equals(actor.role()) ) {
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
         }
-        AirlineEmployee airlineEmployee = user.getAirlineEmployee();
-        if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
+        AirlineEmployee airlineEmployee = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (airlineEmployee == null || airlineEmployee.getAirline() == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
             throw new IllegalEndpoint("Only airline admins can add flights!");
         }
 
@@ -170,7 +172,7 @@ public class AirlineEmployeeService {
         flight.setFirstClassPrice(request.getFirstClassPrice());
         flight.setStandardPrice(request.getStandardPrice());
         flight.setCurrency(request.getCurrency());
-        flight.setAirline(user.getAirlineEmployee().getAirline());
+        flight.setAirline(airlineEmployee.getAirline());
         flight.setStatus(PENDING_CREW);
         Airplane airplane = airplaneRepository.findByIdForUpdate(airplaneId)
                 .orElseThrow(() -> new InformationNotFoundException("couldn't find airplane with this id"));
@@ -193,11 +195,11 @@ public class AirlineEmployeeService {
         flightRepository.save(flight);
 
         String description = "Airline admin created flight with id " + flight.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.FLIGHT_CREATED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.FLIGHT_CREATED, AuditLog.EntityType.FLIGHT, flight.getId(), description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         notificationService.sendToUser(
-                user.getId(),
+                actor.userId(),
                 "FLIGHT_CREATED",
                 "Flight " + flight.getFlightNumber() + " added successfully."
         );

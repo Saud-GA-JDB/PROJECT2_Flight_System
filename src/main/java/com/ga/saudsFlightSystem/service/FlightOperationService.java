@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.ATCEmployeeRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.BusinessConflictException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
@@ -25,6 +28,8 @@ import java.util.List;
 @Service
 @AllArgsConstructor
 public class FlightOperationService {
+    private ATCEmployeeRepository atcEmployeeRepository;
+    private CurrentActorProvider currentActorProvider;
     private FlightRepository flightRepository;
     private CrewAssignmentRepository crewRepository;
     private FlightInspectionRepository inspectionRepository;
@@ -41,12 +46,13 @@ public class FlightOperationService {
     @Transactional(readOnly = true)
     public ResponseEntity<FlightOperationListResponse> getPilotFlights(Flight.FlightStatus status, LocalDate fromDate,
                                                                               LocalDate toDate, int page, int size) {
-        User user = requirePilot();
+        CurrentActor actor = activeActor();
+        AirlineEmployee pilot = requirePilot(actor);
         validatePagination(page, size);
         validateDates(fromDate, toDate);
-        List<Flight> flights = flightRepository.findPilotOperations(user.getAirlineEmployee().getId(),
+        List<Flight> flights = flightRepository.findPilotOperations(pilot.getId(),
                 status == null ? null : status.name(), startDate(fromDate), endDate(toDate), size, (long) page * size);
-        long totalElements = flightRepository.countPilotOperations(user.getAirlineEmployee().getId(),
+        long totalElements = flightRepository.countPilotOperations(pilot.getId(),
                 status == null ? null : status.name(), startDate(fromDate), endDate(toDate));
         return ResponseEntity.ok(summaries(flights, page, size, totalElements));
     }
@@ -54,22 +60,24 @@ public class FlightOperationService {
     @Transactional(readOnly = true)
     public ResponseEntity<FlightOperationListResponse> getTowerFlights(FlightOperation operation, Flight.FlightStatus status,
                                                                               LocalDate fromDate, LocalDate toDate, int page, int size) {
-        User user = requireTower();
+        CurrentActor actor = activeActor();
+        ATCEmployee towerEmployee = requireTower(actor);
         validatePagination(page, size);
         validateDates(fromDate, toDate);
-        List<Flight> flights = flightRepository.findTowerOperations(user.getAtcEmployee().getFacility().getAirport().getId(),
+        List<Flight> flights = flightRepository.findTowerOperations(towerEmployee.getFacility().getAirport().getId(),
                 operation == null ? null : operation.name(), status == null ? null : status.name(),
                 startDate(fromDate), endDate(toDate), size, (long) page * size);
-        long totalElements = flightRepository.countTowerOperations(user.getAtcEmployee().getFacility().getAirport().getId(),
+        long totalElements = flightRepository.countTowerOperations(towerEmployee.getFacility().getAirport().getId(),
                 operation == null ? null : operation.name(), status == null ? null : status.name(), startDate(fromDate), endDate(toDate));
         return ResponseEntity.ok(summaries(flights, page, size, totalElements));
     }
 
     @Transactional(readOnly = true)
     public ResponseEntity<FlightOperationListResponse> getTowerRequests(FlightOperation operation, int page, int size) {
-        User user = requireTower();
+        CurrentActor actor = activeActor();
+        ATCEmployee towerEmployee = requireTower(actor);
         validatePagination(page, size);
-        Long facilityId = user.getAtcEmployee().getFacility().getId();
+        Long facilityId = towerEmployee.getFacility().getId();
         List<Flight> flights = flightRepository.findPendingClearances(facilityId,
                 operation == null ? null : operation.name(), size, (long) page * size);
         long totalElements = flightRepository.countPendingClearances(facilityId, operation == null ? null : operation.name());
@@ -83,9 +91,10 @@ public class FlightOperationService {
 
     @Transactional(readOnly = true)
     public ResponseEntity<FlightOperationSummary> getTowerFlight(Long flightId) {
-        User user = requireTower();
+        CurrentActor actor = activeActor();
+        ATCEmployee towerEmployee = requireTower(actor);
         Flight flight = flight(flightId);
-        checkTowerFlight(user, flight);
+        checkTowerFlight(towerEmployee, flight);
         return ResponseEntity.ok(summary(flight, Instant.now()));
     }
 
@@ -107,12 +116,13 @@ public class FlightOperationService {
 
     @Transactional(readOnly = true)
     public ResponseEntity<ReadinessResponse> getTowerReadiness(Long flightId, FlightOperation operation) {
-        User user = requireTower();
+        CurrentActor actor = activeActor();
+        ATCEmployee towerEmployee = requireTower(actor);
         if (operation == null)
             throw new InvalidInformationException("Choose DEPARTURE or ARRIVAL.");
         Flight flight = flight(flightId);
         Airport responsible = operation == FlightOperation.DEPARTURE ? flight.getOriginAirport() : flight.getDestinationAirport();
-        if (responsible == null || !responsible.getId().equals(user.getAtcEmployee().getFacility().getAirport().getId()))
+        if (responsible == null || !responsible.getId().equals(towerEmployee.getFacility().getAirport().getId()))
             throw new IllegalEndpoint("Only the responsible tower may view readiness for this operation.");
         return ResponseEntity.ok(readinessService.evaluate(flight, operation, Instant.now()));
     }
@@ -125,9 +135,10 @@ public class FlightOperationService {
 
     @Transactional(readOnly = true)
     public ResponseEntity<ControlEventListResponse> getTowerEvents(Long flightId, FlightOperation operation, int page, int size) {
-        User user = requireTower();
-        checkTowerFlight(user, flight(flightId));
-        return ResponseEntity.ok(events(flightId, user.getAtcEmployee().getFacility().getId(), operation, page, size));
+        CurrentActor actor = activeActor();
+        ATCEmployee towerEmployee = requireTower(actor);
+        checkTowerFlight(towerEmployee, flight(flightId));
+        return ResponseEntity.ok(events(flightId, towerEmployee.getFacility().getId(), operation, page, size));
     }
 
     @Transactional(readOnly = true)
@@ -140,25 +151,25 @@ public class FlightOperationService {
     public ResponseEntity<OperationResponse> requestClearance(Long flightId, FlightOperation operation, Long expectedRevision) {
         validateCommand(flightId, operation, expectedRevision);
         Flight flight = lockOperation(flightId, operation == FlightOperation.DEPARTURE);
-        User user = commandPilot(flight);
+        CurrentActor actor = commandPilot(flight);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
         checkReadiness(flight, operation, now, "REQUEST");
         startCycle(flight, operation, tower);
         flight.setClearanceStatus(ClearanceStatus.PENDING);
-        return ResponseEntity.status(HttpStatus.CREATED).body(finishCommand(flight, user, FlightControlEvent.EventType.REQUESTED, null, now));
+        return ResponseEntity.status(HttpStatus.CREATED).body(finishCommand(flight, actor, FlightControlEvent.EventType.REQUESTED, null, now));
     }
 
     @Transactional
     public ResponseEntity<OperationResponse> withdrawClearance(Long flightId, FlightOperation operation, Long expectedRevision) {
         validateCommand(flightId, operation, expectedRevision);
         Flight flight = lockOperation(flightId, false);
-        User user = commandPilot(flight);
+        CurrentActor actor = commandPilot(flight);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
         requireCurrentClearance(flight, operation, tower, ClearanceStatus.PENDING);
         flight.setClearanceStatus(ClearanceStatus.WITHDRAWN);
-        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.WITHDRAWN, null, now));
+        return ResponseEntity.ok(finishCommand(flight, actor, FlightControlEvent.EventType.WITHDRAWN, null, now));
     }
 
     @Transactional
@@ -169,7 +180,7 @@ public class FlightOperationService {
             throw new InvalidInformationException("Choose APPROVED or REJECTED.");
         reason = validateReason(reason, decision == ClearanceStatus.REJECTED);
         Flight flight = lockOperation(flightId, operation == FlightOperation.DEPARTURE && decision == ClearanceStatus.APPROVED);
-        User user = commandTower(flight, operation);
+        CurrentActor actor = commandTower(flight, operation);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
         requireCurrentClearance(flight, operation, tower, ClearanceStatus.PENDING);
@@ -179,7 +190,7 @@ public class FlightOperationService {
         } else {
             flight.setClearanceStatus(ClearanceStatus.REJECTED);
         }
-        return ResponseEntity.ok(finishCommand(flight, user, decision == ClearanceStatus.APPROVED
+        return ResponseEntity.ok(finishCommand(flight, actor, decision == ClearanceStatus.APPROVED
                 ? FlightControlEvent.EventType.APPROVED : FlightControlEvent.EventType.REJECTED, reason, now));
     }
 
@@ -188,7 +199,7 @@ public class FlightOperationService {
         validateCommand(flightId, operation, expectedRevision);
         reason = validateReason(reason, false);
         Flight flight = lockOperation(flightId, operation == FlightOperation.DEPARTURE);
-        User user = commandTower(flight, operation);
+        CurrentActor actor = commandTower(flight, operation);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
         checkReadiness(flight, operation, now, "APPROVAL");
@@ -197,7 +208,7 @@ public class FlightOperationService {
         else
             startCycle(flight, operation, tower);
         approveClearance(flight, now);
-        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.APPROVED, reason, now));
+        return ResponseEntity.ok(finishCommand(flight, actor, FlightControlEvent.EventType.APPROVED, reason, now));
     }
 
     @Transactional
@@ -205,7 +216,7 @@ public class FlightOperationService {
         validateCommand(flightId, operation, expectedRevision);
         reason = validateReason(reason, true);
         Flight flight = lockOperation(flightId, false);
-        User user = commandTower(flight, operation);
+        CurrentActor actor = commandTower(flight, operation);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, operation, expectedRevision, now);
         requireCurrentClearance(flight, operation, tower, ClearanceStatus.APPROVED);
@@ -213,14 +224,14 @@ public class FlightOperationService {
                 || flight.getClearanceExpiresAt() == null || !now.isBefore(flight.getClearanceExpiresAt()))
             throw new BusinessConflictException("Clearance is expired or has invalid approval times. Refresh the flight.");
         flight.setClearanceStatus(ClearanceStatus.REVOKED);
-        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.REVOKED, reason, now));
+        return ResponseEntity.ok(finishCommand(flight, actor, FlightControlEvent.EventType.REVOKED, reason, now));
     }
 
     @Transactional
     public ResponseEntity<OperationResponse> takeOff(Long flightId, Long expectedRevision) {
         validateCommand(flightId, FlightOperation.DEPARTURE, expectedRevision);
         Flight flight = lockOperation(flightId, true);
-        User user = commandPilot(flight);
+        CurrentActor actor = commandPilot(flight);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, FlightOperation.DEPARTURE, expectedRevision, now);
         requireCurrentClearance(flight, FlightOperation.DEPARTURE, tower, ClearanceStatus.APPROVED);
@@ -228,14 +239,14 @@ public class FlightOperationService {
         flight.setActualDeparture(LocalDateTime.ofInstant(now, ZoneId.of("Asia/Bahrain")));
         flight.setStatus(Flight.FlightStatus.IN_AIR);
         flight.setClearanceStatus(ClearanceStatus.CONSUMED);
-        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.TAKE_OFF, null, now));
+        return ResponseEntity.ok(finishCommand(flight, actor, FlightControlEvent.EventType.TAKE_OFF, null, now));
     }
 
     @Transactional
     public ResponseEntity<OperationResponse> land(Long flightId, Long expectedRevision) {
         validateCommand(flightId, FlightOperation.ARRIVAL, expectedRevision);
         Flight flight = lockOperation(flightId, true);
-        User user = commandPilot(flight);
+        CurrentActor actor = commandPilot(flight);
         Instant now = Instant.now();
         ControlFacility tower = checkCommand(flight, FlightOperation.ARRIVAL, expectedRevision, now);
         requireCurrentClearance(flight, FlightOperation.ARRIVAL, tower, ClearanceStatus.APPROVED);
@@ -243,7 +254,7 @@ public class FlightOperationService {
         flight.setActualArrival(LocalDateTime.ofInstant(now, ZoneId.of("Asia/Bahrain")));
         flight.setStatus(Flight.FlightStatus.CLOSED);
         flight.setClearanceStatus(ClearanceStatus.CONSUMED);
-        return ResponseEntity.ok(finishCommand(flight, user, FlightControlEvent.EventType.LANDED, null, now));
+        return ResponseEntity.ok(finishCommand(flight, actor, FlightControlEvent.EventType.LANDED, null, now));
     }
 
     private void validateCommand(Long flightId, FlightOperation operation, Long expectedRevision) {
@@ -284,19 +295,21 @@ public class FlightOperationService {
         return flight;
     }
 
-    private User commandPilot(Flight flight) {
-        User user = requirePilot();
-        if (!crewRepository.isAssignedPilot(flight.getId(), user.getAirlineEmployee().getId()))
+    private CurrentActor commandPilot(Flight flight) {
+        CurrentActor actor = activeActor();
+        AirlineEmployee pilot = requirePilot(actor);
+        if (!crewRepository.isAssignedPilot(flight.getId(), pilot.getId()))
             throw new IllegalEndpoint("You are not currently assigned as a pilot on this flight.");
-        return user;
+        return actor;
     }
 
-    private User commandTower(Flight flight, FlightOperation operation) {
-        User user = requireTower();
+    private CurrentActor commandTower(Flight flight, FlightOperation operation) {
+        CurrentActor actor = activeActor();
+        ATCEmployee towerEmployee = requireTower(actor);
         Airport airport = operation == FlightOperation.DEPARTURE ? flight.getOriginAirport() : flight.getDestinationAirport();
-        if (airport == null || !airport.getId().equals(user.getAtcEmployee().getFacility().getAirport().getId()))
+        if (airport == null || !airport.getId().equals(towerEmployee.getFacility().getAirport().getId()))
             throw new IllegalEndpoint("Only the responsible tower may perform this operation.");
-        return user;
+        return actor;
     }
 
     private ControlFacility checkCommand(Flight flight, FlightOperation operation, Long expectedRevision, Instant now) {
@@ -345,13 +358,14 @@ public class FlightOperationService {
         flight.setClearanceExpiresAt(now.plusSeconds(1200));
     }
 
-    private OperationResponse finishCommand(Flight flight, User user, FlightControlEvent.EventType type, String reason, Instant now) {
+    private OperationResponse finishCommand(Flight flight, CurrentActor actor, FlightControlEvent.EventType type, String reason, Instant now) {
         flight.setClearanceRevision(flight.getClearanceRevision() + 1);
         flightRepository.save(flight);
         FlightControlEvent event = new FlightControlEvent();
         event.setFlight(flight);
         event.setFacility(flight.getClearanceFacility());
-        event.setActorUser(user);
+        // Retain the legacy relationship until the scalar-ID migration.
+        event.setActorUser(userRepository.getReferenceById(actor.userId()));
         event.setOperation(flight.getClearanceOperation());
         event.setEventType(type);
         event.setCycle(flight.getClearanceCycle());
@@ -360,7 +374,7 @@ public class FlightOperationService {
         event.setReason(reason);
         eventRepository.save(event);
         String description = "Flight " + flight.getId() + " clearance " + type + " cycle " + event.getCycle()
-                + " revision " + event.getRevision() + " by user " + user.getId();
+                + " revision " + event.getRevision() + " by user " + actor.userId();
         AuditLog.Action action;
         if (type == FlightControlEvent.EventType.TAKE_OFF)
             action = AuditLog.Action.FLIGHT_TAKE_OFF;
@@ -368,7 +382,7 @@ public class FlightOperationService {
             action = AuditLog.Action.FLIGHT_LANDED;
         else
             action = AuditLog.Action.valueOf("FLIGHT_CLEARANCE_" + type.name());
-        auditLogService.addAuditLog(user, action,
+        auditLogService.addAuditLogForActor(actor, action,
                 AuditLog.EntityType.FLIGHT_CONTROL_EVENT, event.getId(), description);
         logger.info(description);
         String eventName = "Clearance_" + type.name().charAt(0) + type.name().substring(1).toLowerCase(java.util.Locale.ROOT);
@@ -394,44 +408,43 @@ public class FlightOperationService {
     }
 
     // helper methods
-    private User activeUser() {
-        User principal = UserService.getCurrentLoggedInUser();
-        User user = principal == null ? null : userRepository.findById(principal.getId()).orElse(null);
-        if (user == null || !user.isActive() || user.getStatus() != User.Status.ACTIVE)
+    private CurrentActor activeActor() {
+        CurrentActor actor = currentActorProvider.getFreshCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()))
             throw new IllegalEndpoint("An active account is required.");
-        return user;
+        return actor;
     }
 
-    private User requirePilot() {
-        User user = activeUser();
-        if (user.getRole() != User.Role.AIRLINE_EMPLOYEE || user.getAirlineEmployee() == null
-                || user.getAirlineEmployee().getAirlineRole() != AirlineEmployee.AirlineRole.PILOT)
+    private AirlineEmployee requirePilot(CurrentActor actor) {
+        AirlineEmployee employee = employeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()) || employee == null
+                || employee.getAirlineRole() != AirlineEmployee.AirlineRole.PILOT)
             throw new IllegalEndpoint("Only assigned pilots may access these flight operations.");
-        return user;
+        return employee;
     }
 
-    private User requireTower() {
-        User user = activeUser();
-        ATCEmployee employee = user.getAtcEmployee();
-        if (user.getRole() != User.Role.ATC_EMPLOYEE || employee == null || employee.getFacility() == null
+    private ATCEmployee requireTower(CurrentActor actor) {
+        ATCEmployee employee = atcEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"ATC_EMPLOYEE".equals(actor.role()) || employee == null || employee.getFacility() == null
                 || employee.getFacility().getAirport() == null
                 || (employee.getAtcRole() != ATCEmployee.ATCRole.ADMIN && employee.getAtcRole() != ATCEmployee.ATCRole.CONTROLLER))
             throw new IllegalEndpoint("Only tower staff may access these flight operations.");
-        return user;
+        return employee;
     }
 
     private Flight pilotFlight(Long flightId) {
-        User user = requirePilot();
+        CurrentActor actor = activeActor();
+        AirlineEmployee pilot = requirePilot(actor);
         Flight flight = flight(flightId);
-        if (!crewRepository.isAssignedPilot(flightId, user.getAirlineEmployee().getId()))
+        if (!crewRepository.isAssignedPilot(flightId, pilot.getId()))
             throw new IllegalEndpoint("You are not currently assigned as a pilot on this flight.");
         return flight;
     }
 
     private Flight airlineFlight(Long flightId) {
-        User user = activeUser();
-        AirlineEmployee employee = user.getAirlineEmployee();
-        if (user.getRole() != User.Role.AIRLINE_EMPLOYEE || employee == null
+        CurrentActor actor = activeActor();
+        AirlineEmployee employee = employeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()) || employee == null
                 || employee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN || employee.getAirline() == null)
             throw new IllegalEndpoint("Only airline admins may access this endpoint.");
         Flight flight = flight(flightId);
@@ -440,8 +453,8 @@ public class FlightOperationService {
         return flight;
     }
 
-    private void checkTowerFlight(User user, Flight flight) {
-        Long airportId = user.getAtcEmployee().getFacility().getAirport().getId();
+    private void checkTowerFlight(ATCEmployee towerEmployee, Flight flight) {
+        Long airportId = towerEmployee.getFacility().getAirport().getId();
         if ((flight.getOriginAirport() == null || !airportId.equals(flight.getOriginAirport().getId()))
                 && (flight.getDestinationAirport() == null || !airportId.equals(flight.getDestinationAirport().getId())))
             throw new IllegalEndpoint("This flight does not use your tower's airport.");

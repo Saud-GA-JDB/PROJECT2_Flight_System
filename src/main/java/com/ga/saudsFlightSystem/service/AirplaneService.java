@@ -1,5 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -27,6 +31,9 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class AirplaneService {
+    private UserRepository userRepository;
+    private AirlineEmployeeRepository airlineEmployeeRepository;
+    private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
     private NotificationService notificationService;
@@ -45,12 +52,12 @@ public class AirplaneService {
      */
     @Transactional
     public ResponseEntity<?> requestActivation(Long airplaneId) {
-        User user = UserService.getCurrentLoggedInUser();
-        if (!UserService.isAllowedEndpoint("airlineEmployee", user.getRole())) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role())) {
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
         }
-        AirlineEmployee airlineEmployee = user.getAirlineEmployee();
-        if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
+        AirlineEmployee airlineEmployee = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (airlineEmployee == null || airlineEmployee.getAirline() == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
             throw new IllegalEndpoint("Only airline admins can request airplane activation!");
         }
         Airplane airplane = airplaneRepository.findByIdForUpdate(airplaneId)
@@ -72,13 +79,15 @@ public class AirplaneService {
         }
         AirplaneRequest request = new AirplaneRequest();
         request.setAirplane(airplane);
-        request.setRequestedBy(user);
+        // Retain the legacy relationship until the scalar-ID migration.
+        request.setRequestedBy(userRepository.getReferenceById(actor.userId()));
         airplaneRequestRepository.save(request);
 
         String description = "Airline admin requested activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
-        auditLogService.addAuditLog(user, AuditLog.Action.AIRPLANE_ACTIVATION_REQUESTED, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRPLANE_ACTIVATION_REQUESTED, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
 
-        emailService.sendEmail(user.getEmailAddress(), "Activation Request Submitted", String.format(
+        emailService.sendEmail(userRepository.findEmailAddressById(actor.userId())
+                .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists.")), "Activation Request Submitted", String.format(
                 """
                         Your airplane activation request has been submitted for FAA review.
                         Registration number: %s
@@ -93,7 +102,7 @@ public class AirplaneService {
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
                 request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt());
         notificationService.sendToRole(User.Role.FAA_ADMIN, "airplane-activation-requested", response);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -123,12 +132,12 @@ public class AirplaneService {
      */
     @Transactional
     public ResponseEntity<?> addAirplane(String registrationNumber, String model, int standardSeatCapacity, int firstClassSeatCapacity, Long maxMileage) {
-        User user = UserService.getCurrentLoggedInUser();
-        if(!UserService.isAllowedEndpoint("airlineEmployee", user.getRole()) ) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if(!"AIRLINE_EMPLOYEE".equals(actor.role()) ) {
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
         }
-        AirlineEmployee airlineEmployee = user.getAirlineEmployee();
-        if (airlineEmployee == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
+        AirlineEmployee airlineEmployee = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (airlineEmployee == null || airlineEmployee.getAirline() == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN) {
             throw new IllegalEndpoint("Only airline admins can add airplanes!");
         }
         if (registrationNumber == null || registrationNumber.isBlank() ||
@@ -156,9 +165,10 @@ public class AirplaneService {
         airplaneRepository.save(airplane);
 
         String description = "Airline admin added airplane with id " + airplane.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.AIRPLANE_CREATED, AuditLog.EntityType.AIRPLANE, airplane.getId(), description);
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRPLANE_CREATED, AuditLog.EntityType.AIRPLANE, airplane.getId(), description);
 
-        emailService.sendEmail(user.getEmailAddress(), "Airplane Added", String.format(
+        emailService.sendEmail(userRepository.findEmailAddressById(actor.userId())
+                .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists.")), "Airplane Added", String.format(
                 """
                         Your airplane has been added successfully.
                         Registration number: %s
@@ -169,13 +179,13 @@ public class AirplaneService {
                 airplane.getModel()
         ));
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
-        String addedBy = user.getAirlineEmployee().getFName() + " " + user.getAirlineEmployee().getLName();
+        String addedBy = airlineEmployee.getFName() + " " + airlineEmployee.getLName();
 
         AddAirplaneResponse response = new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), addedBy, airplane.getStatus());
 
-        notificationService.sendToUser(user.getId(), "airplane-added", response);
+        notificationService.sendToUser(actor.userId(), "airplane-added", response);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

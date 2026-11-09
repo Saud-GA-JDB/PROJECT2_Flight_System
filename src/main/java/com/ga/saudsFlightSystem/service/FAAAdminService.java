@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -26,6 +29,8 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class FAAAdminService {
+    private FAAAdminRepository faaAdminRepository;
+    private CurrentActorProvider currentActorProvider;
     private UserService userService;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
@@ -35,8 +40,9 @@ public class FAAAdminService {
     private static final Logger logger = Logger.getLogger(FAAAdminService.class.getName());
 
     public ResponseEntity<?> getPendingAirplaneRequests() {
-        User user = UserService.getCurrentLoggedInUser();
-        if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()) || user.getFaaAdmin() == null) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        FAAAdmin faaAdmin = faaAdminRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"FAA_ADMIN".equals(actor.role()) || faaAdmin == null) {
             throw new IllegalEndpoint("Only FAA admins can view airplane activation requests!");
         }
         List<AirplaneRequestResponse> responses = new ArrayList<>();
@@ -59,9 +65,10 @@ public class FAAAdminService {
      */
     @Transactional
     public ResponseEntity<?> reviewAirplaneRequest(Long requestId, ReviewAirplaneRequest review) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()) || user.getFaaAdmin() == null) {
+        FAAAdmin faaAdmin = faaAdminRepository.findByUserId(actor.userId()).orElse(null);
+        if (!"FAA_ADMIN".equals(actor.role()) || faaAdmin == null) {
             throw new IllegalEndpoint("Only FAA admins can review airplane activation requests!");
         }
         if (review.getStatus() != AirplaneRequest.ApprovalStatus.ACCEPTED &&
@@ -97,7 +104,7 @@ public class FAAAdminService {
         request.setStatus(review.getStatus());
         request.setReviewReason(reason);
         request.setReviewedAt(LocalDateTime.now());
-        request.setReviewedBy(user.getFaaAdmin());
+        request.setReviewedBy(faaAdmin);
         airplaneRepository.save(airplane);
         airplaneRequestRepository.save(request);
 
@@ -110,7 +117,7 @@ public class FAAAdminService {
             description = "FAA admin denied activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
             action = AuditLog.Action.AIRPLANE_ACTIVATION_DENIED;
         }
-        auditLogService.addAuditLog(user, action, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
+        auditLogService.addAuditLogForActor(actor, action, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
 
         emailService.sendEmail(request.getRequestedBy().getEmailAddress(),
                 "Activation Request " + request.getStatus(), String.format(
@@ -128,7 +135,7 @@ public class FAAAdminService {
                         request.getReviewReason()
                 ));
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.OK).body(new AirplaneRequestResponse(
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
                 request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt()));

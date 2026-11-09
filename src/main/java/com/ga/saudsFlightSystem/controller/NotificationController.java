@@ -1,7 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.service.NotificationService;
-import com.ga.saudsFlightSystem.service.UserService;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,11 +17,12 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class NotificationController {
     private final NotificationService notificationService;
+    private final CurrentActorProvider currentActorProvider;
 
     @GetMapping(produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<SseEmitter> subscribe() throws IOException {
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-cache")
-                .body(notificationService.subscribe(UserService.getCurrentLoggedInUser()));
+                .body(notificationService.subscribe(currentActorProvider.getCurrentActor()));
     }
 }
