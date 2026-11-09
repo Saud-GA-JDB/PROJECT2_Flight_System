@@ -7,7 +7,8 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Booking;
 import com.ga.saudsFlightSystem.model.Flight;
 import com.ga.saudsFlightSystem.model.Payment;
-import com.ga.saudsFlightSystem.model.User;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.model.request.response.PaymentResponse;
 import com.ga.saudsFlightSystem.model.request.response.CheckoutResponse;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -27,16 +28,17 @@ public class PaymentService {
     private BookingRepository bookingRepository;
     private PaymentRepository paymentRepository;
     private FlightRepository flightRepository;
+    private CurrentActorProvider currentActorProvider;
 
     @Transactional(readOnly = true)
     public PaymentResponse getPayment(Long bookingId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() ->
                         new InformationNotFoundException("No booking with that id found"));
 
-        if (!Objects.equals(user.getId(), booking.getUser().getId()))
+        if (!Objects.equals(actor.userId(), booking.getUser().getId()))
             throw new IllegalEndpoint("You can only access your own payment");
 
         Payment payment = paymentRepository.findByBooking_Id(bookingId)
@@ -102,13 +104,13 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public String getCheckoutSessionId(Long paymentId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() ->
                         new InformationNotFoundException("No payment with that id found"));
 
-        if (!Objects.equals(user.getId(), payment.getBooking().getUser().getId()))
+        if (!Objects.equals(actor.userId(), payment.getBooking().getUser().getId()))
             throw new IllegalEndpoint("You can only access your own payment");
 
         return payment.getStripeCheckoutSessionId();
@@ -116,13 +118,13 @@ public class PaymentService {
 
     @Transactional
     public CheckoutResponse saveCheckoutSession(Long bookingId, Session session) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
         Booking booking = bookingRepository.findByIdForPayment(bookingId)
                 .orElseThrow(() ->
                         new InformationNotFoundException("No booking with that id found"));
 
-        if (!Objects.equals(user.getId(), booking.getUser().getId()))
+        if (!Objects.equals(actor.userId(), booking.getUser().getId()))
             throw new IllegalEndpoint("You can only pay for your own booking");
 
         Payment payment = paymentRepository.findByBooking_Id(bookingId)
@@ -152,7 +154,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse preparePayment(Long bookingId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
         Long flightId = bookingRepository.findFlightIdByBookingId(bookingId)
                 .orElseThrow( () -> new InformationNotFoundException("No booking with that id found"));
@@ -163,7 +165,7 @@ public class PaymentService {
         Booking booking = bookingRepository.findByIdForPayment(bookingId)
                 .orElseThrow( () -> new InformationNotFoundException("No booking with that id found"));
 
-        if (!Objects.equals(user.getId(), booking.getUser().getId()))
+        if (!Objects.equals(actor.userId(), booking.getUser().getId()))
             throw new IllegalEndpoint("You can only pay for your own booking");
 
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
