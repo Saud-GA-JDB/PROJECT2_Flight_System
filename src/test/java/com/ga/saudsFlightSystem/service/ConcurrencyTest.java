@@ -201,7 +201,7 @@ public class ConcurrencyTest {
             airplane.setStatus(Airplane.Status.GROUNDED);
             AirplaneRequest request = new AirplaneRequest();
             request.setAirplane(airplane);
-            request.setRequestedBy(userRepository.findById(userId).orElseThrow());
+            request.setRequestedByUserId(userRepository.findById(userId).orElseThrow().getId());
             return airplaneRequestRepository.save(request).getId();
         });
         ReviewAirplaneRequest accepted = jsonMapper.readValue(

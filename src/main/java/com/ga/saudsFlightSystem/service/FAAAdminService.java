@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
+import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
@@ -30,6 +31,7 @@ import java.util.logging.Logger;
 @AllArgsConstructor
 public class FAAAdminService {
     private FAAAdminRepository faaAdminRepository;
+    private UserRepository userRepository;
     private CurrentActorProvider currentActorProvider;
     private UserService userService;
     private AirplaneRepository airplaneRepository;
@@ -119,7 +121,9 @@ public class FAAAdminService {
         }
         auditLogService.addAuditLogForActor(actor, action, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
 
-        emailService.sendEmail(request.getRequestedBy().getEmailAddress(),
+        String requesterEmail = userRepository.findEmailAddressById(request.getRequestedByUserId())
+                .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists."));
+        emailService.sendEmail(requesterEmail,
                 "Activation Request " + request.getStatus(), String.format(
                         """
                                 Your airplane activation request has been reviewed.

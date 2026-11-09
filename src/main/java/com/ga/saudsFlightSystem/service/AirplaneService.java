@@ -79,8 +79,7 @@ public class AirplaneService {
         }
         AirplaneRequest request = new AirplaneRequest();
         request.setAirplane(airplane);
-        // Retain the legacy relationship until the scalar-ID migration.
-        request.setRequestedBy(userRepository.getReferenceById(actor.userId()));
+        request.setRequestedByUserId(actor.userId());
         airplaneRequestRepository.save(request);
 
         String description = "Airline admin requested activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";

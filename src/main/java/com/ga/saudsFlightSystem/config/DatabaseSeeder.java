@@ -418,8 +418,8 @@ public class DatabaseSeeder implements CommandLineRunner {
     private void activationRequest(Airplane plane, User admin) {
         AirplaneRequest existing = em.find(AirplaneRequest.class, 900002L);
         if (existing != null) {
-            require(Objects.equals(existing.getAirplane().getId(), plane.getId()) && existing.getRequestedBy() != null
-                    && Objects.equals(existing.getRequestedBy().getId(), admin.getId()), "activation request 900002");
+            require(Objects.equals(existing.getAirplane().getId(), plane.getId()) && existing.getRequestedByUserId() != null
+                    && Objects.equals(existing.getRequestedByUserId(), admin.getId()), "activation request 900002");
             return;
         }
         em.createNativeQuery("""

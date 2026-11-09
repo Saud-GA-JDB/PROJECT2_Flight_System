@@ -3,7 +3,6 @@ package com.ga.saudsFlightSystem.model.request;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ga.saudsFlightSystem.model.Airplane;
 import com.ga.saudsFlightSystem.model.FAAAdmin;
-import com.ga.saudsFlightSystem.model.User;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -37,10 +36,9 @@ public class AirplaneRequest {
     @Column
     private LocalDateTime reviewedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "requested_by_id")
+    @Column(name = "requested_by_id")
     @JsonIgnore
-    private User requestedBy;
+    private Long requestedByUserId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewed_by_id")

@@ -35,6 +35,8 @@ public class FAAAdminServiceTest {
     @Autowired
     AirplaneRequestRepository airplaneRequestRepository;
     @Autowired
+    UserRepository userRepository;
+    @Autowired
     AuthenticationManager authenticationManager;
     @Autowired
     JsonMapper jsonMapper;
@@ -70,7 +72,8 @@ public class FAAAdminServiceTest {
         Assert.assertNotNull("Add the activation request from TESTING-NOTES-TEMP.md", request);
         Assert.assertEquals(AirplaneRequest.ApprovalStatus.PENDING, request.getStatus());
         Assert.assertEquals(Airplane.Status.GROUNDED, request.getAirplane().getStatus());
-        Assert.assertEquals("flighttest.airline@mailsac.com", request.getRequestedBy().getEmailAddress());
+        Assert.assertEquals("flighttest.airline@mailsac.com",
+                userRepository.findEmailAddressById(request.getRequestedByUserId()).orElseThrow());
         ReviewAirplaneRequest review = jsonMapper.readValue(
                 "{\"status\":\"ACCEPTED\",\"reviewReason\":\"Test approval\"}", ReviewAirplaneRequest.class);
 
