@@ -44,7 +44,7 @@ public class BookingService {
         CurrentActor actor = currentActorProvider.getCurrentActor();
 
         if (!"AIRLINE_EMPLOYEE".equals(actor.role())) {
-            return bookingRepository.findByUser_Id(actor.userId())
+            return bookingRepository.findByUserId(actor.userId())
                     .stream()
                     .map(this::toBookingSummary)
                     .toList();
@@ -103,7 +103,7 @@ public class BookingService {
                 employee.getAirlineRole() == AirlineEmployee.AirlineRole.ADMIN &&
                 Objects.equals(employee.getAirline().getId(), booking.getFlight().getAirline().getId());
         //check that only airline admin can change other people bookings
-        if (!Objects.equals(actor.userId(), booking.getUser().getId()) && !isAirlineAdmin)
+        if (!Objects.equals(actor.userId(), booking.getUserId()) && !isAirlineAdmin)
             throw new IllegalEndpoint("Only airline admins can cancel other people bookings for their airline");
 
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
@@ -141,14 +141,16 @@ public class BookingService {
         Booking savedBooking = bookingRepository.save(booking);
         String description;
         if (isAirlineAdmin)
-            description = "Airline admin cancelled booking with id " + savedBooking.getId() + " for user with id " + savedBooking.getUser().getId();
+            description = "Airline admin cancelled booking with id " + savedBooking.getId() + " for user with id " + savedBooking.getUserId();
         else
             description = "User cancelled booking with id " + savedBooking.getId() + " for their own account";
 
 
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.BOOKING_CANCELLED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
 
-        emailService.sendEmail(savedBooking.getUser().getEmailAddress(), "Booking Cancelled", String.format(
+        String bookingOwnerEmail = userRepository.findEmailAddressById(savedBooking.getUserId())
+                .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
+        emailService.sendEmail(bookingOwnerEmail, "Booking Cancelled", String.format(
                 """
                         Your booking %s for flight %s has been cancelled.
                         Best Regards,
@@ -159,7 +161,7 @@ public class BookingService {
         logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.OK)
                 .body(new BookingResponse(
-                        savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUser().getId(),
+                        savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUserId(),
                         savedBooking.getFlight().getId(), savedBooking.getSeatNumber(), savedBooking.getStatus(),
                         savedBooking.getBookedAt()));
     }
@@ -178,7 +180,7 @@ public class BookingService {
         //validate input
         Flight flight = flightRepository.findByIdForUpdate(flightId)
                 .orElseThrow( () -> new InformationNotFoundException("No flight with that Id exist."));
-        User bookingOwner = userRepository.findById(userId)
+        String bookingOwnerEmail = userRepository.findEmailAddressById(userId)
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         if (flight.getStatus() != Flight.FlightStatus.ACTIVE || flight.getActualDeparture() != null)
             throw new InvalidInformationException("This flight is not Open for booking");
@@ -217,7 +219,7 @@ public class BookingService {
         Booking booking = new Booking();
         booking.setFlight(flight);
         booking.setStatus(Booking.BookingStatus.BOOKED);
-        booking.setUser(bookingOwner);
+        booking.setUserId(userId);
         booking.setBookingRef(UUID.randomUUID().toString());
         booking.setSeatNumber(seatType + "-" + seatId);
         if (seatType.equals("firstClass")) {
@@ -229,15 +231,15 @@ public class BookingService {
         Booking savedBooking = bookingRepository.save(booking);
 
         String description;
-        if (Objects.equals(actor.userId(), bookingOwner.getId()))
+        if (Objects.equals(actor.userId(), userId))
             description = "User created booking with id " + savedBooking.getId() + " for their own account";
         else
-            description = "Airline admin created booking with id " + savedBooking.getId() + " for user with id " + bookingOwner.getId();
+            description = "Airline admin created booking with id " + savedBooking.getId() + " for user with id " + userId;
 
 
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.BOOKING_CREATED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
 
-        emailService.sendEmail(bookingOwner.getEmailAddress(), "Booking Confirmation", String.format(
+        emailService.sendEmail(bookingOwnerEmail, "Booking Confirmation", String.format(
                 """
                         Your flight has been booked successfully.
                         Booking reference: %s
@@ -258,7 +260,7 @@ public class BookingService {
         logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(201).body(new BookingResponse(
-                savedBooking.getId(), savedBooking.getBookingRef(), bookingOwner.getId(),
+                savedBooking.getId(), savedBooking.getBookingRef(), savedBooking.getUserId(),
                 flight.getId(), savedBooking.getSeatNumber(), savedBooking.getStatus(),
                 savedBooking.getBookedAt()));
     }

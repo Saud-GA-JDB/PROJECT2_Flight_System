@@ -58,8 +58,8 @@ public class BookingServiceTest {
 
         booking = bookingRepository.findById(900001L).orElse(null);
         Assert.assertNotNull("Add the test booking from TESTING-NOTES-TEMP.md", booking);
-        Assert.assertEquals(user.getId(), booking.getUser().getId());
-        Assert.assertEquals("flighttest.customer@mailsac.com", booking.getUser().getEmailAddress());
+        Assert.assertEquals(user.getId(), booking.getUserId());
+        Assert.assertEquals("flighttest.customer@mailsac.com", user.getEmailAddress());
         Assert.assertEquals(Booking.BookingStatus.BOOKED, booking.getStatus());
         Assert.assertEquals("standard-1", booking.getSeatNumber());
 

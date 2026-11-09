@@ -382,7 +382,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         findOrCreate(Booking.class, "bookingRef", reference, () -> {
             Booking booking = new Booking();
             booking.setBookingRef(reference);
-            booking.setUser(owner);
+            booking.setUserId(owner.getId());
             booking.setFlight(flight);
             booking.setSeatNumber(seat);
             booking.setStatus(status);
@@ -431,8 +431,8 @@ public class DatabaseSeeder implements CommandLineRunner {
     private void fixedBooking(User customer, Flight flight) {
         Booking existing = em.find(Booking.class, 900001L);
         if (existing != null) {
-            require(Objects.equals(existing.getBookingRef(), "TEST-BOOKING-900001") && existing.getUser() != null
-                    && Objects.equals(existing.getUser().getId(), customer.getId()) && existing.getFlight() != null
+            require(Objects.equals(existing.getBookingRef(), "TEST-BOOKING-900001") && existing.getUserId() != null
+                    && Objects.equals(existing.getUserId(), customer.getId()) && existing.getFlight() != null
                     && Objects.equals(existing.getFlight().getId(), flight.getId()), "booking 900001");
             return;
         }

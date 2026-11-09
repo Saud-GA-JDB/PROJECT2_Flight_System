@@ -428,7 +428,7 @@ public class FlightClearanceServiceTest {
         Assert.assertThrows(InvalidInformationException.class, () -> bookingService.bookFlight(admin.getId(), flight.getId(), "standard", 1L));
         Booking booking = new Booking();
         booking.setFlight(flight);
-        booking.setUser(admin);
+        booking.setUserId(admin.getId());
         booking.setBookingRef(UUID.randomUUID().toString());
         booking.setSeatNumber("standard-1");
         booking.setStatus(Booking.BookingStatus.BOOKED);

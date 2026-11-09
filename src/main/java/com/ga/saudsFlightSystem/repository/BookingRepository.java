@@ -11,21 +11,21 @@ import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository <Booking, Long> {
-    List<Booking> findByUser_Id(Long userId);
+    List<Booking> findByUserId(Long userId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select b from Booking b where b.id = :bookingId")
     Optional<Booking> findByIdForPayment(@Param("bookingId") Long bookingId);
 
     boolean existsByFlightIdAndSeatNumberAndStatus(Long flightId, String seatNumber, Booking.BookingStatus status);
     List<Booking> findByFlight_Airline_IdOrderByBookedAtDesc(Long airlineId);
-    List<Booking> findByUser_IdAndFlight_Airline_IdOrderByBookedAtDesc(Long userId, Long airlineId);
+    List<Booking> findByUserIdAndFlight_Airline_IdOrderByBookedAtDesc(Long userId, Long airlineId);
     @Query("select b.flight.id from Booking b where b.id = :bookingId")
     Optional<Long> findFlightIdByBookingId(@Param("bookingId") Long bookingId);
 
     @Query("""
     SELECT b FROM Booking b
     WHERE b.flight.airline.id = :airlineId
-      AND (:userId IS NULL OR b.user.id = :userId)
+      AND (:userId IS NULL OR b.userId = :userId)
       AND (:flightId IS NULL OR b.flight.id = :flightId)
       AND (:status IS NULL OR b.status = :status)
     ORDER BY b.bookedAt DESC

@@ -98,7 +98,7 @@ public class PaymentServiceTest {
         flightId = flightRepository.save(flight).getId();
 
         Booking booking = new Booking();
-        booking.setUser(UserService.getCurrentLoggedInUser());
+        booking.setUserId(UserService.getCurrentLoggedInUser().getId());
         booking.setFlight(flight);
         booking.setBookingRef(UUID.randomUUID().toString());
         booking.setSeatNumber("standard-1");

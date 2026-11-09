@@ -35,10 +35,9 @@ public class Booking {
     @Enumerated(EnumType.STRING)
     private BookingStatus status;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
+    @Column(name = "user_id")
     @JsonIgnore
-    private User user;
+    private Long userId;
 
     @ManyToOne
     @JoinColumn(name = "flight_id")

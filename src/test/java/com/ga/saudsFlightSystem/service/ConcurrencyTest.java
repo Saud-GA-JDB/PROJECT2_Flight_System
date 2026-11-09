@@ -275,7 +275,7 @@ public class ConcurrencyTest {
             Flight flight = flightRepository.findById(flightId).orElseThrow();
             Booking booking = new Booking();
             booking.setFlight(flight);
-            booking.setUser(userRepository.findById(userId).orElseThrow());
+            booking.setUserId(userRepository.findById(userId).orElseThrow().getId());
             booking.setBookingRef(UUID.randomUUID().toString());
             booking.setSeatNumber("standard-" + seatId);
             booking.setStatus(Booking.BookingStatus.BOOKED);

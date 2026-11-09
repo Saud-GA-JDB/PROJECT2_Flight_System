@@ -38,7 +38,7 @@ public class PaymentService {
                 .orElseThrow(() ->
                         new InformationNotFoundException("No booking with that id found"));
 
-        if (!Objects.equals(actor.userId(), booking.getUser().getId()))
+        if (!Objects.equals(actor.userId(), booking.getUserId()))
             throw new IllegalEndpoint("You can only access your own payment");
 
         Payment payment = paymentRepository.findByBooking_Id(bookingId)
@@ -110,7 +110,7 @@ public class PaymentService {
                 .orElseThrow(() ->
                         new InformationNotFoundException("No payment with that id found"));
 
-        if (!Objects.equals(actor.userId(), payment.getBooking().getUser().getId()))
+        if (!Objects.equals(actor.userId(), payment.getBooking().getUserId()))
             throw new IllegalEndpoint("You can only access your own payment");
 
         return payment.getStripeCheckoutSessionId();
@@ -124,7 +124,7 @@ public class PaymentService {
                 .orElseThrow(() ->
                         new InformationNotFoundException("No booking with that id found"));
 
-        if (!Objects.equals(actor.userId(), booking.getUser().getId()))
+        if (!Objects.equals(actor.userId(), booking.getUserId()))
             throw new IllegalEndpoint("You can only pay for your own booking");
 
         Payment payment = paymentRepository.findByBooking_Id(bookingId)
@@ -165,7 +165,7 @@ public class PaymentService {
         Booking booking = bookingRepository.findByIdForPayment(bookingId)
                 .orElseThrow( () -> new InformationNotFoundException("No booking with that id found"));
 
-        if (!Objects.equals(actor.userId(), booking.getUser().getId()))
+        if (!Objects.equals(actor.userId(), booking.getUserId()))
             throw new IllegalEndpoint("You can only pay for your own booking");
 
         if (booking.getStatus() != Booking.BookingStatus.BOOKED)
