@@ -6,12 +6,13 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airport;
 import com.ga.saudsFlightSystem.model.AirportOperator;
 import com.ga.saudsFlightSystem.model.AuditLog;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AddAirportOperatorRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirportOperatorResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportOperatorRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -27,13 +28,14 @@ public class AirportOperatorService {
     private AuditLogService auditLogService;
     private AirportRepository airportRepository;
     private AirportEmployeeRepository airportEmployeeRepository;
+    private CurrentActorProvider currentActorProvider;
     private static final Logger logger = Logger.getLogger(AirportOperatorService.class.getName());
 
     @Transactional
     public ResponseEntity<?> addAirportOperator(AddAirportOperatorRequest request) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()))
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
         if (request == null || request.getName() == null || request.getName().isBlank()
@@ -57,13 +59,13 @@ public class AirportOperatorService {
 
         String description = "FAA admin created airport operator with id " + operator.getId();
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.AIRPORT_OPERATOR_CREATED,
                 AuditLog.EntityType.AIRPORT_OPERATOR,
                 operator.getId(), description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new AirportOperatorResponse(operator.getId(), operator.getName(), operator.getContactEmail())
@@ -72,9 +74,9 @@ public class AirportOperatorService {
 
     @Transactional
     public ResponseEntity<?> assignAirportOperator(Long airportId, Long operatorId) {
-        User user = UserService.getCurrentLoggedInUser();
+        CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        if (!UserService.isAllowedEndpoint("faaadmin", user.getRole()))
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint!");
 
         Airport airport = airportRepository.findByIdForUpdate(airportId)
@@ -96,12 +98,12 @@ public class AirportOperatorService {
 
         String description = "FAA admin changed airport " + airportId + " operator from " + previousOperatorId + " to " + operatorId;
 
-        auditLogService.addAuditLog(user,
+        auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.AIRPORT_OPERATOR_LINKED,
                 AuditLog.EntityType.AIRPORT, airportId, description
         );
 
-        logger.info(description + " (user id: " + user.getId() + ")");
+        logger.info(description + " (user id: " + actor.userId() + ")");
 
         return ResponseEntity.ok("Airport linked to operator successfully.");
     }

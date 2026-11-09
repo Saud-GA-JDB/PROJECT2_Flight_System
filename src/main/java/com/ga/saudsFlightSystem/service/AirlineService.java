@@ -6,9 +6,10 @@ import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.AuditLog;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
 import com.ga.saudsFlightSystem.repository.AirlineRepository;
+import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import java.util.logging.Logger;
 public class AirlineService {
     private AirlineRepository airlineRepository;
     private AuditLogService auditLogService;
+    private CurrentActorProvider currentActorProvider;
 
     private static final Logger logger = Logger.getLogger(AirlineService.class.getName());
 
@@ -37,7 +39,8 @@ public class AirlineService {
      */
     @Transactional
     public AirlineResponse addAirline(String name, String airlineCode, String headquartersCountry) {
-        if(!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()) )
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
 
         if (name == null || name.isBlank() || airlineCode == null || airlineCode.isBlank() || headquartersCountry == null || headquartersCountry.isBlank())
@@ -54,14 +57,14 @@ public class AirlineService {
         airline.setHeadquartersCountry(headquartersCountry);
 
         Airline savedAirline = airlineRepository.save(airline);
-        User user = UserService.getCurrentLoggedInUser();
         String description = "FAA admin created airline with id " + savedAirline.getId();
-        auditLogService.addAuditLog(user, AuditLog.Action.AIRLINE_CREATED, AuditLog.EntityType.AIRLINE, savedAirline.getId(), description);
-        logger.info(description + " (user id: " + user.getId() + ")");
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_CREATED, AuditLog.EntityType.AIRLINE, savedAirline.getId(), description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
         return new AirlineResponse(savedAirline.getId(), savedAirline.getName(), savedAirline.getAirlineCode(), savedAirline.getHeadquartersCountry());
     }
     public List<AirlineResponse> getAllAirlines() {
-        if (!UserService.isAllowedEndpoint("faaadmin", UserService.getCurrentLoggedInUser().getRole()))
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint");
 
         List<AirlineResponse> response = new ArrayList<>();
