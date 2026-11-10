@@ -3,6 +3,7 @@ package com.ga.saudsFlightSystem.service;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.response.CrewAssignmentResponse;
@@ -10,7 +11,6 @@ import com.ga.saudsFlightSystem.model.request.response.getCrewAssignmentsRespons
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import jakarta.transaction.Transactional;
@@ -33,10 +33,10 @@ public class CrewAssignmentService {
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private FlightRepository flightRepository;
     private AuditLogService auditLogService;
-    private UserRepository userRepository;
     private ApplicationEventPublisher eventPublisher;
     private NotificationService notificationService;
     private CurrentActorProvider currentActorProvider;
+    private AccountLookup accountLookup;
 
     private static final Logger logger = Logger.getLogger(CrewAssignmentService.class.getName());
 
@@ -93,13 +93,14 @@ public class CrewAssignmentService {
 
         crewAssignmentRepository.save(assignment);
 
-        User employeeUser = userRepository.findByAirlineEmployeeId(employee.getId());
-        if (employeeUser != null) {
-            eventPublisher.publishEvent(new Email(
-                    employeeUser.getEmailAddress(),
+        Long employeeUserId = airlineEmployeeRepository.findUserIdByEmployeeId(employee.getId())
+                .orElse(null);
+        if (employeeUserId != null) {
+            accountLookup.findEmailAddressById(employeeUserId)
+                    .ifPresent(email -> eventPublisher.publishEvent( new Email( email,
                     "New Crew Assignment",
                     "You have been assigned to flight " + flight.getFlightNumber()
-                            + " with duty " + assignment.getDuty()));
+                            + " with duty " + assignment.getDuty())));
         }
 
 
@@ -113,8 +114,8 @@ public class CrewAssignmentService {
                 "employee " + employee.getFName()+" "+employee.getLName() + " assigned to Flight " +
                         flight.getFlightNumber() + " as " + assignment.getDuty()
         );
-        if (employeeUser != null) {
-            notificationService.sendToUser(employeeUser.getId(),
+        if (employeeUserId != null) {
+            notificationService.sendToUser(employeeUserId,
                     "Flight_Assignment",
                     "You are assigned to flight " + flight.getFlightNumber() + " as " + assignment.getDuty()
                             + " please check you assignment to view more details"
@@ -189,15 +190,18 @@ public class CrewAssignmentService {
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.CREW_ASSIGNMENT_REMOVED, AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
 
+        Long employeeUserId = airlineEmployeeRepository.findUserIdByEmployeeId(employee.getId())
+                .orElse(null);
+
         notificationService.sendToUser(
                 actor.userId(),
                 "Assignment_Removed",
                 "employee " + employee.getFName()+" "+employee.getLName() + " removed from Flight " +
                         flight.getFlightNumber()
         );
-        User employeeUser = userRepository.findByAirlineEmployeeId(employee.getId());
-        if (employeeUser != null) {
-            notificationService.sendToUser(employeeUser.getId(),
+
+        if (employeeUserId != null) {
+            notificationService.sendToUser(employeeUserId,
                     "Flight_Assignment",
                     "You are removed from flight " + flight.getFlightNumber()
                             + " as " + assignment.getDuty()

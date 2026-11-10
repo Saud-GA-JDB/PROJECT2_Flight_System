@@ -74,7 +74,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmailAddress(String emailAddress);
     User findUserByEmailAddress(String emailAddress);
-    User findByAirlineEmployeeId(Long employeeId);
     User findByAtcEmployeeId(Long employeeId);
 
     @Query(value = """

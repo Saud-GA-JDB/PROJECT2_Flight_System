@@ -34,4 +34,10 @@ public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee
       AND e.airlineRole = :role
     """)
     Optional<AirlineEmployee> findByUserIdAndRole(@Param("userId") Long userId, @Param("role") AirlineEmployee.AirlineRole role);
+
+    @Query("""
+    SELECT u.id FROM User u
+    WHERE u.airlineEmployee.id = :employeeId
+    """)
+    Optional<Long> findUserIdByEmployeeId(@Param("employeeId") Long employeeId);
 }
