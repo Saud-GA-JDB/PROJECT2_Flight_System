@@ -132,6 +132,7 @@ public class MaintenanceRecordServiceTest {
         airlineUser.setAirlineEmployee(airlineAdmin);
         airlineAdminEmail = airlineUser.getEmailAddress();
         entityManager.persist(airlineUser);
+        airlineAdmin.setUserId(airlineUser.getId());
         userIds.add(airlineUser.getId());
         airlineEmployeeId = airlineAdmin.getId();
         entityManager.flush();
@@ -532,6 +533,7 @@ public class MaintenanceRecordServiceTest {
         User user = user(User.Role.MAINTENANCE_EMPLOYEE);
         user.setMaintenanceEmployee(employee);
         entityManager.persist(user);
+        employee.setUserId(user.getId());
         userIds.add(user.getId());
         employeeIds.add(employee.getId());
         return user;

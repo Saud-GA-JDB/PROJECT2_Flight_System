@@ -115,6 +115,7 @@ public class AirportEmployeeService {
                         request.getSecurityQuestion().trim(),
                         request.getSecurityQuestionAnswer().trim().toLowerCase()
                 ));
+        employee.setUserId(account.userId());
 
         String description = "Created airport employee with id " + employee.getId() + " and role " + role
                 + " for airport with id " + airportId + " and operator with id " + airport.getOperator().getId();

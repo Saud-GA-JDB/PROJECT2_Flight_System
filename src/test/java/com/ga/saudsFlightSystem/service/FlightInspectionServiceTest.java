@@ -489,6 +489,7 @@ public class FlightInspectionServiceTest {
         User user = user(User.Role.AIRPORT_EMPLOYEE);
         user.setAirportEmployee(employee);
         entityManager.persist(user);
+        employee.setUserId(user.getId());
         userIds.add(user.getId());
         employeeIds.add(employee.getId());
         return user;
@@ -502,6 +503,7 @@ public class FlightInspectionServiceTest {
         User user = user(User.Role.AIRLINE_EMPLOYEE);
         user.setAirlineEmployee(employee);
         entityManager.persist(user);
+        employee.setUserId(user.getId());
         userIds.add(user.getId());
         airlineEmployeeIds.add(employee.getId());
         return user;

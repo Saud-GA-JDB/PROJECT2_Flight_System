@@ -12,11 +12,11 @@ public interface ATCEmployeeRepository extends JpaRepository<ATCEmployee, Long> 
     boolean existsByEmployeeNumber(String employeeNumber);
 
     @Query("""
-        SELECT e FROM User u JOIN u.atcEmployee e
+        SELECT e FROM ATCEmployee e
         LEFT JOIN FETCH e.facility f
         LEFT JOIN FETCH f.airport
         LEFT JOIN FETCH f.provider
-        WHERE u.id = :userId
+        WHERE e.userId = :userId
         """)
     Optional<ATCEmployee> findByUserId(@Param("userId") Long userId);
 }

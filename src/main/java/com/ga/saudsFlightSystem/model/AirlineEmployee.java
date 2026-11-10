@@ -9,8 +9,13 @@ import java.time.LocalDate;
 
 @Data
 @Entity
-@Table(name = "airline_employees")
+@Table(name = "airline_employees", uniqueConstraints =
+        @UniqueConstraint(name = "uk_airline_employees_user_id", columnNames = "user_id"))
 public class AirlineEmployee extends Person{
+    @Column(name = "user_id")
+    @JsonIgnore
+    private Long userId;
+
     public enum AirlineRole{PILOT, FLIGHT_ATTENDANT, GATE_RECEPTION, ADMIN} //ill start with just pilot first
     @Column
     @Enumerated(EnumType.STRING)

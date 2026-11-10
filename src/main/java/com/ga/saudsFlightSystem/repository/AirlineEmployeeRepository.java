@@ -15,10 +15,9 @@ public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee
     boolean existsByCpr(String cpr);
 
     @Query("""
-    SELECT e FROM User u
-    JOIN u.airlineEmployee e
+    SELECT e FROM AirlineEmployee e
     LEFT JOIN FETCH e.airline
-    WHERE u.id = :userId
+    WHERE e.userId = :userId
     """)
     Optional<AirlineEmployee> findByUserId(@Param("userId") Long userId);
 
@@ -27,17 +26,16 @@ public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee
     Optional<AirlineEmployee> findByIdForAssignment(@Param("employeeId") Long employeeId);
 
     @Query("""
-    SELECT e FROM User u
-    JOIN u.airlineEmployee e
+    SELECT e FROM AirlineEmployee e
     JOIN FETCH e.airline
-    WHERE u.id = :userId
+    WHERE e.userId = :userId
       AND e.airlineRole = :role
     """)
     Optional<AirlineEmployee> findByUserIdAndRole(@Param("userId") Long userId, @Param("role") AirlineEmployee.AirlineRole role);
 
     @Query("""
-    SELECT u.id FROM User u
-    WHERE u.airlineEmployee.id = :employeeId
+    SELECT e.userId FROM AirlineEmployee e
+    WHERE e.id = :employeeId
     """)
     Optional<Long> findUserIdByEmployeeId(@Param("employeeId") Long employeeId);
 }

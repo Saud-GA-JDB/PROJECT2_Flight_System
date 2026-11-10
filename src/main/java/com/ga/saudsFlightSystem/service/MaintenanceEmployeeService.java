@@ -95,6 +95,7 @@ public class MaintenanceEmployeeService {
                         request.getSecurityQuestion().trim(),
                         request.getSecurityQuestionAnswer().trim().toLowerCase()
                 ));
+        maintenanceEmployee.setUserId(account.userId());
 
         String description = "Created maintenance employee with id " + maintenanceEmployee.getId() +
                 " and role " + role + " for provider with id " + providerId;

@@ -531,6 +531,7 @@ public class FlightClearanceServiceTest {
         user.setRole(User.Role.AIRLINE_EMPLOYEE);
         user.setAirlineEmployee(profile);
         users.save(user);
+        profile.setUserId(user.getId());
         return user;
     }
 
@@ -543,6 +544,7 @@ public class FlightClearanceServiceTest {
         user.setRole(User.Role.ATC_EMPLOYEE);
         user.setAtcEmployee(profile);
         users.save(user);
+        profile.setUserId(user.getId());
         return user;
     }
 

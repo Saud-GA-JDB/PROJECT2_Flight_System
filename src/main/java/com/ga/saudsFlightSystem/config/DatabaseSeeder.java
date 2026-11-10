@@ -96,7 +96,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private User user(String email, String first, String last, String cpr, User.Role role, Airline airline) {
-        return findOrCreate(User.class, "emailAddress", email, () -> {
+        User result = findOrCreate(User.class, "emailAddress", email, () -> {
             User user = new User();
             user.setEmailAddress(email);
             user.setPassword(passwords.encode("TestPassword1"));
@@ -131,6 +131,8 @@ public class DatabaseSeeder implements CommandLineRunner {
             profile.setPhoneNumber("360010" + cpr.substring(7));
             return user;
         });
+        linkEmployeeAccount(result);
+        return result;
     }
 
     private Airport airport(String code, String name, String city, String country, String zone) {
@@ -195,7 +197,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private User staff(String email, String cpr, User.Role role, Supplier<? extends Person> factory) {
-        return findOrCreate(User.class, "emailAddress", email, () -> {
+        User result = findOrCreate(User.class, "emailAddress", email, () -> {
             User user = new User();
             user.setEmailAddress(email);
             user.setPassword(passwords.encode("TestPassword1"));
@@ -217,6 +219,44 @@ public class DatabaseSeeder implements CommandLineRunner {
             else throw new IllegalArgumentException("Unsupported seed staff profile");
             return user;
         });
+        linkEmployeeAccount(result);
+        return result;
+    }
+
+    private void linkEmployeeAccount(User user) {
+        Long userId = user.getId();
+
+        AirlineEmployee airline = user.getAirlineEmployee();
+        if (airline != null) {
+            require(airline.getUserId() == null
+                    || Objects.equals(airline.getUserId(), userId),
+                    "airline employee account " + airline.getId());
+            airline.setUserId(userId);
+        }
+
+        AirportEmployee airport = user.getAirportEmployee();
+        if (airport != null) {
+            require(airport.getUserId() == null
+                    || Objects.equals(airport.getUserId(), userId),
+                    "airport employee account " + airport.getId());
+            airport.setUserId(userId);
+        }
+
+        MaintenanceEmployee maintenance = user.getMaintenanceEmployee();
+        if (maintenance != null) {
+            require(maintenance.getUserId() == null
+                    || Objects.equals(maintenance.getUserId(), userId),
+                    "maintenance employee account " + maintenance.getId());
+            maintenance.setUserId(userId);
+        }
+
+        ATCEmployee atc = user.getAtcEmployee();
+        if (atc != null) {
+            require(atc.getUserId() == null
+                    || Objects.equals(atc.getUserId(), userId),
+                    "ATC employee account " + atc.getId());
+            atc.setUserId(userId);
+        }
     }
 
     private void atcSetup(Airport bah, Airport dxb, Airport doh) {

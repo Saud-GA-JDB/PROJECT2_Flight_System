@@ -6,8 +6,13 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "airport_employees")
+@Table(name = "airport_employees", uniqueConstraints =
+        @UniqueConstraint(name = "uk_airport_employees_user_id", columnNames = "user_id"))
 public class AirportEmployee extends Person{
+    @Column(name = "user_id")
+    @JsonIgnore
+    private Long userId;
+
     public enum AirportRole {ADMIN, INSPECTOR, BAGGAGE_HANDLER}
 
     @Column(nullable = false)

@@ -6,8 +6,13 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "maintenance_employees")
+@Table(name = "maintenance_employees", uniqueConstraints =
+        @UniqueConstraint(name = "uk_maintenance_employees_user_id", columnNames = "user_id"))
 public class MaintenanceEmployee extends Person {
+    @Column(name = "user_id")
+    @JsonIgnore
+    private Long userId;
+
 
     public enum MaintenanceRole {
         ADMIN,

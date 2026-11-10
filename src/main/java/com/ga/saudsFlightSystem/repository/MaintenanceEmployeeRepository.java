@@ -19,9 +19,9 @@ public interface MaintenanceEmployeeRepository extends JpaRepository<Maintenance
     Optional<MaintenanceEmployee> findByIdForUpdate(@Param("employeeId") Long employeeId);
 
     @Query("""
-        SELECT e FROM User u JOIN u.maintenanceEmployee e
+        SELECT e FROM MaintenanceEmployee e
         LEFT JOIN FETCH e.provider
-        WHERE u.id = :userId
+        WHERE e.userId = :userId
         """)
     Optional<MaintenanceEmployee> findByUserId(@Param("userId") Long userId);
 }

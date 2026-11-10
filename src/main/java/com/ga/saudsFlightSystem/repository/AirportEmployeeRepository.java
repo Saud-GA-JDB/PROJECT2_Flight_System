@@ -12,11 +12,11 @@ public interface AirportEmployeeRepository extends JpaRepository<AirportEmployee
     boolean existsByAirport_Id(Long airportId);
 
     @Query("""
-        SELECT e FROM User u JOIN u.airportEmployee e
+        SELECT e FROM AirportEmployee e
         LEFT JOIN FETCH e.airport a
         LEFT JOIN FETCH a.operator
         LEFT JOIN FETCH e.operator
-        WHERE u.id = :userId
+        WHERE e.userId = :userId
         """)
     Optional<AirportEmployee> findByUserId(@Param("userId") Long userId);
 }

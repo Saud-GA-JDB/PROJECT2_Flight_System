@@ -702,6 +702,7 @@ public class FlightClearanceTransactionTest {
         user.setRole(User.Role.AIRLINE_EMPLOYEE);
         user.setAirlineEmployee(profile);
         users.save(user);
+        profile.setUserId(user.getId());
         fixtures.add(profile);
         fixtures.add(user);
         return user;
@@ -716,6 +717,7 @@ public class FlightClearanceTransactionTest {
         user.setRole(User.Role.ATC_EMPLOYEE);
         user.setAtcEmployee(profile);
         users.save(user);
+        profile.setUserId(user.getId());
         fixtures.add(profile);
         fixtures.add(user);
         return user;

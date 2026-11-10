@@ -199,6 +199,7 @@ public class ATCService {
                         request.getSecurityQuestion().trim(),
                         request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT)
                 ));
+        employee.setUserId(account.userId());
 
         String description = "Created ATC employee with id " + employee.getId() + " and role " + role
                 + " for control facility with id " + facility.getId();

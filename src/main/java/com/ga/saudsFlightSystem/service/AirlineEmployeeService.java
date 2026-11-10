@@ -120,6 +120,7 @@ public class AirlineEmployeeService {
                         request.getSecurityQuestion(),
                         request.getSecurityQuestionAnswer().trim().toLowerCase()
                 ));
+        airlineEmployee.setUserId(account.userId());
         String description = "FAA admin created airline admin with user id " + account.userId() + " for airline with id " + airlineId;
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, account.userId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
