@@ -8,7 +8,7 @@ import lombok.Data;
 @Entity
 @Table(name = "airport_employees", uniqueConstraints =
         @UniqueConstraint(name = "uk_airport_employees_user_id", columnNames = "user_id"))
-public class AirportEmployee extends Person{
+public class AirportEmployee extends BaseEntity{
     @Column(name = "user_id")
     @JsonIgnore
     private Long userId;

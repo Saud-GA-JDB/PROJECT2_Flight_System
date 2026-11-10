@@ -9,30 +9,11 @@ import java.time.LocalDateTime;
 
 @Data
 @MappedSuperclass
-public abstract class Person {
+public abstract class BaseEntity {
     @Id
     @Column
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column
-    private String fName;
-    @Column
-    private String lName;
-
-    @Column(unique = true, nullable = false)
-    private String cpr;
-
-    @Column
-    private String phoneNumberOpeningCode;
-    @Column
-    private String phoneNumber;
-    @Lob
-    @Column(name = "imagedata", length = 1000)
-    private byte[] imageData;
-
-    @Column(nullable = true)
-    private String imageUrl;
-
     @Column
     @CreationTimestamp
     private LocalDateTime createdAt;

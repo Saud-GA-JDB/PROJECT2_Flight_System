@@ -103,12 +103,7 @@ public class AirlineEmployeeService {
         airlineEmployee.setAirline(airlineRepository.findById(airlineId).orElseThrow(()-> new InformationNotFoundException("couldn't find the airline with this id")));
         airlineEmployee.setAirlineRole(AirlineEmployee.AirlineRole.ADMIN);
         airlineEmployee.setSalary(request.getSalary());
-        airlineEmployee.setCpr(request.getCpr());
-        airlineEmployee.setFName(request.getFName());
-        airlineEmployee.setLName(request.getLName());
         airlineEmployee.setHireDate(hireDate);
-        airlineEmployee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode());
-        airlineEmployee.setPhoneNumber(request.getPhoneNumber());
         airlineEmployeeRepository.save(airlineEmployee);
 
         ProvisionedAccount account = employeeAccountProvisioner.createAccount(
@@ -118,7 +113,12 @@ public class AirlineEmployeeService {
                         request.getEmailAddress(),
                         request.getCpr(),
                         request.getSecurityQuestion(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase()
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(),
+                        request.getFName(),
+                        request.getLName(),
+                        request.getCpr(),
+                        request.getPhoneNumberOpeningCode(),
+                        request.getPhoneNumber()
                 ));
         airlineEmployee.setUserId(account.userId());
         String description = "FAA admin created airline admin with user id " + account.userId() + " for airline with id " + airlineId;

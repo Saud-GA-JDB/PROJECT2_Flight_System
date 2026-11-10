@@ -98,11 +98,6 @@ public class AirportEmployeeService {
         employee.setAirport(airport);
         employee.setOperator(airport.getOperator());
         employee.setAirportRole(role);
-        employee.setFName(request.getFName().trim());
-        employee.setLName(request.getLName().trim());
-        employee.setCpr(request.getCpr());
-        employee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode().trim());
-        employee.setPhoneNumber(request.getPhoneNumber().trim());
 
         airportEmployeeRepository.save(employee);
 
@@ -113,7 +108,12 @@ public class AirportEmployeeService {
                         request.getEmailAddress().trim(),
                         request.getPassword(),
                         request.getSecurityQuestion().trim(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase()
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
+                        request.getCpr(),
+                        request.getPhoneNumberOpeningCode().trim(),
+                        request.getPhoneNumber().trim()
                 ));
         employee.setUserId(account.userId());
 
@@ -132,8 +132,8 @@ public class AirportEmployeeService {
                         account.userId(),
                         employee.getOperator().getId(),
                         airportId,
-                        employee.getFName(),
-                        employee.getLName(),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
                         account.emailAddress(),
                         employee.getAirportRole()
                 )

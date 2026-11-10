@@ -4,6 +4,8 @@ import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
 import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
+import com.ga.saudsFlightSystem.identity.PersonalProfile;
+import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 @Service
@@ -40,6 +43,7 @@ public class ATCService {
     private AirportRepository airportRepository;
     private UserRepository userRepository;
     private EmployeeAccountProvisioner employeeAccountProvisioner;
+    private PersonalProfileStore personalProfileStore;
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
     private AuditLogService auditLogService;
@@ -156,9 +160,14 @@ public class ATCService {
         ATCEmployee currentEmployee = requireATCEmployee(actor, true);
         validatePagination(page, size);
         Long facilityId = currentEmployee.getFacility().getId();
+        List<User> controllers = userRepository.findTowerControllers(
+                facilityId, size, (long) page * size);
+        Map<Long, PersonalProfile> profiles = personalProfileStore.findByUserIds(
+                controllers.stream().map(User::getId).toList());
         List<ATCEmployeeResponse> content = new ArrayList<>();
-        for (User controller : userRepository.findTowerControllers(facilityId, size, (long) page * size))
-            content.add(employeeResponse(controller));
+        for (User controller : controllers) {
+            content.add(employeeResponse(controller, profiles.get(controller.getId())));
+        }
         long totalElements = userRepository.countTowerControllers(facilityId);
         return ResponseEntity.ok(new ATCEmployeeListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
     }
@@ -182,11 +191,6 @@ public class ATCService {
         employee.setFacility(facility);
         employee.setAtcRole(role);
         employee.setEmployeeNumber(employeeNumber);
-        employee.setFName(request.getFName().trim());
-        employee.setLName(request.getLName().trim());
-        employee.setCpr(request.getCpr());
-        employee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode().trim());
-        employee.setPhoneNumber(request.getPhoneNumber().trim());
 
         employeeRepository.save(employee);
 
@@ -197,7 +201,12 @@ public class ATCService {
                         request.getEmailAddress().trim(),
                         request.getPassword(),
                         request.getSecurityQuestion().trim(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT)
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
+                        request.getCpr(),
+                        request.getPhoneNumberOpeningCode().trim(),
+                        request.getPhoneNumber().trim()
                 ));
         employee.setUserId(account.userId());
 
@@ -212,8 +221,8 @@ public class ATCService {
                         account.userId(),
                         employee.getFacility().getId(),
                         employee.getEmployeeNumber(),
-                        employee.getFName(),
-                        employee.getLName(),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
                         account.emailAddress(),
                         employee.getAtcRole()
                 ));
@@ -297,9 +306,12 @@ public class ATCService {
                 facility.getName(), facility.getFacilityType());
     }
 
-    private ATCEmployeeResponse employeeResponse(User user) {
+    private ATCEmployeeResponse employeeResponse(User user, PersonalProfile profile) {
+        if (profile == null) {
+            throw new InformationNotFoundException("No profile information found for this user.");
+        }
         ATCEmployee employee = user.getAtcEmployee();
         return new ATCEmployeeResponse(employee.getId(), user.getId(), employee.getFacility().getId(),
-                employee.getEmployeeNumber(), employee.getFName(), employee.getLName(), user.getEmailAddress(), employee.getAtcRole());
+                employee.getEmployeeNumber(), profile.getFName(), profile.getLName(), user.getEmailAddress(), employee.getAtcRole());
     }
 }

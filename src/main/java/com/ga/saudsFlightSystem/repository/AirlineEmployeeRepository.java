@@ -12,7 +12,6 @@ import java.util.Optional;
 
 @Repository
 public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee, Long> {
-    boolean existsByCpr(String cpr);
 
     @Query("""
     SELECT e FROM AirlineEmployee e

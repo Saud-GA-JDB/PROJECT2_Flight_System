@@ -5,6 +5,7 @@ import com.ga.saudsFlightSystem.model.AirportEmployee;
 import com.ga.saudsFlightSystem.model.ATCEmployee;
 import com.ga.saudsFlightSystem.model.MaintenanceEmployee;
 import com.ga.saudsFlightSystem.model.User;
+import com.ga.saudsFlightSystem.model.UserProfile;
 import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.service.PendingRegistrationService;
 import jakarta.persistence.EntityManager;
@@ -39,8 +40,11 @@ public class LocalEmployeeAccountProvisioner implements EmployeeAccountProvision
         user.setRole(User.Role.valueOf(request.accountType().name()));
         user.setStatus(User.Status.ACTIVE);
         user.setActive(true);
+        user.setPersonalProfile(new UserProfile(
+                request.fName(), request.lName(), request.cpr(),
+                request.phoneNumberOpeningCode(), request.phoneNumber()));
 
-        // keeps the current profile links until the profile migration
+        // keeps employee links until account/domain separation
         switch (request.accountType()) {
             case AIRLINE_EMPLOYEE -> user.setAirlineEmployee(
                     entityManager.getReference(AirlineEmployee.class, request.employeeId()));

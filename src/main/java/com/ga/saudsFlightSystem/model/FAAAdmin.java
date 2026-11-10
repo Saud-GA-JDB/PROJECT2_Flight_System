@@ -10,7 +10,7 @@ import java.util.List;
 @Entity
 @Data
 @Table(name = "FAA_Admins")
-public class FAAAdmin extends Person{
+public class FAAAdmin extends BaseEntity{
     @OneToMany(mappedBy = "reviewedBy", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<AirplaneRequest> reviewedRequests;

@@ -10,6 +10,7 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.identity.PersonalProfile;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.identity.PersonalProfileUpdate;
+import com.ga.saudsFlightSystem.model.request.response.AccountSetupResponse;
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.User;
@@ -104,7 +105,7 @@ public class UserService {
      * @return the activated user
      */
     @Transactional
-    public User finishSetup(RegistrationRequest request) {
+    public AccountSetupResponse finishSetup(RegistrationRequest request) {
         CurrentActor actor = currentActorProvider.getCurrentActor();
 
         if (!"SETUP_REQUIRED".equals(actor.status()))
@@ -170,7 +171,11 @@ public class UserService {
         String description = "User completed their account setup";
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.USER_SETUP_COMPLETED, AuditLog.EntityType.USER, savedUser.getId(), description);
         logger.info(description + " (user id: " + user.getId() + ")");
-        return savedUser;
+        return new AccountSetupResponse(
+                savedUser.getId(), savedUser.getEmailAddress(),
+                savedUser.getRole().name(), savedUser.getStatus().name(), savedUser.isActive(),
+                request.getFName(), request.getLName(),
+                request.getPhoneNumberOpeningCode(), request.getPhoneNumber());
     }
 
     public User findUserByEmailAddress(String email) {

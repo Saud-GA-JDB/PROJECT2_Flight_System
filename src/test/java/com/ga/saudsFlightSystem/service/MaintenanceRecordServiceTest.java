@@ -125,7 +125,6 @@ public class MaintenanceRecordServiceTest {
         secondTechnicianId = secondTechnician.getMaintenanceEmployee().getId();
 
         AirlineEmployee airlineAdmin = new AirlineEmployee();
-        airlineAdmin.setCpr(cpr());
         airlineAdmin.setAirline(airline);
         airlineAdmin.setAirlineRole(AirlineEmployee.AirlineRole.ADMIN);
         User airlineUser = user(User.Role.AIRLINE_EMPLOYEE);
@@ -163,6 +162,8 @@ public class MaintenanceRecordServiceTest {
                 .setParameter("id", recordId).executeUpdate();
         entityManager.createQuery("DELETE FROM MaintenanceRecord r WHERE r.id = :id")
                 .setParameter("id", recordId).executeUpdate();
+        entityManager.createQuery("DELETE FROM UserProfile p WHERE p.userId IN :ids")
+                .setParameter("ids", userIds).executeUpdate();
         entityManager.createQuery("DELETE FROM User u WHERE u.id IN :ids")
                 .setParameter("ids", userIds).executeUpdate();
         entityManager.createQuery("DELETE FROM MaintenanceEmployee e WHERE e.id IN :ids")
@@ -527,7 +528,6 @@ public class MaintenanceRecordServiceTest {
 
     private User maintenanceUser(MaintenanceProvider provider, MaintenanceEmployee.MaintenanceRole role) {
         MaintenanceEmployee employee = new MaintenanceEmployee();
-        employee.setCpr(cpr());
         employee.setProvider(provider);
         employee.setMaintenanceRole(role);
         User user = user(User.Role.MAINTENANCE_EMPLOYEE);
@@ -546,6 +546,8 @@ public class MaintenanceRecordServiceTest {
         user.setRole(role);
         user.setStatus(User.Status.ACTIVE);
         user.setActive(true);
+        user.setPersonalProfile(new UserProfile(
+                "Test", "Maintenance", cpr(), null, null));
         return user;
     }
 

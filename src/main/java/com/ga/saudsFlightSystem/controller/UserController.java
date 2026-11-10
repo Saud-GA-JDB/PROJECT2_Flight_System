@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.controller;
 
-import com.ga.saudsFlightSystem.model.User;
+import com.ga.saudsFlightSystem.model.request.response.AccountSetupResponse;
 import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.service.PendingRegistrationService;
 import com.ga.saudsFlightSystem.service.UserService;
@@ -17,7 +17,7 @@ public class UserController {
     private PendingRegistrationService pendingRegistrationService;
 
     @PostMapping("/setup")
-    public User finishSetup(@RequestBody RegistrationRequest request) {
+    public AccountSetupResponse finishSetup(@RequestBody RegistrationRequest request) {
         return userService.finishSetup(request);
     }
 

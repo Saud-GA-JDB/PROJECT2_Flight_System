@@ -6,7 +6,12 @@ public record EmployeeAccountRequest(
         String emailAddress,
         String password,
         String securityQuestion,
-        String normalizedSecurityAnswer
+        String normalizedSecurityAnswer,
+        String fName,
+        String lName,
+        String cpr,
+        String phoneNumberOpeningCode,
+        String phoneNumber
 ) {
     public enum AccountType {
         AIRLINE_EMPLOYEE,

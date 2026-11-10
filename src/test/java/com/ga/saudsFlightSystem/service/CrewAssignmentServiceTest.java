@@ -62,9 +62,6 @@ public class CrewAssignmentServiceTest {
         Assert.assertEquals(AirlineEmployee.AirlineRole.ADMIN, admin.getAirlineRole());
 
         pilot = new AirlineEmployee();
-        pilot.setCpr("999888777");
-        pilot.setFName("Test");
-        pilot.setLName("Pilot");
         pilot.setAirlineRole(AirlineEmployee.AirlineRole.PILOT);
         pilot.setAirline(admin.getAirline());
         airlineEmployeeRepository.save(pilot);

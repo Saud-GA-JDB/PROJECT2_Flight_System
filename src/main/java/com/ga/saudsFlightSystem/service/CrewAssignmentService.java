@@ -5,6 +5,7 @@ import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
+import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.response.CrewAssignmentResponse;
@@ -38,6 +39,7 @@ public class CrewAssignmentService {
     private NotificationPublisher notificationService;
     private CurrentActorProvider currentActorProvider;
     private AccountLookup accountLookup;
+    private PersonalProfileStore personalProfileStore;
 
     private static final Logger logger = Logger.getLogger(CrewAssignmentService.class.getName());
 
@@ -112,7 +114,7 @@ public class CrewAssignmentService {
         notificationService.sendToUser(
                 actor.userId(),
                 "Assignment_Created",
-                "employee " + employee.getFName()+" "+employee.getLName() + " assigned to Flight " +
+                "employee " + employeeDisplayName(employee) + " assigned to Flight " +
                         flight.getFlightNumber() + " as " + assignment.getDuty()
         );
         if (employeeUserId != null) {
@@ -197,7 +199,7 @@ public class CrewAssignmentService {
         notificationService.sendToUser(
                 actor.userId(),
                 "Assignment_Removed",
-                "employee " + employee.getFName()+" "+employee.getLName() + " removed from Flight " +
+                "employee " + employeeDisplayName(employee) + " removed from Flight " +
                         flight.getFlightNumber()
         );
 
@@ -213,6 +215,17 @@ public class CrewAssignmentService {
     }
 
     // helper methods
+    private String employeeDisplayName(AirlineEmployee employee) {
+        if (employee.getUserId() == null) {
+            return "ID " + employee.getId();
+        }
+        return personalProfileStore.findByUserId(employee.getUserId())
+                .map(profile -> (Objects.toString(profile.getFName(), "") + " "
+                        + Objects.toString(profile.getLName(), "")).trim())
+                .filter(name -> !name.isBlank())
+                .orElse("ID " + employee.getId());
+    }
+
     protected boolean hasRequiredCrew(List<CrewAssignment> assignments) {
         boolean hasPilot = assignments.stream().anyMatch(a -> a.getDuty() == Duty.PILOT);
         boolean hasCopilot = assignments.stream().anyMatch(a -> a.getDuty() == Duty.SECONDARY_PILOT);

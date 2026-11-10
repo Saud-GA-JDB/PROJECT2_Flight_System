@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface FAAAdminRepository extends JpaRepository<FAAAdmin, Long> {
-    boolean existsByCpr(String cpr);
 
     @Query("""
         SELECT e FROM User u JOIN u.faaAdmin e

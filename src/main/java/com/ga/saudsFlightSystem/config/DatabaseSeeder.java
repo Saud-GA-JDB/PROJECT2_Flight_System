@@ -106,15 +106,10 @@ public class DatabaseSeeder implements CommandLineRunner {
             user.setStatus(User.Status.ACTIVE);
             user.setActive(true);
             user.setFailedLoginAttempts(0);
-            Person profile;
             if (role == User.Role.CUSTOMER) {
-                Customer value = new Customer();
-                user.setCustomer(value);
-                profile = value;
+                user.setCustomer(new Customer());
             } else if (role == User.Role.FAA_ADMIN) {
-                FAAAdmin value = new FAAAdmin();
-                user.setFaaAdmin(value);
-                profile = value;
+                user.setFaaAdmin(new FAAAdmin());
             } else {
                 AirlineEmployee value = new AirlineEmployee();
                 value.setAirline(airline);
@@ -122,13 +117,9 @@ public class DatabaseSeeder implements CommandLineRunner {
                 value.setHireDate(LocalDate.of(2025, 1, 1));
                 value.setSalary(1500L);
                 user.setAirlineEmployee(value);
-                profile = value;
             }
-            profile.setFName(first);
-            profile.setLName(last);
-            profile.setCpr(cpr);
-            profile.setPhoneNumberOpeningCode("+973");
-            profile.setPhoneNumber("360010" + cpr.substring(7));
+            user.setPersonalProfile(new UserProfile(
+                    first, last, cpr, "+973", "360010" + cpr.substring(7)));
             return user;
         });
         linkEmployeeAccount(result);
@@ -196,7 +187,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         return result;
     }
 
-    private User staff(String email, String cpr, User.Role role, Supplier<? extends Person> factory) {
+    private User staff(String email, String cpr, User.Role role, Supplier<? extends BaseEntity> factory) {
         User result = findOrCreate(User.class, "emailAddress", email, () -> {
             User user = new User();
             user.setEmailAddress(email);
@@ -206,17 +197,15 @@ public class DatabaseSeeder implements CommandLineRunner {
             user.setRole(role);
             user.setStatus(User.Status.ACTIVE);
             user.setActive(true);
-            Person profile = factory.get();
-            profile.setFName("Sample");
-            profile.setLName(email.substring(0, email.indexOf('@')));
-            profile.setCpr(cpr);
-            profile.setPhoneNumberOpeningCode("+973");
-            profile.setPhoneNumber("3600" + cpr.substring(5));
-            if (profile instanceof AirlineEmployee employee) user.setAirlineEmployee(employee);
-            else if (profile instanceof AirportEmployee employee) user.setAirportEmployee(employee);
-            else if (profile instanceof MaintenanceEmployee employee) user.setMaintenanceEmployee(employee);
-            else if (profile instanceof ATCEmployee employee) user.setAtcEmployee(employee);
-            else throw new IllegalArgumentException("Unsupported seed staff profile");
+            BaseEntity employeeRecord = factory.get();
+            if (employeeRecord instanceof AirlineEmployee employee) user.setAirlineEmployee(employee);
+            else if (employeeRecord instanceof AirportEmployee employee) user.setAirportEmployee(employee);
+            else if (employeeRecord instanceof MaintenanceEmployee employee) user.setMaintenanceEmployee(employee);
+            else if (employeeRecord instanceof ATCEmployee employee) user.setAtcEmployee(employee);
+            else throw new IllegalArgumentException("Unsupported seed employee");
+            user.setPersonalProfile(new UserProfile(
+                    "Sample", email.substring(0, email.indexOf('@')), cpr,
+                    "+973", "3600" + cpr.substring(5)));
             return user;
         });
         linkEmployeeAccount(result);

@@ -115,6 +115,8 @@ public class FlightInspectionServiceTest {
         entityManager.createQuery("DELETE FROM AuditLog a WHERE a.entityType = :type AND a.entityId IN (SELECT i.id FROM FlightInspection i WHERE i.flight.id IN :ids)")
                 .setParameter("type", AuditLog.EntityType.FLIGHT_INSPECTION).setParameter("ids", flights).executeUpdate();
         entityManager.createQuery("DELETE FROM FlightInspection i WHERE i.flight.id IN :ids").setParameter("ids", flights).executeUpdate();
+        entityManager.createQuery("DELETE FROM UserProfile p WHERE p.userId IN :ids")
+                .setParameter("ids", userIds).executeUpdate();
         entityManager.createQuery("DELETE FROM User u WHERE u.id IN :ids").setParameter("ids", userIds).executeUpdate();
         entityManager.createQuery("DELETE FROM AirportEmployee e WHERE e.id IN :ids").setParameter("ids", employeeIds).executeUpdate();
         entityManager.createQuery("DELETE FROM AirlineEmployee e WHERE e.id IN :ids").setParameter("ids", airlineEmployeeIds).executeUpdate();
@@ -482,7 +484,6 @@ public class FlightInspectionServiceTest {
 
     private User airportUser(Airport airport, AirportEmployee.AirportRole role) {
         AirportEmployee employee = new AirportEmployee();
-        employee.setCpr(cpr());
         employee.setAirport(airport);
         employee.setOperator(airport.getOperator());
         employee.setAirportRole(role);
@@ -497,7 +498,6 @@ public class FlightInspectionServiceTest {
 
     private User airlineUser(Airline airline) {
         AirlineEmployee employee = new AirlineEmployee();
-        employee.setCpr(cpr());
         employee.setAirline(airline);
         employee.setAirlineRole(AirlineEmployee.AirlineRole.ADMIN);
         User user = user(User.Role.AIRLINE_EMPLOYEE);
@@ -516,6 +516,8 @@ public class FlightInspectionServiceTest {
         user.setRole(role);
         user.setStatus(User.Status.ACTIVE);
         user.setActive(true);
+        user.setPersonalProfile(new UserProfile(
+                "Test", "Inspector", cpr(), null, null));
         return user;
     }
 

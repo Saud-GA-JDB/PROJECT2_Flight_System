@@ -698,7 +698,7 @@ public class FlightClearanceTransactionTest {
         AirlineEmployee profile = new AirlineEmployee();
         profile.setAirline(company);
         profile.setAirlineRole(role);
-        User user = user(profile);
+        User user = user();
         user.setRole(User.Role.AIRLINE_EMPLOYEE);
         user.setAirlineEmployee(profile);
         users.save(user);
@@ -713,7 +713,7 @@ public class FlightClearanceTransactionTest {
         profile.setFacility(tower);
         profile.setAtcRole(role);
         profile.setEmployeeNumber(UUID.randomUUID().toString().toUpperCase());
-        User user = user(profile);
+        User user = user();
         user.setRole(User.Role.ATC_EMPLOYEE);
         user.setAtcEmployee(profile);
         users.save(user);
@@ -723,15 +723,16 @@ public class FlightClearanceTransactionTest {
         return user;
     }
 
-    private User user(Person profile) {
-        profile.setCpr(String.valueOf(ThreadLocalRandom.current().nextLong(100000000, 1000000000)));
-        profile.setFName("Test");
-        profile.setLName("Operations");
+    private User user() {
         User user = new User();
         user.setEmailAddress(UUID.randomUUID() + "@example.com");
         user.setPassword(encoded);
         user.setActive(true);
         user.setStatus(User.Status.ACTIVE);
+        user.setPersonalProfile(new UserProfile(
+                "Test", "Operations",
+                String.valueOf(ThreadLocalRandom.current().nextLong(100000000, 1000000000)),
+                null, null));
         return user;
     }
 

@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
+import com.ga.saudsFlightSystem.identity.PersonalProfile;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -8,6 +9,7 @@ import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.Customer;
 import com.ga.saudsFlightSystem.model.User;
+import com.ga.saudsFlightSystem.model.UserProfile;
 import com.ga.saudsFlightSystem.model.request.response.RegistrationResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
@@ -114,7 +116,6 @@ public class PendingRegistrationService {
             checkExistingDetails(pending.getEmailAddress(), pending.getCpr());
 
             Customer customer = new Customer();
-            customer.setCpr(pending.getCpr());
 
             user = new User();
             user.setEmailAddress(pending.getEmailAddress());
@@ -123,15 +124,20 @@ public class PendingRegistrationService {
             user.setActive(false);
             user.setStatus(User.Status.SETUP_REQUIRED);
             user.setCustomer(customer);
+            user.setPersonalProfile(new UserProfile(
+                    null, null, pending.getCpr(), null, null));
             userRepository.save(user);
             String description = "User registered an account after verifying their email";
             auditLogService.addAuditLog(user, AuditLog.Action.USER_REGISTERED, AuditLog.EntityType.USER, user.getId(), description);
             logger.info(description + " (user id: " + user.getId() + ")");
         } else {
             // Repeating verification must not reset an existing password.
+            PersonalProfile profile = personalProfileStore.findByUserId(user.getId()).orElse(null);
             if (user.getStatus() != User.Status.SETUP_REQUIRED
+                    || user.getRole() != User.Role.CUSTOMER
                     || user.getCustomer() == null
-                    || !pending.getCpr().equals(user.getCustomer().getCpr())) {
+                    || profile == null
+                    || !pending.getCpr().equals(profile.getCpr())) {
                 throw new InformationExistException("A user with this email already exists.");
             }
         }

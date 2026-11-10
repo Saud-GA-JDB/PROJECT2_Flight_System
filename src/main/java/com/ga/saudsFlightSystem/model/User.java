@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 import java.time.LocalDate;
 
@@ -53,6 +55,20 @@ public class User {
 
     @JsonIgnore
     private LocalDate passwordResetAttemptsDate;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL,
+            orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private UserProfile personalProfile;
+
+    public void setPersonalProfile(UserProfile personalProfile) {
+        this.personalProfile = personalProfile;
+        if (personalProfile != null) {
+            personalProfile.setUser(this);
+        }
+    }
 
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "customer_id", referencedColumnName = "id", unique = true)

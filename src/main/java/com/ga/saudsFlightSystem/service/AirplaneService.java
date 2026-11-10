@@ -2,6 +2,7 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
+import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -32,6 +33,7 @@ import java.util.logging.Logger;
 @AllArgsConstructor
 public class AirplaneService {
     private AccountLookup accountLookup;
+    private PersonalProfileStore personalProfileStore;
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
@@ -180,7 +182,11 @@ public class AirplaneService {
 
         logger.info(description + " (user id: " + actor.userId() + ")");
 
-        String addedBy = airlineEmployee.getFName() + " " + airlineEmployee.getLName();
+        String addedBy = personalProfileStore.findByUserId(actor.userId())
+                .map(profile -> (Objects.toString(profile.getFName(), "") + " "
+                        + Objects.toString(profile.getLName(), "")).trim())
+                .filter(name -> !name.isBlank())
+                .orElse("User " + actor.userId());
 
         AddAirplaneResponse response = new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), addedBy, airplane.getStatus());
 

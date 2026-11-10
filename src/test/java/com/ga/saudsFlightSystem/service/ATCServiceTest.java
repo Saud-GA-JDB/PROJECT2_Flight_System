@@ -70,7 +70,6 @@ public class ATCServiceTest {
     public void setUp() {
         SecurityContextHolder.clearContext();
         FAAAdmin profile = new FAAAdmin();
-        profile.setCpr(cpr());
         faa = new User();
         faa.setEmailAddress(UUID.randomUUID() + "@example.com");
         faa.setPassword(passwords.encode("TestPassword1"));
@@ -78,6 +77,8 @@ public class ATCServiceTest {
         faa.setActive(true);
         faa.setRole(User.Role.FAA_ADMIN);
         faa.setFaaAdmin(profile);
+        faa.setPersonalProfile(new UserProfile(
+                "Test", "FAA", cpr(), null, null));
         userRepository.saveAndFlush(faa);
         faaProfileId = profile.getId();
         airport = airport();
@@ -98,6 +99,8 @@ public class ATCServiceTest {
                 .setParameter("ids", List.of(providerId, otherProviderId)).executeUpdate();
         em.createQuery("delete from AirNavigationServiceProvider p where p.id in :ids")
                 .setParameter("ids", List.of(providerId, otherProviderId)).executeUpdate();
+        em.createQuery("delete from UserProfile p where p.userId = :id")
+                .setParameter("id", faa.getId()).executeUpdate();
         em.createQuery("delete from User u where u.id = :id").setParameter("id", faa.getId()).executeUpdate();
         em.createQuery("delete from FAAAdmin a where a.id = :id").setParameter("id", faaProfileId).executeUpdate();
         em.createQuery("delete from Airport a where a.id in :ids")
@@ -179,7 +182,7 @@ public class ATCServiceTest {
         ATCEmployeeResponse admin = service.addAdmin(facilityId, staffRequest()).getBody();
         login(admin.getEmailAddress());
         userService.updateProfile(null, jsonMapper.readValue("{\"phoneNumber\":\"33123457\"}", UpdateProfileRequest.class), null);
-        Assert.assertEquals("33123457", userRepository.findById(admin.getUserId()).get().getAtcEmployee().getPhoneNumber());
+        Assert.assertEquals("33123457", em.find(UserProfile.class, admin.getUserId()).getPhoneNumber());
         Assert.assertTrue(UserService.isAllowedEndpoint("atcEmployee", User.Role.ATC_EMPLOYEE));
         Assert.assertFalse(UserService.isAllowedEndpoint("faaadmin", User.Role.ATC_EMPLOYEE));
     }

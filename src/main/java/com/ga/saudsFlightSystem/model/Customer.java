@@ -8,6 +8,6 @@ import lombok.Data;
 @Data
 @Entity
 @Table(name = "customers")
-public class Customer extends Person {
+public class Customer extends BaseEntity {
 
 }

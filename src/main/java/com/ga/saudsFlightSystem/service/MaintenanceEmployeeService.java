@@ -69,17 +69,12 @@ public class MaintenanceEmployeeService {
         MaintenanceProvider maintenanceProvider = maintenanceProviderRepository.findByIdForUpdate(providerId)
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find the maintenance provider."));
 
-        // checks different repositories if this cpr and email exist already. if yes, throws an exception
+        // checks whether the email or CPR is already registered
         employeeAccountProvisioner.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
 
         MaintenanceEmployee maintenanceEmployee = new MaintenanceEmployee();
         maintenanceEmployee.setProvider(maintenanceProvider);
         maintenanceEmployee.setMaintenanceRole(role);
-        maintenanceEmployee.setFName(request.getFName().trim());
-        maintenanceEmployee.setLName(request.getLName().trim());
-        maintenanceEmployee.setCpr(request.getCpr());
-        maintenanceEmployee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode().trim());
-        maintenanceEmployee.setPhoneNumber(request.getPhoneNumber().trim());
         if (request.getLicenseNumber() != null && !request.getLicenseNumber().isBlank()) {
             maintenanceEmployee.setLicenseNumber(request.getLicenseNumber().trim());
         }
@@ -93,7 +88,12 @@ public class MaintenanceEmployeeService {
                         request.getEmailAddress().trim(),
                         request.getPassword(),
                         request.getSecurityQuestion().trim(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase()
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
+                        request.getCpr(),
+                        request.getPhoneNumberOpeningCode().trim(),
+                        request.getPhoneNumber().trim()
                 ));
         maintenanceEmployee.setUserId(account.userId());
 
@@ -115,8 +115,8 @@ public class MaintenanceEmployeeService {
                         maintenanceEmployee.getId(),
                         account.userId(),
                         providerId,
-                        maintenanceEmployee.getFName(),
-                        maintenanceEmployee.getLName(),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
                         account.emailAddress(),
                         maintenanceEmployee.getMaintenanceRole(),
                         maintenanceEmployee.getLicenseNumber()
