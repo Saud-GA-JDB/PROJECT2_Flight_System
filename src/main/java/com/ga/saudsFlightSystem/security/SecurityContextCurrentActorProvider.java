@@ -1,7 +1,8 @@
 package com.ga.saudsFlightSystem.security;
 
 import com.ga.saudsFlightSystem.model.User;
-import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
+import com.ga.saudsFlightSystem.identity.AccountSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
@@ -13,16 +14,15 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class SecurityContextCurrentActorProvider implements CurrentActorProvider {
-    private final UserRepository userRepository;
+    private final AccountLookup accountLookup;
 
     @Override
     public CurrentActor getFreshCurrentActor() {
         CurrentActor principal = getCurrentActor();
-        UserRepository.AccountState account = userRepository.findAccountStateById(principal.userId())
+        AccountSnapshot account = accountLookup.findAccountStateById(principal.userId())
                 .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("The authenticated account no longer exists."));
-        return new CurrentActor(account.getId(),
-                account.getRole() == null ? null : account.getRole().name(),
-                account.getStatus() == null ? null : account.getStatus().name(), account.isActive());
+
+        return new CurrentActor(account.userId(), account.role(), account.status(), account.active() );
     }
 
     @Override
@@ -35,9 +35,8 @@ public class SecurityContextCurrentActorProvider implements CurrentActorProvider
         }
 
         User user = userDetails.getUser();
-        if (user == null || user.getId() == null || user.getRole() == null || user.getStatus() == null) {
+        if (user == null || user.getId() == null || user.getRole() == null || user.getStatus() == null)
             throw new AuthenticationCredentialsNotFoundException("Authenticated account information is missing.");
-        }
 
         return new CurrentActor(user.getId(), user.getRole().name(), user.getStatus().name(), user.isActive());
     }
