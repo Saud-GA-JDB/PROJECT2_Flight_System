@@ -15,7 +15,7 @@ import com.ga.saudsFlightSystem.model.request.CompleteMaintenanceRecordRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordResponse;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordListResponse;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceCancellationNotificationResponse;
-import com.ga.saudsFlightSystem.repository.UserRepository;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
@@ -30,6 +30,8 @@ import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.Objects;
 import java.util.logging.Logger;
 
@@ -43,7 +45,7 @@ public class MaintenanceRecordService {
     private MaintenanceProviderRepository maintenanceProviderRepository;
     private AirplaneRepository airplaneRepository;
     private AuditLogService auditLogService;
-    private UserRepository userRepository;
+    private AccountLookup accountLookup;
     private NotificationPublisher notificationService;
     private static final Logger logger = Logger.getLogger(MaintenanceRecordService.class.getName());
 
@@ -388,9 +390,14 @@ public class MaintenanceRecordService {
 
         MaintenanceCancellationNotificationResponse payload = new MaintenanceCancellationNotificationResponse(
                 record.getId(), record.getStatus(), record.getCancelledAt());
-        for (Long recipientId : userRepository.findMaintenanceCancellationRecipients(record.getId(),
-                record.getAirplane().getAirline().getId(), record.getProvider().getId(), User.Status.ACTIVE.ordinal()))
+        Set<Long> recipients = new LinkedHashSet<>(accountLookup.findActiveUserIds(
+                airlineEmployeeRepository.findAdminUserIdsByAirlineId(record.getAirplane().getAirline().getId()), "AIRLINE_EMPLOYEE"));
+        recipients.addAll(accountLookup.findActiveUserIds(
+                maintenanceEmployeeRepository.findCancellationRecipientUserIds(record.getId(), record.getProvider().getId()), "MAINTENANCE_EMPLOYEE"));
+
+        for (Long recipientId : recipients) {
             notificationService.sendToUser(recipientId, "Maintenance_Cancelled", payload);
+        }
         return toMaintenanceResponse(record);
     }
 

@@ -4,5 +4,6 @@ public record AccountSnapshot(
         Long userId,
         String role,
         String status,
-        boolean active
+        boolean active,
+        String emailAddress
 ) {}

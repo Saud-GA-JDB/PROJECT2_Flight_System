@@ -23,4 +23,23 @@ public interface MaintenanceEmployeeRepository extends JpaRepository<Maintenance
         WHERE e.userId = :userId
         """)
     Optional<MaintenanceEmployee> findByUserId(@Param("userId") Long userId);
+
+    @Query(value = """
+        SELECT DISTINCT e.user_id
+        FROM maintenance_employees e
+        WHERE e.user_id IS NOT NULL
+          AND (
+            (e.provider_id = :providerId AND e.maintenance_role = 'ADMIN')
+            OR (
+                e.maintenance_role = 'TECHNICIAN'
+                AND EXISTS (
+                    SELECT 1
+                    FROM maintenance_records r
+                    WHERE r.id = :recordId
+                      AND r.technician_id = e.id
+                )
+            )
+          )
+        """, nativeQuery = true)
+    List<Long> findCancellationRecipientUserIds(@Param("recordId") Long recordId, @Param("providerId") Long providerId);
 }

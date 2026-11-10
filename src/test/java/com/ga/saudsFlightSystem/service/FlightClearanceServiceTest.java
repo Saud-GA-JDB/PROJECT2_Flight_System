@@ -7,6 +7,7 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
 import jakarta.persistence.EntityManager;
 import org.junit.*;
 import org.junit.runner.RunWith;
@@ -26,6 +27,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.*;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -49,6 +52,9 @@ public class FlightClearanceServiceTest {
     @Autowired FlightInspectionRepository inspections;
     @Autowired FlightControlEventRepository events;
     @Autowired UserRepository users;
+    @Autowired AccountLookup accountLookup;
+    @Autowired AirlineEmployeeRepository airlineEmployees;
+    @Autowired ATCEmployeeRepository atcEmployees;
     @Autowired EntityManager em;
     @Autowired AuthenticationManager authenticationManager;
     @Autowired PasswordEncoder passwords;
@@ -278,7 +284,10 @@ public class FlightClearanceServiceTest {
         User inactive = atc(origin, ATCEmployee.ATCRole.CONTROLLER);
         inactive.setActive(false);
         em.flush();
-        List<Long> recipients = users.findClearanceRecipients(flight.getId(), origin.getId(), airline.getId(), User.Status.ACTIVE.ordinal());
+        Set<Long> recipients = new LinkedHashSet<>(accountLookup.findActiveUserIds(
+                airlineEmployees.findFlightRecipientUserIds(flight.getId(), airline.getId()), "AIRLINE_EMPLOYEE"));
+        recipients.addAll(accountLookup.findActiveUserIds(
+                atcEmployees.findClearanceRecipientUserIds(origin.getId()), "ATC_EMPLOYEE"));
         Assert.assertEquals(4, recipients.size());
         Assert.assertTrue(recipients.containsAll(List.of(pilot.getId(), secondary.getId(), admin.getId(), originController.getId())));
     }

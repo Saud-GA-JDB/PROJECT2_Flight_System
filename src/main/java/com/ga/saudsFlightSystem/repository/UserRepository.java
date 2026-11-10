@@ -20,74 +20,30 @@ public interface UserRepository extends JpaRepository<User, Long> {
         User.Role getRole();
         User.Status getStatus();
         boolean isActive();
+        String getEmailAddress();
     }
 
-    @Query("select u.id as id, u.role as role, u.status as status, u.isActive as active from User u where u.id = :userId")
+    @Query("""
+        SELECT u.id AS id, u.role AS role, u.status AS status,
+               u.isActive AS active, u.emailAddress AS emailAddress
+        FROM User u
+        WHERE u.id = :userId
+        """)
     Optional<AccountState> findAccountStateById(@Param("userId") Long userId);
+
+    @Query("""
+        SELECT u.id AS id, u.role AS role, u.status AS status,
+               u.isActive AS active, u.emailAddress AS emailAddress
+        FROM User u
+        WHERE u.id IN :userIds
+        """)
+    List<AccountState> findAccountStatesByIds(@Param("userIds") List<Long> userIds);
 
     @Query("select u.emailAddress from User u where u.id = :userId")
     Optional<String> findEmailAddressById(@Param("userId") Long userId);
 
-    @Query(value = """
-        SELECT DISTINCT u.id FROM users u
-        LEFT JOIN airline_employees a ON a.id = u.airline_employee_id
-        LEFT JOIN maintenance_employees m ON m.id = u.maintenance_employee_id
-        WHERE u.is_active = true AND u.status = :activeStatus AND (
-          (u.role = 'AIRLINE_EMPLOYEE' AND a.airline_id = :airlineId AND a.airline_role = 'ADMIN')
-          OR (u.role = 'MAINTENANCE_EMPLOYEE' AND m.provider_id = :providerId AND m.maintenance_role = 'ADMIN')
-          OR (u.role = 'MAINTENANCE_EMPLOYEE' AND m.maintenance_role = 'TECHNICIAN' AND EXISTS (
-            SELECT 1 FROM maintenance_records r WHERE r.id = :recordId AND r.technician_id = m.id)))
-        """, nativeQuery = true)
-    List<Long> findMaintenanceCancellationRecipients(@Param("recordId") Long recordId, @Param("airlineId") Long airlineId,
-            @Param("providerId") Long providerId, @Param("activeStatus") int activeStatus);
-
-    @Query(value = """
-        SELECT DISTINCT u.id FROM users u
-        LEFT JOIN atc_employees t ON t.id = u.atc_employee_id
-        LEFT JOIN control_facilities cf ON cf.id = t.facility_id
-        LEFT JOIN airline_employees e ON e.id = u.airline_employee_id
-        WHERE u.is_active = true AND u.status = :activeStatus AND (
-          (u.role = 'ATC_EMPLOYEE' AND t.atc_role IN ('ADMIN', 'CONTROLLER') AND EXISTS (
-            SELECT 1 FROM flights f WHERE f.id = :flightId
-              AND (cf.airport_id = f.origin_airport_id OR cf.airport_id = f.destination_airport_id)))
-          OR (u.role = 'AIRLINE_EMPLOYEE' AND e.airline_id = :airlineId AND e.airline_role = 'ADMIN')
-          OR (u.role = 'AIRLINE_EMPLOYEE' AND e.airline_role = 'PILOT' AND EXISTS (
-            SELECT 1 FROM crew_assignments c WHERE c.flight_id = :flightId
-              AND c.employee_id = e.id AND c.duty IN ('PILOT', 'SECONDARY_PILOT'))))
-        """, nativeQuery = true)
-    List<Long> findFlightActionRecipients(@Param("flightId") Long flightId, @Param("airlineId") Long airlineId,
-                                         @Param("activeStatus") int activeStatus);
-
-    @Query(value = """
-        SELECT DISTINCT u.id FROM users u
-        LEFT JOIN atc_employees t ON t.id = u.atc_employee_id
-        LEFT JOIN airline_employees e ON e.id = u.airline_employee_id
-        WHERE u.is_active = true AND u.status = :activeStatus AND (
-          (u.role = 'ATC_EMPLOYEE' AND t.facility_id = :facilityId AND t.atc_role IN ('ADMIN', 'CONTROLLER'))
-          OR (u.role = 'AIRLINE_EMPLOYEE' AND e.airline_id = :airlineId AND e.airline_role = 'ADMIN')
-          OR (u.role = 'AIRLINE_EMPLOYEE' AND e.airline_role = 'PILOT' AND EXISTS (
-            SELECT 1 FROM crew_assignments c WHERE c.flight_id = :flightId
-              AND c.employee_id = e.id AND c.duty IN ('PILOT', 'SECONDARY_PILOT'))))
-        """, nativeQuery = true)
-    List<Long> findClearanceRecipients(@Param("flightId") Long flightId, @Param("facilityId") Long facilityId,
-                                       @Param("airlineId") Long airlineId, @Param("activeStatus") int activeStatus);
-
     boolean existsByEmailAddress(String emailAddress);
     User findUserByEmailAddress(String emailAddress);
-    User findByAtcEmployeeId(Long employeeId);
-
-    @Query(value = """
-        SELECT u.* FROM users u JOIN atc_employees e ON e.id = u.atc_employee_id
-        WHERE u.role = 'ATC_EMPLOYEE' AND e.facility_id = :facilityId AND e.atc_role = 'CONTROLLER'
-        ORDER BY e.id LIMIT :size OFFSET :offset
-        """, nativeQuery = true)
-    List<User> findTowerControllers(@Param("facilityId") Long facilityId, @Param("size") int size, @Param("offset") long offset);
-
-    @Query(value = """
-        SELECT COUNT(*) FROM users u JOIN atc_employees e ON e.id = u.atc_employee_id
-        WHERE u.role = 'ATC_EMPLOYEE' AND e.facility_id = :facilityId AND e.atc_role = 'CONTROLLER'
-        """, nativeQuery = true)
-    long countTowerControllers(@Param("facilityId") Long facilityId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.emailAddress = :email")

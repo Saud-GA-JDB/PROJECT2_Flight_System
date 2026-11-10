@@ -6,6 +6,8 @@ import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
 import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.saudsFlightSystem.identity.PersonalProfile;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
+import com.ga.saudsFlightSystem.identity.AccountSnapshot;
 import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -41,7 +43,7 @@ public class ATCService {
     private ControlFacilityRepository facilityRepository;
     private ATCEmployeeRepository employeeRepository;
     private AirportRepository airportRepository;
-    private UserRepository userRepository;
+    private AccountLookup accountLookup;
     private EmployeeAccountProvisioner employeeAccountProvisioner;
     private PersonalProfileStore personalProfileStore;
     private PhoneValidationService phoneValidationService;
@@ -160,15 +162,28 @@ public class ATCService {
         ATCEmployee currentEmployee = requireATCEmployee(actor, true);
         validatePagination(page, size);
         Long facilityId = currentEmployee.getFacility().getId();
-        List<User> controllers = userRepository.findTowerControllers(
-                facilityId, size, (long) page * size);
+        List<ATCEmployee> employees = employeeRepository.findControllersByFacilityId(facilityId);
+        Map<Long, AccountSnapshot> accounts = accountLookup.findAccountsByIds(
+                employees.stream().map(ATCEmployee::getUserId).toList());
+
+        List<ATCEmployee> controllers = employees.stream()
+                .filter(employee -> {
+                    AccountSnapshot account = accounts.get(employee.getUserId());
+                    return account != null && "ATC_EMPLOYEE".equals(account.role());
+                })
+                .toList();
+        long totalElements = controllers.size();
+        List<ATCEmployee> pageEmployees = controllers.stream()
+                .skip((long) page * size)
+                .limit(size)
+                .toList();
+
         Map<Long, PersonalProfile> profiles = personalProfileStore.findByUserIds(
-                controllers.stream().map(User::getId).toList());
+                pageEmployees.stream().map(ATCEmployee::getUserId).toList());
         List<ATCEmployeeResponse> content = new ArrayList<>();
-        for (User controller : controllers) {
-            content.add(employeeResponse(controller, profiles.get(controller.getId())));
+        for (ATCEmployee employee : pageEmployees) {
+            content.add(employeeResponse(employee, accounts.get(employee.getUserId()), profiles.get(employee.getUserId())));
         }
-        long totalElements = userRepository.countTowerControllers(facilityId);
         return ResponseEntity.ok(new ATCEmployeeListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
     }
 
@@ -306,12 +321,11 @@ public class ATCService {
                 facility.getName(), facility.getFacilityType());
     }
 
-    private ATCEmployeeResponse employeeResponse(User user, PersonalProfile profile) {
+    private ATCEmployeeResponse employeeResponse(ATCEmployee employee, AccountSnapshot account, PersonalProfile profile) {
         if (profile == null) {
             throw new InformationNotFoundException("No profile information found for this user.");
         }
-        ATCEmployee employee = user.getAtcEmployee();
-        return new ATCEmployeeResponse(employee.getId(), user.getId(), employee.getFacility().getId(),
-                employee.getEmployeeNumber(), profile.getFName(), profile.getLName(), user.getEmailAddress(), employee.getAtcRole());
+        return new ATCEmployeeResponse(employee.getId(), employee.getUserId(), employee.getFacility().getId(),
+                employee.getEmployeeNumber(), profile.getFName(), profile.getLName(), account.emailAddress(), employee.getAtcRole());
     }
 }

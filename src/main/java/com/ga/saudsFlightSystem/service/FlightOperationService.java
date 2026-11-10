@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.notification.NotificationPublisher;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.ATCEmployeeRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -25,6 +26,8 @@ import java.time.ZoneId;
 import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Service
 @AllArgsConstructor
@@ -35,7 +38,7 @@ public class FlightOperationService {
     private CrewAssignmentRepository crewRepository;
     private FlightInspectionRepository inspectionRepository;
     private FlightControlEventRepository eventRepository;
-    private UserRepository userRepository;
+    private AccountLookup accountLookup;
     private FlightReadinessService readinessService;
     private AirplaneRepository airplaneRepository;
     private AirlineEmployeeRepository employeeRepository;
@@ -393,13 +396,20 @@ public class FlightOperationService {
         ClearanceNotificationResponse payload = new ClearanceNotificationResponse(event.getId(), flight.getId(),
                 flight.getClearanceOperation(), event.getCycle(), event.getRevision(), flight.getClearanceStatus(), now,
                 type == FlightControlEvent.EventType.APPROVED ? flight.getClearanceExpiresAt() : null);
-        List<Long> recipients;
-        if (type == FlightControlEvent.EventType.TAKE_OFF || type == FlightControlEvent.EventType.LANDED)
-            recipients = userRepository.findFlightActionRecipients(flight.getId(), flight.getAirline().getId(), User.Status.ACTIVE.ordinal());
-        else
-            recipients = userRepository.findClearanceRecipients(flight.getId(), flight.getClearanceFacility().getId(), flight.getAirline().getId(), User.Status.ACTIVE.ordinal());
-        for (Long recipientId : recipients)
+        Set<Long> recipients = new LinkedHashSet<>(accountLookup.findActiveUserIds(
+                employeeRepository.findFlightRecipientUserIds(flight.getId(), flight.getAirline().getId()), "AIRLINE_EMPLOYEE"));
+
+        List<Long> towerUserIds;
+        if (type == FlightControlEvent.EventType.TAKE_OFF || type == FlightControlEvent.EventType.LANDED) {
+            towerUserIds = atcEmployeeRepository.findFlightActionRecipientUserIds(flight.getId());
+        } else {
+            towerUserIds = atcEmployeeRepository.findClearanceRecipientUserIds(flight.getClearanceFacility().getId());
+        }
+        recipients.addAll(accountLookup.findActiveUserIds(towerUserIds, "ATC_EMPLOYEE"));
+
+        for (Long recipientId : recipients) {
             notificationService.sendToUser(recipientId, eventName, payload);
+        }
         ClearanceResponse clearance = new ClearanceResponse(flight.getClearanceOperation(), flight.getClearanceStatus().name(),
                 flight.getClearanceFacility().getId(), flight.getClearanceCycle(), flight.getClearanceRevision(),
                 flight.getClearanceApprovedAt(), flight.getClearanceExpiresAt());

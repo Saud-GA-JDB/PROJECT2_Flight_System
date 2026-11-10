@@ -136,7 +136,7 @@ public class ATCServiceTest {
         login(admin.getEmailAddress());
         AddATCEmployeeRequest request = staffRequest();
         ATCEmployeeResponse controller = service.addController(request).getBody();
-        User saved = userRepository.findByAtcEmployeeId(controller.getId());
+        User saved = userRepository.findById(controller.getUserId()).orElseThrow();
         Assert.assertTrue(passwords.matches("TestPassword1", saved.getPassword()));
         Assert.assertTrue(passwords.matches("manama", saved.getSecurityQuestionAnswer()));
         Assert.assertTrue(saved.isActive());
