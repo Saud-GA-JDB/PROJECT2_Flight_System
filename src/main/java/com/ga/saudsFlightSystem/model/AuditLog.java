@@ -21,8 +21,7 @@ public class AuditLog {
     private Long userId;
 
     @Column
-    @Enumerated(EnumType.STRING)
-    private User.Role userRole;
+    private String userRole;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)

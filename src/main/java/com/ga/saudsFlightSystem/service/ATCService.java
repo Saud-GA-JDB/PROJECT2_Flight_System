@@ -8,7 +8,6 @@ import com.ga.saudsFlightSystem.identity.PersonalProfile;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.identity.AccountSnapshot;
-import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
@@ -37,7 +36,6 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class ATCService {
-    private FAAAdminRepository faaAdminRepository;
     private CurrentActorProvider currentActorProvider;
     private AirNavigationServiceProviderRepository providerRepository;
     private ControlFacilityRepository facilityRepository;
@@ -252,7 +250,7 @@ public class ATCService {
 
     private CurrentActor requireFAAAdmin() {
         CurrentActor actor = requireActiveActor();
-        if (!"FAA_ADMIN".equals(actor.role()) || faaAdminRepository.findByUserId(actor.userId()).isEmpty())
+        if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("Only FAA admins can manage air navigation providers and towers.");
         return actor;
     }

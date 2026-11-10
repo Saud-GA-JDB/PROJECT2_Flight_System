@@ -29,9 +29,14 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.logging.Logger;
 
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.ga.saudsFlightSystem")
 public class GlobalExceptionHandler {
     private static final Logger logger = Logger.getLogger(GlobalExceptionHandler.class.getName());
+
+    @ExceptionHandler({com.ga.saudsFlightSystem.identity.IdentityUnavailableException.class, feign.RetryableException.class})
+    public ResponseEntity<ErrorResponse> handleIdentityUnavailable(Exception ex, HttpServletRequest request) {
+        return build("Identity is unavailable. Please retry shortly.", HttpStatus.SERVICE_UNAVAILABLE, request);
+    }
 
     @ExceptionHandler(BusinessConflictException.class)
     public ResponseEntity<ErrorResponse> handleBusinessConflict(BusinessConflictException ex, HttpServletRequest request) {

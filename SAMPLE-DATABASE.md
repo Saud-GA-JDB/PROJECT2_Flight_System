@@ -1,3 +1,5 @@
+> Identity extraction: all /auth/users endpoints now run on port 8081. Other endpoints stay on 8080. Start/seed Identity first, then the flight application. See the identity-service README for configuration and recovery.
+
 # Sample database for Project 3
 
 `DatabaseSeeder` is an optional PostgreSQL startup seeder. It creates connected
@@ -162,7 +164,7 @@ workflow state. It uses the configured PostgreSQL test database and rolls back r
 changes; PostgreSQL sequence advances are not rolled back.
 
 ```powershell
-.\mvnw.cmd '-Dtest=DatabaseSeederTest' test
+.\mvnw.cmd -f integration-tests/pom.xml '-Dtest=DatabaseSeederTest' test
 ```
 
 For existing service tests, retain the three `flighttest.*` accounts with their

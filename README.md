@@ -41,34 +41,16 @@ The purpose is to connect three main users: customers who search and book flight
 
 ## Architecture
 
-The application is a single Spring Boot backend organized into layers:
+The backend now runs as two Spring Boot applications sharing the existing PostgreSQL database:
 
-```text
-Swagger UI / Postman / API client
-              |
-     Spring Security + JWT filter
-              |
-         Controllers
-              |
-           Services ----> SMTP email / SSE connections
-              |
-      JPA repositories
-              |
-          PostgreSQL
-```
+| Application | Port | Owns |
+| --- | --- | --- |
+| Identity | 8081 | Accounts, profiles, registration, passwords, JWT authentication, identity audit logs |
+| Flight system | 8080 | Employees, aviation operations, bookings, payments, maintenance, operational audit logs and SSE |
 
-| Package | Responsibility |
-| --- | --- |
-| `controller` | HTTP endpoints for accounts, customers, bookings, flights, airlines, FAA administration, and notifications |
-| `service` | Business rules, validation, transactions, email, notifications, and audit logging |
-| `repository` | Database access through Spring Data JPA |
-| `model` | Persistent entities, request objects, and response DTOs |
-| `security` | JWT processing, user details, password encoding, and route access |
-| `exception` | Application exceptions and centralized HTTP error responses |
-| `config` | Optional database seeding and OpenAPI configuration |
+The flight system calls Identity through Feign for authentication, account/profile reads and employee account provisioning. It stores scalar user IDs and has no Identity entities or repositories on its production classpath. Each application keeps its own transactions and email support.
 
-Authentication uses a shared `User` entity linked to the relevant customer, airline employee, FAA administrator, maintenance employee, or airport employee profile. Controllers delegate to services, which enforce business rules and access repositories. Business changes and audit entries share transactions. Scheduled jobs update flight statuses, while SSE keeps an HTTP connection open for server-to-client events. The SSE implementation stores active connections in memory and sends transactional events after a successful commit.
-
+See [Identity setup and recovery](identity-service/README.md) for the two-process startup commands and provisioning behavior. Apply the extraction SQL supplied in chat before starting either application; both use schema validation.
 ## General approach
 
 I began with the broader aviation system idea and designed the entities around the ERD. The early work focused on airlines, airplanes, airports, flights, bookings, and user profiles. As authentication developed, I changed the model to separate shared login details into a `User` entity linked to the different profile types. This let authentication use one account structure while keeping each role's details in its own model.
@@ -93,7 +75,9 @@ After starting the application:
 
 These are local development links, not hosted documentation. `localhost` means the computer opening the link, so the backend must be running on that computer at port 8080. If the browser reports a refused connection, start the application using the installation steps below and keep it running. GitHub does not host these pages; another developer must run their own local instance. The YAML endpoint may download a file instead of displaying a page.
 
-- API base URL: `http://localhost:8080`
+- Flight API base URL: `http://localhost:8080`
+- Identity API and login: `http://localhost:8081`
+- [Identity Swagger UI](http://localhost:8081/swagger-ui/index.html)
 - [Swagger UI](http://localhost:8080/swagger-ui/index.html)
 - [OpenAPI JSON](http://localhost:8080/v3/api-docs)
 - [OpenAPI YAML](http://localhost:8080/v3/api-docs.yaml)
@@ -102,7 +86,7 @@ These are local development links, not hosted documentation. `localhost` means t
 
 Swagger UI is a browser interface for exploring the API. OpenAPI is the structured specification that powers it. The documentation routes are public; business endpoints retain their authentication and role checks. The integration uses [springdoc-openapi](https://springdoc.org/).
 
-In Swagger UI, expand `POST /auth/users/login`, choose **Try it out**, and log in with a seeded account. Copy the JWT from the response's `message` field. Click **Authorize**, paste just the token (without `Bearer `), and authorize. Swagger then includes the bearer header in protected requests. Use the account role appropriate to the endpoint. Login, registration-email requests, and verification do not require a token. Account setup requires login; other protected endpoints require an active account.
+In Identity Swagger UI on port 8081, expand `POST /auth/users/login`, choose **Try it out**, and log in with a seeded account. Copy the JWT from the response's `message` field. Click **Authorize**, paste just the token (without `Bearer `), and authorize. Swagger then includes the bearer header in protected requests. Use the account role appropriate to the endpoint. Login, registration-email requests, and verification do not require a token. Account setup requires login; other protected endpoints require an active account.
 
 The specification is generated from controller signatures. Some endpoints return generic response types, so the detailed guide remains useful for exact response shapes and business validation. For the long-running SSE stream, use the authenticated `curl.exe -N` example in the guide.
 
@@ -174,7 +158,7 @@ Stripe API calls run directly on the request thread. The web server handles mult
 
 Payment preparation and updates use a pessimistic booking lock. Payments also use optimistic versioning, a unique booking relationship, and Stripe idempotency keys. Stripe network calls run outside the database transactions.
 
-`PaymentServiceTest` keeps its own two-thread executor to simulate simultaneous requests and check duplicate-payment prevention and competing payment updates. These tests verify database concurrency protection, not the removed Stripe task wrapper. They require a configured test database and the fixtures described in `TESTING-NOTES-TEMP.md`. Run them with `./mvnw -Dtest=PaymentServiceTest test` (or `.\mvnw.cmd -Dtest=PaymentServiceTest test` on Windows).
+`PaymentServiceTest` keeps its own two-thread executor to simulate simultaneous requests and check duplicate-payment prevention and competing payment updates. These tests verify database concurrency protection, not the removed Stripe task wrapper. They require a configured test database and the fixtures described in `TESTING-NOTES-TEMP.md`. Run them with `./mvnw -f integration-tests/pom.xml -Dtest=PaymentServiceTest test` (or `.\mvnw.cmd -f integration-tests/pom.xml -Dtest=PaymentServiceTest test` on Windows).
 
 ### Crew assignment endpoints
 
@@ -334,6 +318,10 @@ Bookings without a payment, or with an `EXPIRED` payment, continue through the e
 
 ## Installation
 
+Identity is a separate Maven project with its own wrapper. Open the identity-service folder directly in your IDE. This checkout has local application.properties files configured for both applications; the environment-variable template below is an alternative for a fresh checkout.
+
+The current two-application startup procedure is in [Identity setup](identity-service/README.md). The environment variables below are shared by both applications; Identity alone uses JWT_SECRET, and the flight application alone uses Stripe.
+
 ### 1. Prerequisites and clone
 
 Install JDK 17 or later, PostgreSQL, and Git. A Maven wrapper is included; an installed Maven 3.6.3 or later is an alternative. Use an SMTP account for features that send email.
@@ -353,7 +341,7 @@ Start PostgreSQL and connect through pgAdmin or `psql` using an account allowed 
 CREATE DATABASE aviation;
 ```
 
-The application database user must be able to create and update tables in this database. Hibernate uses `ddl-auto=update` to create/update the schema on startup. Hibernate does not update existing enum check constraints automatically. The old docs/sql/crew-assignment-audit.sql predates maintenance and inspections; do not rerun it unchanged because it omits newer audit values. The development database audit checks were expanded through SQL supplied in chat, not a saved migration. Keep all existing values when adding the airport and inspection actions/entity types from AuditLog.java; user-role checks must include AIRPORT_EMPLOYEE, MAINTENANCE_EMPLOYEE and ATC_EMPLOYEE.
+The application database user must be able to create and update tables in this database. Both applications now use `ddl-auto=validate`. For this migration, use the existing database and apply the extraction SQL supplied in chat before startup. Hibernate does not update existing enum check constraints automatically. The old docs/sql/crew-assignment-audit.sql predates maintenance and inspections; do not rerun it unchanged because it omits newer audit values. The development database audit checks were expanded through SQL supplied in chat, not a saved migration. Keep all existing values when adding the airport and inspection actions/entity types from AuditLog.java; user-role checks must include AIRPORT_EMPLOYEE, MAINTENANCE_EMPLOYEE and ATC_EMPLOYEE.
 
 
 After Hibernate has created flight_inspections, the database must also have the partial unique index below. It was confirmed in the development database; do not recreate it there. A fresh database needs it explicitly because the JPA model does not declare this partial index.
@@ -390,7 +378,10 @@ $env:STRIPE_SECRET_KEY = "YOUR_STRIPE_SANDBOX_SECRET_KEY"
 $env:STRIPE_SUCCESS_URL = "http://localhost:8080/payments/success"
 $env:STRIPE_CANCEL_URL = "http://localhost:8080/payments/cancel"
 
-# Generate a Base64-encoded 32-byte signing key for local development.
+# Set the same private service credential in both application terminals.
+$env:IDENTITY_SERVICE_KEY = "YOUR_PRIVATE_SERVICE_KEY"
+
+# Generate a Base64-encoded 32-byte signing key for Identity.
 $jwtKeyBytes = New-Object byte[] 32
 $jwtRandom = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 $jwtRandom.GetBytes($jwtKeyBytes)
@@ -403,6 +394,8 @@ Keep the same JWT secret across restarts if existing tokens should remain valid.
 Use a Stripe sandbox secret key beginning with `sk_test_` or `rk_test_`. When launching through an IDE, set these variables in its run configuration. Stripe CLI and `STRIPE_WEBHOOK_SECRET` are not required.
 
 ### 5. Seed the database and start
+
+First start Identity with `APP_SEED_ENABLED=true` using `.\mvnw.cmd -f identity-service/pom.xml spring-boot:run`. Then run the flight application below in another terminal. Both use the same database. Keep seeding disabled on normal starts.
 
 ```powershell
 $env:APP_SEED_ENABLED = "true"
@@ -436,7 +429,7 @@ These are demonstration credentials. To log in directly from PowerShell:
 
 ```powershell
 $body = @{ email = "flighttest.customer@mailsac.com"; password = "TestPassword1" } | ConvertTo-Json
-$login = Invoke-RestMethod -Method Post -Uri "http://localhost:8080/auth/users/login" -ContentType "application/json" -Body $body
+$login = Invoke-RestMethod -Method Post -Uri "http://localhost:8081/auth/users/login" -ContentType "application/json" -Body $body
 $headers = @{ Authorization = "Bearer $($login.message)" }
 Invoke-RestMethod -Uri "http://localhost:8080/flights/search" -Headers $headers
 ```
@@ -444,6 +437,8 @@ Invoke-RestMethod -Uri "http://localhost:8080/flights/search" -Headers $headers
 Use the same token in Swagger's **Authorize** dialog. Raw documentation is available at [OpenAPI JSON](http://localhost:8080/v3/api-docs). The project is an API backend; it does not include a customer-facing frontend.
 
 ### Testing
+
+Cross-application service fixtures are now in [integration-tests](integration-tests/README.md). Install both applications locally before compiling or running those fixtures; neither application's build includes the other's source files.
 
 Some older service tests depend on seeded PostgreSQL fixtures, and some send real email. Use a dedicated seeded test database and working SMTP settings. Follow the [test setup and fixture notes](docs/API-GUIDE.md#database-seeding) before running the service suite. Manual changes to fixtures can affect results.
 
@@ -453,7 +448,7 @@ FlightInspectionServiceTest passed against local PostgreSQL on 28 October 2026: 
 These tests create their own fixtures, disable seeding, and validate the schema. Ordinary tests roll back; concurrency tests commit and clean up their fixtures. Two worker threads and bounded waits exercise simultaneous requests, and pg_blocking_pids confirms the second request actually waits on a PostgreSQL lock. No pre-existing flight is needed.
 
 ```powershell
-.\mvnw.cmd -Dtest=FlightInspectionServiceTest test
+.\mvnw.cmd -f integration-tests/pom.xml -Dtest=FlightInspectionServiceTest test
 ```
 
 MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests on 27 October 2026. These results cover the tested services, not application-wide concurrency safety, HTTP routing, or the airport-account setup workflow. Physical-action verification is documented in the API guide; these historical results alone do not establish that workflow.
@@ -853,6 +848,8 @@ Failed emails are stored in an in-memory list and retried by a scheduled task ev
 Stripe API calls run synchronously on the request thread. Separate requests can still execute concurrently through the web server.
 
 ### Testing
+
+Cross-application service fixtures are now in [integration-tests](integration-tests/README.md). Install both applications locally before compiling or running those fixtures; neither application's build includes the other's source files.
 
 Automated concurrency tests use separate threads and coordinated execution to exercise competing operations. The tests check the resulting database state as well as whether conflicting operations wait or are rejected.
 

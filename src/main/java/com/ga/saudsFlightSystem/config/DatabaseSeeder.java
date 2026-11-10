@@ -5,7 +5,7 @@ import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import jakarta.persistence.EntityManager;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import com.ga.saudsFlightSystem.identity.IdentityClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,16 +17,17 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /** Optional local sample data. Missing legacy fields are upgraded; workflow progress is never reset. */
+@org.springframework.core.annotation.Order(1)
 @Component
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 public class DatabaseSeeder implements CommandLineRunner {
     private final EntityManager em;
-    private final PasswordEncoder passwords;
+    private final IdentityClient identity;
     private static final Logger logger = Logger.getLogger(DatabaseSeeder.class.getName());
 
-    public DatabaseSeeder(EntityManager em, PasswordEncoder passwords) {
+    public DatabaseSeeder(EntityManager em, IdentityClient identity) {
         this.em = em;
-        this.passwords = passwords;
+        this.identity = identity;
     }
 
     @Override
@@ -36,13 +37,13 @@ public class DatabaseSeeder implements CommandLineRunner {
         em.createNativeQuery("SELECT pg_advisory_xact_lock(900001)").getSingleResult();
         Airline test = airline("GF", "Gulf Air", "Bahrain");
         Airline emirates = airline("EK", "Emirates", "United Arab Emirates");
-        User customer = user("flighttest.customer@mailsac.com", "Ahmed", "Yousif", "990000001", User.Role.CUSTOMER, null);
-        user("flighttest.faa@mailsac.com", "Fatima", "Salman", "990000002", User.Role.FAA_ADMIN, null);
-        User admin = user("flighttest.airline@mailsac.com", "Hassan", "Mahmood", "990000003", User.Role.AIRLINE_EMPLOYEE, test);
-        User sara = user("sara.customer@mailsac.com", "Sara", "Ahmed", "990000004", User.Role.CUSTOMER, null);
-        User omar = user("omar.customer@mailsac.com", "Omar", "Ali", "990000005", User.Role.CUSTOMER, null);
-        user("layla.customer@mailsac.com", "Layla", "Hassan", "990000006", User.Role.CUSTOMER, null);
-        user("noor.airline@mailsac.com", "Noor", "Khalid", "990000007", User.Role.AIRLINE_EMPLOYEE, emirates);
+        Long customer = user("flighttest.customer@mailsac.com", "Ahmed", "Yousif", "990000001", "CUSTOMER", null);
+        user("flighttest.faa@mailsac.com", "Fatima", "Salman", "990000002", "FAA_ADMIN", null);
+        Long admin = user("flighttest.airline@mailsac.com", "Hassan", "Mahmood", "990000003", "AIRLINE_EMPLOYEE", test);
+        Long sara = user("sara.customer@mailsac.com", "Sara", "Ahmed", "990000004", "CUSTOMER", null);
+        Long omar = user("omar.customer@mailsac.com", "Omar", "Ali", "990000005", "CUSTOMER", null);
+        user("layla.customer@mailsac.com", "Layla", "Hassan", "990000006", "CUSTOMER", null);
+        user("noor.airline@mailsac.com", "Noor", "Khalid", "990000007", "AIRLINE_EMPLOYEE", emirates);
 
         Airport bah = airport("BAH", "Bahrain International Airport", "Muharraq", "Bahrain", "Asia/Bahrain");
         Airport dxb = airport("DXB", "Dubai International Airport", "Dubai", "United Arab Emirates", "Asia/Dubai");
@@ -95,37 +96,39 @@ public class DatabaseSeeder implements CommandLineRunner {
         });
     }
 
-    private User user(String email, String first, String last, String cpr, User.Role role, Airline airline) {
-        User result = findOrCreate(User.class, "emailAddress", email, () -> {
-            User user = new User();
-            user.setEmailAddress(email);
-            user.setPassword(passwords.encode("TestPassword1"));
-            user.setSecurityQuestion("In which city were you born?");
-            user.setSecurityQuestionAnswer(passwords.encode("manama"));
-            user.setRole(role);
-            user.setStatus(User.Status.ACTIVE);
-            user.setActive(true);
-            user.setFailedLoginAttempts(0);
-            if (role == User.Role.CUSTOMER) {
-                user.setCustomer(new Customer());
-            } else if (role == User.Role.FAA_ADMIN) {
-                user.setFaaAdmin(new FAAAdmin());
-            } else {
+    private Long user(String email, String first, String last, String cpr, String role, Airline airline) {
+        Long userId = accountId(email, role);
+        if ("AIRLINE_EMPLOYEE".equals(role)) {
+            employee(AirlineEmployee.class, userId, () -> {
                 AirlineEmployee value = new AirlineEmployee();
                 value.setAirline(airline);
                 value.setAirlineRole(AirlineEmployee.AirlineRole.ADMIN);
                 value.setHireDate(LocalDate.of(2025, 1, 1));
                 value.setSalary(1500L);
-                user.setAirlineEmployee(value);
-            }
-            user.setPersonalProfile(new UserProfile(
-                    first, last, cpr, "+973", "360010" + cpr.substring(7)));
-            return user;
-        });
-        linkEmployeeAccount(result);
-        return result;
+                return value;
+            });
+        }
+        return userId;
     }
 
+    private Long accountId(String email, String role) {
+        var account = identity.accountByEmail(email);
+        require(role.equals(account.role()), "account role for " + email);
+        return account.userId();
+    }
+
+    private <T extends BaseEntity> T employee(Class<T> type, Long userId, Supplier<T> factory) {
+        return em.createQuery("select e from " + type.getSimpleName() + " e where e.userId = :userId", type)
+                .setParameter("userId", userId).getResultStream().findFirst().orElseGet(() -> {
+                    T value = factory.get();
+                    if (value instanceof AirlineEmployee e) e.setUserId(userId);
+                    else if (value instanceof AirportEmployee e) e.setUserId(userId);
+                    else if (value instanceof MaintenanceEmployee e) e.setUserId(userId);
+                    else if (value instanceof ATCEmployee e) e.setUserId(userId);
+                    em.persist(value);
+                    return value;
+                });
+    }
     private Airport airport(String code, String name, String city, String country, String zone) {
         return findOrCreate(Airport.class, "iataCode", code, () -> {
             Airport airport = new Airport();
@@ -187,67 +190,13 @@ public class DatabaseSeeder implements CommandLineRunner {
         return result;
     }
 
-    private User staff(String email, String cpr, User.Role role, Supplier<? extends BaseEntity> factory) {
-        User result = findOrCreate(User.class, "emailAddress", email, () -> {
-            User user = new User();
-            user.setEmailAddress(email);
-            user.setPassword(passwords.encode("TestPassword1"));
-            user.setSecurityQuestion("In which city were you born?");
-            user.setSecurityQuestionAnswer(passwords.encode("manama"));
-            user.setRole(role);
-            user.setStatus(User.Status.ACTIVE);
-            user.setActive(true);
-            BaseEntity employeeRecord = factory.get();
-            if (employeeRecord instanceof AirlineEmployee employee) user.setAirlineEmployee(employee);
-            else if (employeeRecord instanceof AirportEmployee employee) user.setAirportEmployee(employee);
-            else if (employeeRecord instanceof MaintenanceEmployee employee) user.setMaintenanceEmployee(employee);
-            else if (employeeRecord instanceof ATCEmployee employee) user.setAtcEmployee(employee);
-            else throw new IllegalArgumentException("Unsupported seed employee");
-            user.setPersonalProfile(new UserProfile(
-                    "Sample", email.substring(0, email.indexOf('@')), cpr,
-                    "+973", "3600" + cpr.substring(5)));
-            return user;
-        });
-        linkEmployeeAccount(result);
-        return result;
+    private <T extends BaseEntity> T staff(String email, String cpr, String role, Supplier<T> factory) {
+        Long userId = accountId(email, role);
+        T candidate = factory.get();
+        @SuppressWarnings("unchecked")
+        Class<T> type = (Class<T>) candidate.getClass();
+        return employee(type, userId, () -> candidate);
     }
-
-    private void linkEmployeeAccount(User user) {
-        Long userId = user.getId();
-
-        AirlineEmployee airline = user.getAirlineEmployee();
-        if (airline != null) {
-            require(airline.getUserId() == null
-                    || Objects.equals(airline.getUserId(), userId),
-                    "airline employee account " + airline.getId());
-            airline.setUserId(userId);
-        }
-
-        AirportEmployee airport = user.getAirportEmployee();
-        if (airport != null) {
-            require(airport.getUserId() == null
-                    || Objects.equals(airport.getUserId(), userId),
-                    "airport employee account " + airport.getId());
-            airport.setUserId(userId);
-        }
-
-        MaintenanceEmployee maintenance = user.getMaintenanceEmployee();
-        if (maintenance != null) {
-            require(maintenance.getUserId() == null
-                    || Objects.equals(maintenance.getUserId(), userId),
-                    "maintenance employee account " + maintenance.getId());
-            maintenance.setUserId(userId);
-        }
-
-        ATCEmployee atc = user.getAtcEmployee();
-        if (atc != null) {
-            require(atc.getUserId() == null
-                    || Objects.equals(atc.getUserId(), userId),
-                    "ATC employee account " + atc.getId());
-            atc.setUserId(userId);
-        }
-    }
-
     private void atcSetup(Airport bah, Airport dxb, Airport doh) {
         AirNavigationServiceProvider gulf = navigationProvider("Sample Gulf Navigation", "seed.navigation.gulf@example.com");
         AirNavigationServiceProvider qatar = navigationProvider("Sample Qatar Navigation", "seed.navigation.qatar@example.com");
@@ -278,17 +227,17 @@ public class DatabaseSeeder implements CommandLineRunner {
                 });
         require(Objects.equals(facility.getProvider().getId(), provider.getId()), "tower provider for " + code);
         for (ATCEmployee.ATCRole role : ATCEmployee.ATCRole.values()) {
-            User user = staff("atc." + code.toLowerCase() + "." + role.name().toLowerCase() + "@example.com",
-                    "9900000" + (cprSuffix + (role == ATCEmployee.ATCRole.ADMIN ? 0 : 1)), User.Role.ATC_EMPLOYEE, () -> {
+            ATCEmployee seededEmployee = staff("atc." + code.toLowerCase() + "." + role.name().toLowerCase() + "@example.com",
+                    "9900000" + (cprSuffix + (role == ATCEmployee.ATCRole.ADMIN ? 0 : 1)), "ATC_EMPLOYEE", () -> {
                         ATCEmployee employee = new ATCEmployee();
                         employee.setFacility(facility);
                         employee.setAtcRole(role);
                         employee.setEmployeeNumber("SEED-ATC-" + code + "-" + role.name());
                         return employee;
                     });
-            require(user.getRole() == User.Role.ATC_EMPLOYEE && user.getAtcEmployee() != null
-                    && user.getAtcEmployee().getAtcRole() == role
-                    && Objects.equals(user.getAtcEmployee().getFacility().getId(), facility.getId()), "ATC profile " + user.getEmailAddress());
+            require(seededEmployee != null
+                    && seededEmployee.getAtcRole() == role
+                    && Objects.equals(seededEmployee.getFacility().getId(), facility.getId()), "ATC profile " + seededEmployee.getUserId());
         }
     }
 
@@ -297,8 +246,8 @@ public class DatabaseSeeder implements CommandLineRunner {
         String code = flight.getAirline().getAirlineCode().toLowerCase();
         for (int i = 0; i < duties.length; i++) {
             Duty duty = duties[i];
-            User user = staff(code + ".crew" + (i + 1) + "@mailsac.com",
-                    "9900000" + ((code.equals("gf") ? 20 : 30) + i), User.Role.AIRLINE_EMPLOYEE, () -> {
+            AirlineEmployee seededEmployee = staff(code + ".crew" + (i + 1) + "@mailsac.com",
+                    "9900000" + ((code.equals("gf") ? 20 : 30) + i), "AIRLINE_EMPLOYEE", () -> {
                         AirlineEmployee employee = new AirlineEmployee();
                         employee.setAirline(flight.getAirline());
                         employee.setAirlineRole(duty == Duty.FLIGHT_ATTENDANT
@@ -307,32 +256,31 @@ public class DatabaseSeeder implements CommandLineRunner {
                         employee.setSalary(1500L);
                         return employee;
                     });
-            AirlineEmployee employee = user.getAirlineEmployee();
-            require(employee != null && user.getRole() == User.Role.AIRLINE_EMPLOYEE
-                    && employee.getAirline() != null
-                    && Objects.equals(employee.getAirline().getId(), flight.getAirline().getId())
-                    && employee.getAirlineRole() == (duty == Duty.FLIGHT_ATTENDANT
+            require(seededEmployee != null
+                    && seededEmployee.getAirline() != null
+                    && Objects.equals(seededEmployee.getAirline().getId(), flight.getAirline().getId())
+                    && seededEmployee.getAirlineRole() == (duty == Duty.FLIGHT_ATTENDANT
                     ? AirlineEmployee.AirlineRole.FLIGHT_ATTENDANT : AirlineEmployee.AirlineRole.PILOT),
-                    "crew profile " + user.getEmailAddress());
+                    "crew profile " + seededEmployee.getUserId());
             // Existing crew may have been reassigned by a user; never introduce overlaps.
             long conflicts = em.createQuery("select count(c) from CrewAssignment c where c.airlineEmployee = :employee "
                             + "and c.flight.status <> :cancelled and c.flight.scheduledDeparture < :arrival "
                             + "and c.flight.scheduledArrival > :departure", Long.class)
-                    .setParameter("employee", user.getAirlineEmployee())
+                    .setParameter("employee", seededEmployee)
                     .setParameter("cancelled", Flight.FlightStatus.CANCELLED)
                     .setParameter("arrival", flight.getScheduledArrival())
                     .setParameter("departure", flight.getScheduledDeparture()).getSingleResult();
             require(conflicts == 0, "crew schedule for " + flight.getFlightNumber());
             CrewAssignment assignment = new CrewAssignment();
             assignment.setFlight(flight);
-            assignment.setAirlineEmployee(user.getAirlineEmployee());
+            assignment.setAirlineEmployee(seededEmployee);
             assignment.setDuty(duty);
             em.persist(assignment);
         }
     }
 
     private void projectThree(Airline airline, Airport airport, Airport destination, Airplane plane,
-                              User customer, LocalDateTime departure) {
+                              Long customer, LocalDateTime departure) {
         AirportOperator operator = airport.getOperator();
         if (operator == null) {
             operator = findOrCreate(AirportOperator.class, "contactEmail", "seed.operator@mailsac.com", () -> {
@@ -348,7 +296,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 AirportEmployee.AirportRole.ADMIN, AirportEmployee.AirportRole.INSPECTOR}) {
             staff("airport." + role.name().toLowerCase() + "@mailsac.com",
                     role == AirportEmployee.AirportRole.ADMIN ? "990000040" : "990000041",
-                    User.Role.AIRPORT_EMPLOYEE, () -> {
+                    "AIRPORT_EMPLOYEE", () -> {
                         AirportEmployee employee = new AirportEmployee();
                         employee.setAirport(airport);
                         employee.setOperator(assignedOperator);
@@ -376,7 +324,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         for (MaintenanceEmployee.MaintenanceRole role : MaintenanceEmployee.MaintenanceRole.values()) {
             staff("maintenance." + role.name().toLowerCase() + "@mailsac.com",
                     role == MaintenanceEmployee.MaintenanceRole.ADMIN ? "990000050" : "990000051",
-                    User.Role.MAINTENANCE_EMPLOYEE, () -> {
+                    "MAINTENANCE_EMPLOYEE", () -> {
                         MaintenanceEmployee employee = new MaintenanceEmployee();
                         employee.setProvider(provider);
                         employee.setMaintenanceRole(role);
@@ -407,11 +355,11 @@ public class DatabaseSeeder implements CommandLineRunner {
         }
     }
 
-    private void booking(String reference, User owner, Flight flight, String seat, Booking.BookingStatus status) {
+    private void booking(String reference, Long owner, Flight flight, String seat, Booking.BookingStatus status) {
         findOrCreate(Booking.class, "bookingRef", reference, () -> {
             Booking booking = new Booking();
             booking.setBookingRef(reference);
-            booking.setUserId(owner.getId());
+            booking.setUserId(owner);
             booking.setFlight(flight);
             booking.setSeatNumber(seat);
             booking.setStatus(status);
@@ -444,24 +392,24 @@ public class DatabaseSeeder implements CommandLineRunner {
                 """).setParameter("airline", airline.getId()).executeUpdate();
     }
 
-    private void activationRequest(Airplane plane, User admin) {
+    private void activationRequest(Airplane plane, Long admin) {
         AirplaneRequest existing = em.find(AirplaneRequest.class, 900002L);
         if (existing != null) {
             require(Objects.equals(existing.getAirplane().getId(), plane.getId()) && existing.getRequestedByUserId() != null
-                    && Objects.equals(existing.getRequestedByUserId(), admin.getId()), "activation request 900002");
+                    && Objects.equals(existing.getRequestedByUserId(), admin), "activation request 900002");
             return;
         }
         em.createNativeQuery("""
                 INSERT INTO airplane_requests (id, airplane_id, status, requested_at, requested_by_id)
                 VALUES (900002, :plane, 'PENDING', CURRENT_TIMESTAMP, :admin)
-                """).setParameter("plane", plane.getId()).setParameter("admin", admin.getId()).executeUpdate();
+                """).setParameter("plane", plane.getId()).setParameter("admin", admin).executeUpdate();
     }
 
-    private void fixedBooking(User customer, Flight flight) {
+    private void fixedBooking(Long customer, Flight flight) {
         Booking existing = em.find(Booking.class, 900001L);
         if (existing != null) {
             require(Objects.equals(existing.getBookingRef(), "TEST-BOOKING-900001") && existing.getUserId() != null
-                    && Objects.equals(existing.getUserId(), customer.getId()) && existing.getFlight() != null
+                    && Objects.equals(existing.getUserId(), customer) && existing.getFlight() != null
                     && Objects.equals(existing.getFlight().getId(), flight.getId()), "booking 900001");
             return;
         }
@@ -470,7 +418,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         em.createNativeQuery("""
                 INSERT INTO bookings (id, booking_ref, user_id, flight_id, seat_number, status, booked_at, updated_at)
                 VALUES (900001, 'TEST-BOOKING-900001', :customer, :flight, 'standard-1', 'BOOKED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """).setParameter("customer", customer.getId()).setParameter("flight", flight.getId()).executeUpdate();
+                """).setParameter("customer", customer).setParameter("flight", flight.getId()).executeUpdate();
     }
 
     private void require(boolean matches, String record) {

@@ -1,0 +1,67 @@
+package com.ga.identity.model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Entity(name = "IdentityAuditLog")
+@Data
+@Table(name = "identity_audit_logs")
+public class AuditLog {
+    @Id
+    @Column
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column
+    private Long userId;
+
+    @Column
+    @Enumerated(EnumType.STRING)
+    private User.Role userRole;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Action action;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private EntityType entityType;
+
+    @Column(nullable = false)
+    private Long entityId;
+
+    @Column(nullable = false, length = 500)
+    private String description;
+
+    public enum Action {
+        BOOKING_CREATED, BOOKING_CANCELLED,
+        USER_REGISTERED, USER_SETUP_COMPLETED,
+        PROFILE_UPDATED, USER_DEACTIVATED,
+        PASSWORD_CHANGED, PASSWORD_RESET,
+        AIRLINE_CREATED, AIRLINE_ADMIN_CREATED,
+        AIRPLANE_CREATED, AIRPLANE_ACTIVATION_REQUESTED,
+        AIRPLANE_ACTIVATION_ACCEPTED, AIRPLANE_ACTIVATION_DENIED,
+        FLIGHT_CREATED, FLIGHT_STATUS_CHANGED,
+        CREW_ASSIGNMENT_CREATED, CREW_ASSIGNMENTS_VIEWED, CREW_ASSIGNMENT_REMOVED,
+        MAINTENANCE_PROVIDER_CREATED, MAINTENANCE_PROVIDER_LINKED,
+        MAINTENANCE_EMPLOYEE_CREATED, MAINTENANCE_RECORD_CREATED,
+        MAINTENANCE_TECHNICIAN_ASSIGNED, MAINTENANCE_RECORD_COMPLETED,
+        AIRPORT_OPERATOR_CREATED, AIRPORT_OPERATOR_LINKED, AIRPORT_EMPLOYEE_CREATED,
+        FLIGHT_INSPECTOR_ASSIGNED, FLIGHT_INSPECTION_COMPLETED, FLIGHT_REINSPECTION_REQUESTED,
+        AIR_NAVIGATION_PROVIDER_CREATED, CONTROL_FACILITY_CREATED, ATC_EMPLOYEE_CREATED,
+        FLIGHT_CLEARANCE_REQUESTED, FLIGHT_CLEARANCE_APPROVED, FLIGHT_CLEARANCE_REJECTED,
+        FLIGHT_CLEARANCE_WITHDRAWN, FLIGHT_CLEARANCE_REVOKED,
+        FLIGHT_TAKE_OFF, FLIGHT_LANDED, MAINTENANCE_CANCELLED
+    }
+
+    public enum EntityType {
+        BOOKING, USER, AIRLINE, AIRPLANE, AIRPLANE_REQUEST, FLIGHT, CREW_ASSIGNMENT, MAINTENANCE_PROVIDER,
+        MAINTENANCE_RECORD, AIRPORT_OPERATOR, AIRPORT, FLIGHT_INSPECTION,
+        AIR_NAVIGATION_PROVIDER, CONTROL_FACILITY, FLIGHT_CONTROL_EVENT
+    }
+}

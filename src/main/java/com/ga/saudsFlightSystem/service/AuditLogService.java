@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.model.AuditLog;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.repository.AuditLogRepository;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import lombok.AllArgsConstructor;
@@ -15,17 +14,17 @@ import java.time.ZoneOffset;
 public class AuditLogService {
     private AuditLogRepository auditLogRepository;
 
-    public void addAuditLog(User user, AuditLog.Action action, AuditLog.EntityType entityType, Long entityId, String description) {
+    public void addAuditLog(CurrentActor actor, AuditLog.Action action, AuditLog.EntityType entityType, Long entityId, String description) {
         // Scheduled system actions have no logged-in user.
-        saveAuditLog(user == null ? null : user.getId(), user == null ? null : user.getRole(),
+        saveAuditLog(actor == null ? null : actor.userId(), actor == null ? null : actor.role(),
                 action, entityType, entityId, description);
     }
 
     public void addAuditLogForActor(CurrentActor actor, AuditLog.Action action, AuditLog.EntityType entityType, Long entityId, String description) {
-        saveAuditLog(actor.userId(), User.Role.valueOf(actor.role()), action, entityType, entityId, description);
+        saveAuditLog(actor.userId(), actor.role(), action, entityType, entityId, description);
     }
 
-    private void saveAuditLog(Long userId, User.Role userRole, AuditLog.Action action,
+    private void saveAuditLog(Long userId, String userRole, AuditLog.Action action,
                               AuditLog.EntityType entityType, Long entityId, String description) {
         AuditLog auditLog = new AuditLog();
         auditLog.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));

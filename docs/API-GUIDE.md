@@ -1,3 +1,5 @@
+> Identity extraction: all /auth/users endpoints now run on port 8081. Other endpoints stay on 8080. Start/seed Identity first, then the flight application. See the identity-service README for configuration and recovery.
+
 # Detailed API and operations guide
 
 Cron Jobs
@@ -88,7 +90,7 @@ Names must not be blank. CPR must contain exactly nine digits and be available; 
 To upload an image, save the JSON example to `profile.json` and send it as the `request` part:
 
 ```powershell
-curl.exe -X PUT "http://localhost:8080/auth/users/updateProfile" -H "Authorization: Bearer YOUR_TOKEN" -F "request=@profile.json;type=application/json" -F "image=@profile.jpg"
+curl.exe -X PUT "http://localhost:8081/auth/users/updateProfile" -H "Authorization: Bearer YOUR_TOKEN" -F "request=@profile.json;type=application/json" -F "image=@profile.jpg"
 ```
 
 Omit the `image` part to keep the current image. A nonempty uploaded file is saved under `uploads/` with a generated filename, and its path is stored in the profile's `imageUrl`.
@@ -406,7 +408,8 @@ their database transactions roll back. Stop the demo server before running them.
 
 ```powershell
 $env:APP_SEED_ENABLED = "false"
-.\mvnw.cmd "-Dtest=PasswordServiceTest,AuthenticationTest,BookingServiceTest,FAAAdminServiceTest,AirlineEmployeeServiceTest,FlightServiceTest" test
+.\identity-service\mvnw.cmd -f identity-service/pom.xml '-Dtest=PasswordServiceTest,AuthenticationTest' test
+.\mvnw.cmd -f integration-tests/pom.xml '-Dtest=BookingServiceTest,FAAAdminServiceTest,AirlineEmployeeServiceTest,FlightServiceTest' test
 ```
 
 Aircraft use Airbus A320-200, Airbus A321neo, Boeing 787-9, and Boeing 777-300ER model names. Registrations, seat layouts, flight numbers, and schedules are illustrative sample data, not a representation of current airline fleets or timetables. The required TEST-FREE-PLANE and TEST-BOOKING-900001 identifiers remain for test compatibility.
@@ -479,7 +482,7 @@ The flight inspection schema requires its foreign keys, status check, and one-pe
 FlightInspectionServiceTest passed 16 PostgreSQL tests on 28 October 2026 with no failures/errors/skips. It creates its own fixtures with seeding disabled and schema validation enabled. Ordinary tests roll back; committed concurrency fixtures are cleaned up. Tests cover history, permissions, lists, competing assignments/completions/reinspection, and direct unique-index rejection. They do not cover HTTP routing, airport account creation end to end, or the later physical-action workflow.
 
 ```powershell
-.\mvnw.cmd -Dtest=FlightInspectionServiceTest test
+.\mvnw.cmd -f integration-tests/pom.xml -Dtest=FlightInspectionServiceTest test
 ```
 
 MaintenanceRecordServiceTest passed five PostgreSQL tests on 27 October 2026 and also creates its own fixtures. The older seeded-test instructions above apply to their named suites, not these two classes. No application-wide concurrency-safety claim follows from these results.

@@ -1,6 +1,5 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -9,7 +8,6 @@ import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airplane;
 import com.ga.saudsFlightSystem.model.AuditLog;
-import com.ga.saudsFlightSystem.model.FAAAdmin;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import com.ga.saudsFlightSystem.model.request.ReviewAirplaneRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirplaneRequestResponse;
@@ -29,7 +27,6 @@ import java.util.logging.Logger;
 @Service
 @AllArgsConstructor
 public class FAAAdminService {
-    private FAAAdminRepository faaAdminRepository;
     private AccountLookup accountLookup;
     private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
@@ -41,8 +38,7 @@ public class FAAAdminService {
 
     public ResponseEntity<?> getPendingAirplaneRequests() {
         CurrentActor actor = currentActorProvider.getCurrentActor();
-        FAAAdmin faaAdmin = faaAdminRepository.findByUserId(actor.userId()).orElse(null);
-        if (!"FAA_ADMIN".equals(actor.role()) || faaAdmin == null) {
+        if (!"FAA_ADMIN".equals(actor.role())) {
             throw new IllegalEndpoint("Only FAA admins can view airplane activation requests!");
         }
         List<AirplaneRequestResponse> responses = new ArrayList<>();
@@ -67,8 +63,7 @@ public class FAAAdminService {
     public ResponseEntity<?> reviewAirplaneRequest(Long requestId, ReviewAirplaneRequest review) {
         CurrentActor actor = currentActorProvider.getCurrentActor();
 
-        FAAAdmin faaAdmin = faaAdminRepository.findByUserId(actor.userId()).orElse(null);
-        if (!"FAA_ADMIN".equals(actor.role()) || faaAdmin == null) {
+        if (!"FAA_ADMIN".equals(actor.role())) {
             throw new IllegalEndpoint("Only FAA admins can review airplane activation requests!");
         }
         if (review.getStatus() != AirplaneRequest.ApprovalStatus.ACCEPTED &&
@@ -104,7 +99,7 @@ public class FAAAdminService {
         request.setStatus(review.getStatus());
         request.setReviewReason(reason);
         request.setReviewedAt(LocalDateTime.now());
-        request.setReviewedBy(faaAdmin);
+        request.setReviewedByUserId(actor.userId());
         airplaneRepository.save(airplane);
         airplaneRequestRepository.save(request);
 

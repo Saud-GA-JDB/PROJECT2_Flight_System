@@ -2,7 +2,6 @@ package com.ga.saudsFlightSystem.config;
 
 import com.ga.saudsFlightSystem.model.Airline;
 import com.ga.saudsFlightSystem.model.Booking;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import io.swagger.v3.core.converter.AnnotatedType;
@@ -34,7 +33,7 @@ public class OpenApiConfiguration {
                 .info(new Info().title("Saud's Flight System API").version("1.0")
                         .description("Flight booking, Stripe payments, airline and crew administration, FAA airplane approvals, "
                                 + "maintenance, airport accounts, flight inspections, and SSE notifications. "
-                                + "Log in, copy the JWT from the response message, then use Authorize. "
+                                + "Log in through Identity on port 8081, copy the JWT, then use Authorize. "
                                 + "Unless marked public, endpoints require an active account, except account setup which requires authentication only. "
                                 + "Role and ownership rules apply as described on each operation."))
                 .components(new Components().addSecuritySchemes("bearerAuth",
@@ -46,34 +45,6 @@ public class OpenApiConfiguration {
     @Bean
     public OpenApiCustomizer flightSystemDocumentation() {
         return openApi -> {
-            document(openApi, "/auth/users/login", PathItem.HttpMethod.POST,
-                    "Log in",
-                    "Public. Returns the JWT in the response message; paste it into Authorize.",
-                    "200", LoginResponse.class, false);
-            document(openApi, "/auth/users/register/email", PathItem.HttpMethod.POST,
-                    "Request verification email",
-                    "Public. Requests a registration code for the supplied email and CPR.",
-                    "200", RegistrationResponse.class, false);
-            document(openApi, "/auth/users/verification", PathItem.HttpMethod.POST,
-                    "Verify registration email",
-                    "Public. Validates the code and creates the customer account for setup.",
-                    "200", RegistrationResponse.class, false);
-            document(openApi, "/auth/users/setup", PathItem.HttpMethod.POST,
-                    "Complete account setup",
-                    "Requires an authenticated customer account. Completes profile details and activates the account.",
-                    "200", User.class, false);
-            document(openApi, "/auth/users/forgetPassword", PathItem.HttpMethod.POST,
-                    "Reset password",
-                    "Requires an active authenticated account under the current security configuration. Checks the supplied email and security answer and emails a replacement password.",
-                    "200", ForgetPasswordResponse.class, false);
-            document(openApi, "/auth/users/changePassword", PathItem.HttpMethod.POST,
-                    "Change password",
-                    "Active account required. Changes the current user's password.",
-                    "200", String.class, false);
-            document(openApi, "/auth/users/updateProfile", PathItem.HttpMethod.PUT,
-                    "Update profile",
-                    "Active account required. Send a JSON request part and optional image as multipart form data. Only FAA admins may supply userId to edit another profile; security questions are self-service only.",
-                    "200", String.class, false);
             document(openApi, "/flights/search", PathItem.HttpMethod.GET,
                     "Search flights",
                     "Active account required. Filters by route, date, airline, and seat class with pagination and sorting.",

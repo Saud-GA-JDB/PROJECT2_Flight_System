@@ -1,3 +1,5 @@
+> Identity extraction: the diagrams below describe the earlier monolith. User/Profile/registration now belong to Identity; employees hold userId, FAA/customer marker tables are removed, and airplane reviews hold reviewedByUserId. See ../identity-service/README.md for the current boundary.
+
 # Implemented system ERD
 
 This diagram documents the 24 current JPA entities as of 8 November 2026. The [original ERD](../README.md#erd-diagram) is preserved separately, including its wider planned scope.

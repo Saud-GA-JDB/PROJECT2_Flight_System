@@ -9,7 +9,5 @@ public interface PersonalProfileStore {
 
     Map<Long, PersonalProfile> findByUserIds(List<Long> userIds);
 
-    boolean existsByCpr(String cpr);
 
-    void update(Long userId, PersonalProfileUpdate update);
 }

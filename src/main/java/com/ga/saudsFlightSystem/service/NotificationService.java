@@ -2,7 +2,6 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.security.CurrentActor;
-import com.ga.saudsFlightSystem.model.User;
 import jakarta.annotation.PreDestroy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -50,12 +49,6 @@ public class NotificationService implements NotificationPublisher {
         return emitter;
     }
 
-    /** Compatibility for existing fixtures; HTTP callers pass a CurrentActor. */
-    @Deprecated
-    public SseEmitter subscribe(User user) throws IOException {
-        return subscribe(new CurrentActor(user.getId(), user.getRole().name(),
-                user.getStatus() == null ? null : user.getStatus().name(), user.isActive()));
-    }
 
     SseEmitter createEmitter() {
         // Reconnecting periodically re-runs JWT authentication and account checks.

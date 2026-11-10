@@ -1,6 +1,5 @@
 package com.ga.saudsFlightSystem.security;
 
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.identity.AccountSnapshot;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
-/** Adapts the existing monolith principal to the account boundary. */
+/** Reads the scalar principal authenticated by Identity. */
 @Component
 @RequiredArgsConstructor
 public class SecurityContextCurrentActorProvider implements CurrentActorProvider {
@@ -30,14 +29,10 @@ public class SecurityContextCurrentActorProvider implements CurrentActorProvider
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
                 || authentication instanceof AnonymousAuthenticationToken
-                || !(authentication.getPrincipal() instanceof MyUserDetails userDetails)) {
+                || !(authentication.getPrincipal() instanceof CurrentActor actor)) {
             throw new AuthenticationCredentialsNotFoundException("An authenticated account is required.");
         }
 
-        User user = userDetails.getUser();
-        if (user == null || user.getId() == null || user.getRole() == null || user.getStatus() == null)
-            throw new AuthenticationCredentialsNotFoundException("Authenticated account information is missing.");
-
-        return new CurrentActor(user.getId(), user.getRole().name(), user.getStatus().name(), user.isActive());
+        return actor;
     }
 }

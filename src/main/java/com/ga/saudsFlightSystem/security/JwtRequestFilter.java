@@ -1,59 +1,40 @@
 package com.ga.saudsFlightSystem.security;
 
+import com.ga.saudsFlightSystem.identity.IdentityClient;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-
 import java.io.IOException;
+import java.util.List;
 
-@Component
+@RequiredArgsConstructor
 public class JwtRequestFilter extends OncePerRequestFilter {
-
-    @Autowired
-    private MyUserDetailsService myUserDetailsService;
-
-    @Autowired
-    private JWTUtils jwtUtils;
-
-    private String parseJwt(HttpServletRequest request) {
-        String headerAuth = request.getHeader("Authorization");
-        if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7, headerAuth.length());
-        }
-        return null;
-    }
+    private final IdentityClient identity;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
-        try {
-            String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-                String username = jwtUtils.getUserNameFromJwtToken(jwt);
-
-                UserDetails userDetails = this.myUserDetailsService.loadUserByUsername(username);
-
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                if (userDetails.isAccountNonLocked() && userDetails.isEnabled()) {
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                } else {
-                    logger.warn("JWT authentication rejected because the account was locked or disabled");
-                }
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
+        String authorization = request.getHeader("Authorization");
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            try {
+                CurrentActor actor = identity.authenticate(authorization);
+                var authorities = actor.active() && "ACTIVE".equals(actor.status())
+                        ? List.of(new SimpleGrantedAuthority("ACCOUNT_ACTIVE")) : List.<SimpleGrantedAuthority>of();
+                SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(actor, null, authorities));
+            } catch (BadCredentialsException ex) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Please login with a valid token");
+                return;
+            } catch (RuntimeException ex) {
+                response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "Identity is unavailable. Please retry shortly.");
+                return;
             }
-        } catch (Exception e) {
-            logger.warn("Could not authenticate the request. Exception type: " + e.getClass().getSimpleName());
         }
-        filterChain.doFilter(request, response);
+        chain.doFilter(request, response);
     }
 }

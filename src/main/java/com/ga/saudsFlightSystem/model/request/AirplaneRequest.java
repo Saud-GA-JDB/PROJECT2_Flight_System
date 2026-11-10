@@ -2,7 +2,6 @@ package com.ga.saudsFlightSystem.model.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.ga.saudsFlightSystem.model.Airplane;
-import com.ga.saudsFlightSystem.model.FAAAdmin;
 import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
@@ -40,10 +39,9 @@ public class AirplaneRequest {
     @JsonIgnore
     private Long requestedByUserId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reviewed_by_id")
+    @Column(name = "reviewed_by_user_id")
     @JsonIgnore
-    private FAAAdmin reviewedBy;
+    private Long reviewedByUserId;
 
     public enum ApprovalStatus{PENDING, ACCEPTED, DENIED}
 }
