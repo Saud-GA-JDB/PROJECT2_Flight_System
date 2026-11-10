@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -24,15 +25,10 @@ import java.util.logging.Logger;
 public class PendingRegistrationService {
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final UserRepository userRepository;
-    private final CustomerRepository customerRepository;
-    private final AirlineEmployeeRepository airlineEmployeeRepository;
-    private final FAAAdminRepository faaAdminRepository;
+    private final PersonalProfileStore personalProfileStore;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
-    private final MaintenanceEmployeeRepository maintenanceEmployeeRepository;
-    private final AirportEmployeeRepository airportEmployeeRepository;
-    private final ATCEmployeeRepository atcEmployeeRepository;
 
     private static final Logger logger = Logger.getLogger(PendingRegistrationService.class.getName());
 
@@ -43,12 +39,7 @@ public class PendingRegistrationService {
         if (email == null || email.isBlank() || cpr == null || cpr.isBlank()) {
             throw new InvalidInformationException("Email and CPR are required.");
         }
-        if (customerRepository.existsByCpr(cpr)
-                || airlineEmployeeRepository.existsByCpr(cpr)
-                || faaAdminRepository.existsByCpr(cpr)
-                || maintenanceEmployeeRepository.existsByCpr(cpr)
-                || airportEmployeeRepository.existsByCpr(cpr)
-                || atcEmployeeRepository.existsByCpr(cpr)) {
+        if (personalProfileStore.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
         if (userRepository.existsByEmailAddress(email)) {

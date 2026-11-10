@@ -7,9 +7,10 @@ import com.ga.saudsFlightSystem.exception.LoginLimitExceededException;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationExistException;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
-import com.ga.saudsFlightSystem.model.Customer;
+import com.ga.saudsFlightSystem.identity.PersonalProfile;
+import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
+import com.ga.saudsFlightSystem.identity.PersonalProfileUpdate;
 import com.ga.saudsFlightSystem.model.AuditLog;
-import com.ga.saudsFlightSystem.model.Person;
 import com.ga.saudsFlightSystem.model.PendingRegistration;
 import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.LoginRequest;
@@ -67,12 +68,8 @@ public class UserService {
     private final PasswordService passwordService;
     private final PhoneValidationService phoneValidationService;
     private final EmailService emailService;
-    private final CustomerRepository customerRepository;
-    private final AirlineEmployeeRepository airlineEmployeeRepository;
+    private final PersonalProfileStore personalProfileStore;
     private final FAAAdminRepository faaAdminRepository;
-    private final AirportEmployeeRepository airportEmployeeRepository;
-    private final MaintenanceEmployeeRepository maintenanceEmployeeRepository;
-    private final ATCEmployeeRepository atcEmployeeRepository;
     private final AuditLogService auditLogService;
     private final String UPLOAD_DIR = "uploads/";
 
@@ -82,9 +79,8 @@ public class UserService {
                        PendingRegistrationService pendingRegistrationService,
                        PendingRegistrationRepository pendingRegistrationRepository,
                        PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
-                       CustomerRepository customerRepository, AirlineEmployeeRepository airlineEmployeeRepository,
-                       FAAAdminRepository faaAdminRepository, AirportEmployeeRepository airportEmployeeRepository, MaintenanceEmployeeRepository maintenanceEmployeeRepository,
-                       ATCEmployeeRepository atcEmployeeRepository, AuditLogService auditLogService,
+                       PersonalProfileStore personalProfileStore,
+                       FAAAdminRepository faaAdminRepository, AuditLogService auditLogService,
                        CurrentActorProvider currentActorProvider) {
         this.userRepository = userRepository;
         this.currentActorProvider = currentActorProvider;
@@ -96,12 +92,8 @@ public class UserService {
         this.passwordService = passwordService;
         this.phoneValidationService = phoneValidationService;
         this.emailService = emailService;
-        this.customerRepository = customerRepository;
-        this.airlineEmployeeRepository = airlineEmployeeRepository;
+        this.personalProfileStore = personalProfileStore;
         this.faaAdminRepository = faaAdminRepository;
-        this.airportEmployeeRepository = airportEmployeeRepository;
-        this.maintenanceEmployeeRepository = maintenanceEmployeeRepository;
-        this.atcEmployeeRepository = atcEmployeeRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -153,11 +145,14 @@ public class UserService {
         if (request.getPassword().equals(pending.getCpr()))
             throw new InvalidInformationException("Choose a new password different from your CPR.");
 
-        Customer customer = user.getCustomer();
-        customer.setFName(request.getFName());
-        customer.setLName(request.getLName());
-        customer.setPhoneNumber(request.getPhoneNumber());
-        customer.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode());
+        personalProfileStore.update(user.getId(), new PersonalProfileUpdate(
+                request.getFName(),
+                request.getLName(),
+                null,
+                request.getPhoneNumberOpeningCode(),
+                request.getPhoneNumber(),
+                null
+        ));
 
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setSecurityQuestion(request.getSecurityQuestion());
@@ -279,17 +274,8 @@ public class UserService {
             return passwordResetRejected();
         }
 
-        Person person = null;
-        if (user.getRole() != null) {
-            person = switch (user.getRole()) {
-                case CUSTOMER -> user.getCustomer();
-                case AIRLINE_EMPLOYEE -> user.getAirlineEmployee();
-                case AIRPORT_EMPLOYEE -> user.getAirportEmployee();
-                case ATC_EMPLOYEE -> user.getAtcEmployee();
-                case MAINTENANCE_EMPLOYEE -> user.getMaintenanceEmployee();
-                case FAA_ADMIN -> user.getFaaAdmin();
-            };
-        }
+        PersonalProfile person = personalProfileStore.findByUserId(user.getId())
+                .orElse(null);
         if (person == null || person.getCpr() == null || person.getCpr().isBlank()) {
             throw new InvalidInformationException("Account profile is unavailable.");
         }
@@ -374,21 +360,8 @@ public class UserService {
         User profileOwner = userRepository.findByIdForUpdate(userId != null ? userId : actor.userId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
 
-        Person person = null;
-
-        if (profileOwner.getRole() == User.Role.CUSTOMER) {
-            person = profileOwner.getCustomer();
-        } else if (profileOwner.getRole() == User.Role.AIRLINE_EMPLOYEE) {
-            person = profileOwner.getAirlineEmployee();
-        } else if (profileOwner.getRole() == User.Role.FAA_ADMIN) {
-            person = profileOwner.getFaaAdmin();
-        } else if (profileOwner.getRole() == User.Role.MAINTENANCE_EMPLOYEE) {
-            person = profileOwner.getMaintenanceEmployee();
-        } else if (profileOwner.getRole() == User.Role.AIRPORT_EMPLOYEE) {
-            person = profileOwner.getAirportEmployee();
-        } else if (profileOwner.getRole() == User.Role.ATC_EMPLOYEE) {
-            person = profileOwner.getAtcEmployee();
-        }
+        PersonalProfile person = personalProfileStore.findByUserId(profileOwner.getId())
+                .orElse(null);
 
         boolean hasImage = image != null && !image.isEmpty();
 
@@ -485,22 +458,21 @@ public class UserService {
         boolean isDeactivation = request.getActive() != null &&
                 (profileOwner.isActive() || profileOwner.getStatus() != User.Status.DEACTIVATED);
 
-        if (hasImage)
-            saveProfileImage(person, image);
+        String imageUrl = hasImage ? saveProfileImage(image) : null;
 
+        if (person != null) {
+            personalProfileStore.update(profileOwner.getId(), new PersonalProfileUpdate(
+                    request.getFName(),
+                    request.getLName(),
+                    request.getCpr(),
+                    openingCode,
+                    phoneNumber,
+                    imageUrl
+            ));
+        }
 
-        if (request.getFName() != null)
-            person.setFName(request.getFName());
-        if (request.getLName() != null)
-            person.setLName(request.getLName());
-        if (request.getCpr() != null)
-            person.setCpr(request.getCpr());
         if (request.getEmailAddress() != null)
             profileOwner.setEmailAddress(request.getEmailAddress());
-        if (phoneNumber != null) {
-            person.setPhoneNumber(phoneNumber);
-            person.setPhoneNumberOpeningCode(openingCode);
-        }
 
         if (request.getSecurityQuestion() != null) {
             profileOwner.setSecurityQuestion(request.getSecurityQuestion());
@@ -542,17 +514,12 @@ public class UserService {
      */
 
     private void checkCprAvailable(String cpr) {
-        if (customerRepository.existsByCpr(cpr)
-                || airlineEmployeeRepository.existsByCpr(cpr)
-                || faaAdminRepository.existsByCpr(cpr)
-                || maintenanceEmployeeRepository.existsByCpr(cpr)
-                || airportEmployeeRepository.existsByCpr(cpr)
-                || atcEmployeeRepository.existsByCpr(cpr)) {
+        if (personalProfileStore.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
     }
 
-    private void saveProfileImage(Person person, MultipartFile image) {
+    private String saveProfileImage(MultipartFile image) {
         BufferedImage profileImage;
 
         try (InputStream inputStream = image.getInputStream()) {
@@ -578,7 +545,7 @@ public class UserService {
             if (!ImageIO.write(profileImage, "png", filePath.toFile()))
                 throw new IOException("Could not save image");
 
-            person.setImageUrl(UPLOAD_DIR + fileName);
+            return UPLOAD_DIR + fileName;
         } catch (IOException e) {
             throw new RuntimeException("Could not save image", e);
         }
