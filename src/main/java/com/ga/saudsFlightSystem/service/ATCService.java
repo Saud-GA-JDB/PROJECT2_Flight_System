@@ -1,5 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
+import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.saudsFlightSystem.repository.FAAAdminRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -18,7 +22,6 @@ import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
@@ -36,10 +39,9 @@ public class ATCService {
     private ATCEmployeeRepository employeeRepository;
     private AirportRepository airportRepository;
     private UserRepository userRepository;
-    private PendingRegistrationService pendingRegistrationService;
+    private EmployeeAccountProvisioner employeeAccountProvisioner;
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
-    private PasswordEncoder passwordEncoder;
     private AuditLogService auditLogService;
 
     private static final Logger logger = Logger.getLogger(ATCService.class.getName());
@@ -171,7 +173,7 @@ public class ATCService {
     // helper methods
     private ResponseEntity<ATCEmployeeResponse> createEmployee(CurrentActor actor, ControlFacility facility,
                                                              ATCEmployee.ATCRole role, AddATCEmployeeRequest request) {
-        pendingRegistrationService.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
+        employeeAccountProvisioner.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
         String employeeNumber = request.getEmployeeNumber().trim().toUpperCase(Locale.ROOT);
         if (employeeRepository.existsByEmployeeNumber(employeeNumber))
             throw new InformationExistException("An ATC employee with this employee number already exists.");
@@ -186,23 +188,34 @@ public class ATCService {
         employee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode().trim());
         employee.setPhoneNumber(request.getPhoneNumber().trim());
 
-        User employeeUser = new User();
-        employeeUser.setEmailAddress(request.getEmailAddress().trim());
-        employeeUser.setPassword(passwordEncoder.encode(request.getPassword()));
-        employeeUser.setSecurityQuestion(request.getSecurityQuestion().trim());
-        employeeUser.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT)));
-        employeeUser.setRole(User.Role.ATC_EMPLOYEE);
-        employeeUser.setStatus(User.Status.ACTIVE);
-        employeeUser.setActive(true);
-        employeeUser.setAtcEmployee(employee);
-        userRepository.save(employeeUser);
+        employeeRepository.save(employee);
+
+        ProvisionedAccount account = employeeAccountProvisioner.createAccount(
+                new EmployeeAccountRequest(
+                        AccountType.ATC_EMPLOYEE,
+                        employee.getId(),
+                        request.getEmailAddress().trim(),
+                        request.getPassword(),
+                        request.getSecurityQuestion().trim(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT)
+                ));
 
         String description = "Created ATC employee with id " + employee.getId() + " and role " + role
                 + " for control facility with id " + facility.getId();
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.ATC_EMPLOYEE_CREATED,
-                AuditLog.EntityType.USER, employeeUser.getId(), description);
+                AuditLog.EntityType.USER, account.userId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
-        return ResponseEntity.status(HttpStatus.CREATED).body(employeeResponse(employeeUser));
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new ATCEmployeeResponse(
+                        employee.getId(),
+                        account.userId(),
+                        employee.getFacility().getId(),
+                        employee.getEmployeeNumber(),
+                        employee.getFName(),
+                        employee.getLName(),
+                        account.emailAddress(),
+                        employee.getAtcRole()
+                ));
     }
 
     private CurrentActor requireActiveActor() {

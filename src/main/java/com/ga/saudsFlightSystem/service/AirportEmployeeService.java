@@ -1,5 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
+import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
@@ -8,18 +12,15 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airport;
 import com.ga.saudsFlightSystem.model.AirportEmployee;
 import com.ga.saudsFlightSystem.model.AuditLog;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AddAirportEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirportEmployeeResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.logging.Logger;
@@ -30,12 +31,10 @@ public class AirportEmployeeService {
     private CurrentActorProvider currentActorProvider;
 
     private AirportRepository airportRepository;
-    private UserRepository userRepository;
-    private PendingRegistrationService pendingRegistrationService;
+    private EmployeeAccountProvisioner employeeAccountProvisioner;
     private AirportEmployeeRepository airportEmployeeRepository;
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
-    private PasswordEncoder passwordEncoder;
     private AuditLogService auditLogService;
 
     private static final Logger logger = Logger.getLogger(AirportEmployeeService.class.getName());
@@ -93,7 +92,7 @@ public class AirportEmployeeService {
     private ResponseEntity<?> createAirportEmployee(CurrentActor actor, Airport airport, AirportEmployee.AirportRole role, AddAirportEmployeeRequest request) {
         Long airportId = airport.getId();
 
-        pendingRegistrationService.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
+        employeeAccountProvisioner.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
 
         AirportEmployee employee = new AirportEmployee();
         employee.setAirport(airport);
@@ -105,23 +104,23 @@ public class AirportEmployeeService {
         employee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode().trim());
         employee.setPhoneNumber(request.getPhoneNumber().trim());
 
-        User employeeUser = new User();
-        employeeUser.setEmailAddress(request.getEmailAddress().trim());
-        employeeUser.setPassword(passwordEncoder.encode(request.getPassword()));
-        employeeUser.setSecurityQuestion(request.getSecurityQuestion().trim());
-        employeeUser.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase()));
-        employeeUser.setRole(User.Role.AIRPORT_EMPLOYEE);
-        employeeUser.setStatus(User.Status.ACTIVE);
-        employeeUser.setActive(true);
-        employeeUser.setAirportEmployee(employee);
+        airportEmployeeRepository.save(employee);
 
-        userRepository.save(employeeUser);
+        ProvisionedAccount account = employeeAccountProvisioner.createAccount(
+                new EmployeeAccountRequest(
+                        AccountType.AIRPORT_EMPLOYEE,
+                        employee.getId(),
+                        request.getEmailAddress().trim(),
+                        request.getPassword(),
+                        request.getSecurityQuestion().trim(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase()
+                ));
 
         String description = "Created airport employee with id " + employee.getId() + " and role " + role
                 + " for airport with id " + airportId + " and operator with id " + airport.getOperator().getId();
 
         auditLogService.addAuditLogForActor(actor,
-                AuditLog.Action.AIRPORT_EMPLOYEE_CREATED, AuditLog.EntityType.USER, employeeUser.getId(), description
+                AuditLog.Action.AIRPORT_EMPLOYEE_CREATED, AuditLog.EntityType.USER, account.userId(), description
         );
 
         logger.info(description + " (user id: " + actor.userId() + ")");
@@ -129,12 +128,12 @@ public class AirportEmployeeService {
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new AirportEmployeeResponse(
                         employee.getId(),
-                        employeeUser.getId(),
+                        account.userId(),
                         employee.getOperator().getId(),
                         airportId,
                         employee.getFName(),
                         employee.getLName(),
-                        employeeUser.getEmailAddress(),
+                        account.emailAddress(),
                         employee.getAirportRole()
                 )
         );

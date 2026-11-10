@@ -1,5 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
+import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
@@ -15,7 +19,6 @@ import com.ga.saudsFlightSystem.validation.EmailValidation;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,15 +34,13 @@ import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.PENDING_CREW;
 @AllArgsConstructor
 public class AirlineEmployeeService {
     AirlineRepository airlineRepository;
-    UserRepository userRepository;
+    private EmployeeAccountProvisioner employeeAccountProvisioner;
     AirlineEmployeeRepository airlineEmployeeRepository;
     AirportRepository airportRepository;
     AirplaneRepository airplaneRepository;
     FlightRepository flightRepository;
     AirplaneService airplaneService;
-    PasswordEncoder passwordEncoder;
     PhoneValidationService phoneValidationService;
-    PendingRegistrationService pendingRegistrationService;
     NotificationPublisher notificationService;
     AuditLogService auditLogService;
     private CurrentActorProvider currentActorProvider;
@@ -95,7 +96,7 @@ public class AirlineEmployeeService {
                 || request.getSecurityQuestionAnswer().isBlank()) {
             throw new InvalidInformationException("Security question and answer are required.");
         }
-        pendingRegistrationService.checkExistingDetails(request.getEmailAddress(), request.getCpr());
+        employeeAccountProvisioner.checkExistingDetails(request.getEmailAddress(), request.getCpr());
 
 
         AirlineEmployee airlineEmployee = new AirlineEmployee();
@@ -108,19 +109,19 @@ public class AirlineEmployeeService {
         airlineEmployee.setHireDate(hireDate);
         airlineEmployee.setPhoneNumberOpeningCode(request.getPhoneNumberOpeningCode());
         airlineEmployee.setPhoneNumber(request.getPhoneNumber());
-        User newUser = new User();
-        newUser.setPassword(passwordEncoder.encode(request.getCpr()));
-        newUser.setRole(User.Role.AIRLINE_EMPLOYEE);
-        newUser.setEmailAddress(request.getEmailAddress());
-        newUser.setSecurityQuestion(request.getSecurityQuestion());
-        newUser.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase()));
-        newUser.setAirlineEmployee(airlineEmployee);
-        newUser.setActive(true);
-        userRepository.save(newUser);
-        newUser.setStatus(User.Status.ACTIVE);
         airlineEmployeeRepository.save(airlineEmployee);
-        String description = "FAA admin created airline admin with user id " + newUser.getId() + " for airline with id " + airlineId;
-        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, newUser.getId(), description);
+
+        ProvisionedAccount account = employeeAccountProvisioner.createAccount(
+                new EmployeeAccountRequest(
+                        AccountType.AIRLINE_EMPLOYEE,
+                        airlineEmployee.getId(),
+                        request.getEmailAddress(),
+                        request.getCpr(),
+                        request.getSecurityQuestion(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase()
+                ));
+        String description = "FAA admin created airline admin with user id " + account.userId() + " for airline with id " + airlineId;
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, account.userId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
         request.setSecurityQuestionAnswer(null);
         return ResponseEntity.status(HttpStatus.CREATED).body(request);

@@ -1,5 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
+import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
+import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.saudsFlightSystem.repository.MaintenanceEmployeeRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.security.CurrentActor;
@@ -9,17 +13,14 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.MaintenanceEmployee;
 import com.ga.saudsFlightSystem.model.MaintenanceProvider;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceEmployeeResponse;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
-import com.ga.saudsFlightSystem.repository.UserRepository;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.logging.Logger;
@@ -30,11 +31,9 @@ public class MaintenanceEmployeeService {
     private MaintenanceEmployeeRepository maintenanceEmployeeRepository;
     private CurrentActorProvider currentActorProvider;
     private MaintenanceProviderRepository maintenanceProviderRepository;
-    private UserRepository userRepository;
-    private PendingRegistrationService pendingRegistrationService;
+    private EmployeeAccountProvisioner employeeAccountProvisioner;
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
-    private PasswordEncoder passwordEncoder;
     private AuditLogService auditLogService;
     private static final Logger logger = Logger.getLogger(MaintenanceEmployeeService.class.getName());
 
@@ -71,7 +70,7 @@ public class MaintenanceEmployeeService {
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find the maintenance provider."));
 
         // checks different repositories if this cpr and email exist already. if yes, throws an exception
-        pendingRegistrationService.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
+        employeeAccountProvisioner.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
 
         MaintenanceEmployee maintenanceEmployee = new MaintenanceEmployee();
         maintenanceEmployee.setProvider(maintenanceProvider);
@@ -85,17 +84,17 @@ public class MaintenanceEmployeeService {
             maintenanceEmployee.setLicenseNumber(request.getLicenseNumber().trim());
         }
 
-        User maintenanceEmployeeUser = new User();
-        maintenanceEmployeeUser.setEmailAddress(request.getEmailAddress().trim());
-        maintenanceEmployeeUser.setPassword(passwordEncoder.encode(request.getPassword()));
-        maintenanceEmployeeUser.setSecurityQuestion(request.getSecurityQuestion().trim());
-        maintenanceEmployeeUser.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase()));
-        maintenanceEmployeeUser.setRole(User.Role.MAINTENANCE_EMPLOYEE);
-        maintenanceEmployeeUser.setStatus(User.Status.ACTIVE);
-        maintenanceEmployeeUser.setActive(true);
-        maintenanceEmployeeUser.setMaintenanceEmployee(maintenanceEmployee);
+        maintenanceEmployeeRepository.save(maintenanceEmployee);
 
-        userRepository.save(maintenanceEmployeeUser);
+        ProvisionedAccount account = employeeAccountProvisioner.createAccount(
+                new EmployeeAccountRequest(
+                        AccountType.MAINTENANCE_EMPLOYEE,
+                        maintenanceEmployee.getId(),
+                        request.getEmailAddress().trim(),
+                        request.getPassword(),
+                        request.getSecurityQuestion().trim(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase()
+                ));
 
         String description = "Created maintenance employee with id " + maintenanceEmployee.getId() +
                 " and role " + role + " for provider with id " + providerId;
@@ -104,7 +103,7 @@ public class MaintenanceEmployeeService {
                 actor,
                 AuditLog.Action.MAINTENANCE_EMPLOYEE_CREATED,
                 AuditLog.EntityType.USER,
-                maintenanceEmployeeUser.getId(),
+                account.userId(),
                 description
         );
 
@@ -113,11 +112,11 @@ public class MaintenanceEmployeeService {
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new MaintenanceEmployeeResponse(
                         maintenanceEmployee.getId(),
-                        maintenanceEmployeeUser.getId(),
+                        account.userId(),
                         providerId,
                         maintenanceEmployee.getFName(),
                         maintenanceEmployee.getLName(),
-                        maintenanceEmployeeUser.getEmailAddress(),
+                        account.emailAddress(),
                         maintenanceEmployee.getMaintenanceRole(),
                         maintenanceEmployee.getLicenseNumber()
                 )
