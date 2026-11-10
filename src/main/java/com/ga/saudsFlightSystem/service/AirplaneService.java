@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
@@ -11,7 +12,6 @@ import com.ga.saudsFlightSystem.model.AirlineEmployee;
 import com.ga.saudsFlightSystem.model.Airplane;
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.Flight;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirplaneRequestResponse;
 import com.ga.saudsFlightSystem.model.request.response.AddAirplaneResponse;
@@ -36,7 +36,7 @@ public class AirplaneService {
     private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
-    private NotificationService notificationService;
+    private NotificationPublisher notificationService;
     private EmailService emailService;
     private AuditLogService auditLogService;
     private FlightRepository flightRepository;
@@ -100,7 +100,7 @@ public class AirplaneService {
         AirplaneRequestResponse response = new AirplaneRequestResponse(
                 request.getId(), airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
                 request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt());
-        notificationService.sendToRole(User.Role.FAA_ADMIN, "airplane-activation-requested", response);
+        notificationService.sendToRole("FAA_ADMIN", "airplane-activation-requested", response);
         logger.info(description + " (user id: " + actor.userId() + ")");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.exception.InvalidInformationException;
@@ -39,7 +40,7 @@ public class AirlineEmployeeService {
     PasswordEncoder passwordEncoder;
     PhoneValidationService phoneValidationService;
     PendingRegistrationService pendingRegistrationService;
-    NotificationService notificationService;
+    NotificationPublisher notificationService;
     AuditLogService auditLogService;
     private CurrentActorProvider currentActorProvider;
 

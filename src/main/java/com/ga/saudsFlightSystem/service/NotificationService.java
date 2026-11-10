@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.security.CurrentActor;
 import com.ga.saudsFlightSystem.model.User;
 import jakarta.annotation.PreDestroy;
@@ -16,7 +17,7 @@ import java.util.function.Predicate;
 import java.util.logging.Logger;
 
 @Service
-public class NotificationService {
+public class NotificationService implements NotificationPublisher {
     private static final Logger logger = Logger.getLogger(NotificationService.class.getName());
     private record Connection(Long userId, String role, SseEmitter emitter) {}
 
@@ -61,12 +62,14 @@ public class NotificationService {
         return new SseEmitter(300_000L);
     }
 
+    @Override
     public void sendToUser(Long userId, String eventName, Object data) {
         afterCommit(() -> send(c -> c.userId().equals(userId), eventName, data));
     }
 
-    public void sendToRole(User.Role role, String eventName, Object data) {
-        afterCommit(() -> send(c -> role.name().equals(c.role()), eventName, data));
+    @Override
+    public void sendToRole(String role, String eventName, Object data) {
+        afterCommit(() -> send(c -> role.equals(c.role()), eventName, data));
     }
 
     // wait for the transaction to succeed so users do not receive notifications for rolled back changes
