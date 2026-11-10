@@ -10,7 +10,6 @@ import com.ga.saudsFlightSystem.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airplane;
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.FAAAdmin;
-import com.ga.saudsFlightSystem.model.User;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import com.ga.saudsFlightSystem.model.request.ReviewAirplaneRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirplaneRequestResponse;
@@ -33,7 +32,6 @@ public class FAAAdminService {
     private FAAAdminRepository faaAdminRepository;
     private AccountLookup accountLookup;
     private CurrentActorProvider currentActorProvider;
-    private UserService userService;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
     private EmailService emailService;
@@ -145,11 +143,4 @@ public class FAAAdminService {
                 request.getStatus(), request.getReviewReason(), request.getRequestedAt(), request.getReviewedAt()));
     }
 
-    public FAAAdmin findFAAAdminByEmailAddress(String email) {
-        User user = userService.findUserByEmailAddress(email);
-        if (user == null) {
-            return null;
-        }
-        return user.getFaaAdmin();
-    }
 }
