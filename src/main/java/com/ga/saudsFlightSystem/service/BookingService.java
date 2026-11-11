@@ -1,10 +1,10 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.InformationExistException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationExistException;
 import com.ga.saudsFlightSystem.repository.PaymentRepository;
-import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.BookingResponse;
 import com.ga.saudsFlightSystem.model.request.response.BookingSummaryResponse;
@@ -12,7 +12,7 @@ import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;

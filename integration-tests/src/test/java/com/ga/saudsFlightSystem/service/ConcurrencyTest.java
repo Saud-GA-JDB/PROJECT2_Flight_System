@@ -7,7 +7,7 @@ import com.ga.identity.repository.PendingRegistrationRepository;
 import com.ga.identity.service.PendingRegistrationService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;

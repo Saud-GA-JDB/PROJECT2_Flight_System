@@ -1,8 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Airport;
 import com.ga.saudsFlightSystem.model.AirportOperator;
 import com.ga.saudsFlightSystem.model.AuditLog;
@@ -11,7 +11,7 @@ import com.ga.saudsFlightSystem.model.request.response.AirportOperatorResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportOperatorRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
 import jakarta.transaction.Transactional;

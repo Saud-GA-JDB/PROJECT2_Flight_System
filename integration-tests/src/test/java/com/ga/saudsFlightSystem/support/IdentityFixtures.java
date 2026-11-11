@@ -2,7 +2,7 @@ package com.ga.saudsFlightSystem.support;
 
 import com.ga.identity.model.User;
 import com.ga.saudsFlightSystem.model.*;
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import jakarta.persistence.EntityManager;
 
 // Helpers for the existing in-process service fixtures; never packaged with the application.

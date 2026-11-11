@@ -2,10 +2,10 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
-import com.ga.saudsFlightSystem.security.CurrentActor;
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.security.CurrentActor;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.FlightInspectionResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;

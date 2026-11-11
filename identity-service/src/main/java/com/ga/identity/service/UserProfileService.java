@@ -3,7 +3,7 @@ package com.ga.identity.service;
 import com.ga.identity.model.request.PersonalProfileUpdate;
 import com.ga.identity.model.request.response.PersonalProfile;
 
-import com.ga.identity.exception.InvalidInformationException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.identity.model.UserProfile;
 import com.ga.identity.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;

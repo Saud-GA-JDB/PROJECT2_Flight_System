@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.security;
 
+import com.ga.common.security.CurrentActor;
+
 public interface CurrentActorProvider {
     CurrentActor getCurrentActor();
 

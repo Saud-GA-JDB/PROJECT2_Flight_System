@@ -1,4 +1,4 @@
-package com.ga.saudsFlightSystem.identity;
+package com.ga.common.security.exception;
 
 public class IdentityUnavailableException extends RuntimeException {
     public IdentityUnavailableException() {

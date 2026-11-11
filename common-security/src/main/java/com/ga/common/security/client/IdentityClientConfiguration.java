@@ -1,6 +1,10 @@
-package com.ga.saudsFlightSystem.identity;
+package com.ga.common.security.client;
 
-import com.ga.saudsFlightSystem.exception.*;
+import com.ga.common.security.exception.IdentityUnavailableException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationExistException;
+import com.ga.common.web.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InvalidInformationException;
 import feign.RequestInterceptor;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;

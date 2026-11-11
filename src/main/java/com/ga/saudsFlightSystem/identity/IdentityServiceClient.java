@@ -1,13 +1,13 @@
 package com.ga.saudsFlightSystem.identity;
 
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.client.IdentityClientConfiguration;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
 @FeignClient(name = "identity", url = "${identity.base-url}", configuration = IdentityClientConfiguration.class)
-public interface IdentityServiceClient {
+public interface IdentityServiceClient extends com.ga.common.security.client.IdentityServiceClient {
     @GetMapping("/internal/identity/accounts/{id}")
     AccountSnapshot account(@PathVariable("id") Long id);
 
@@ -33,7 +33,4 @@ public interface IdentityServiceClient {
 
     @DeleteMapping("/internal/identity/employees/{key}")
     void cancel(@PathVariable("key") String key);
-
-    @PostMapping("/internal/identity/authenticate")
-    CurrentActor authenticate(@RequestHeader("Authorization") String authorization);
 }

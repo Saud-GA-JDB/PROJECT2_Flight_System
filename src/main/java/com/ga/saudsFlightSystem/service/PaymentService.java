@@ -1,13 +1,13 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.InformationExistException;
-import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationExistException;
+import com.ga.common.web.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.Booking;
 import com.ga.saudsFlightSystem.model.Flight;
 import com.ga.saudsFlightSystem.model.Payment;
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.model.request.response.PaymentResponse;
 import com.ga.saudsFlightSystem.model.request.response.CheckoutResponse;

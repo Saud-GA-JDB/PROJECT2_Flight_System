@@ -8,9 +8,9 @@ import com.ga.identity.service.PendingRegistrationService;
 import com.ga.identity.model.request.UpdateProfileRequest;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.InformationExistException;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationExistException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.model.request.response.*;

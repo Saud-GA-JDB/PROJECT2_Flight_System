@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.security;
 
+import com.ga.common.security.CurrentActor;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.identity.AccountSnapshot;
 import lombok.RequiredArgsConstructor;

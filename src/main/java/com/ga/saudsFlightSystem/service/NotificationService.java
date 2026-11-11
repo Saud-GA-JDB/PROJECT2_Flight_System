@@ -1,7 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.notification.NotificationPublisher;
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import jakarta.annotation.PreDestroy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;

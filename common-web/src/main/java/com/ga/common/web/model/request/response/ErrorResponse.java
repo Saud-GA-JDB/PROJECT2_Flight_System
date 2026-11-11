@@ -1,4 +1,4 @@
-package com.ga.identity.model.request.response;
+package com.ga.common.web.model.request.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,6 +1,6 @@
 package com.ga.identity.service;
 
-import com.ga.identity.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.model.User;
 import com.ga.identity.model.request.response.AccountSnapshot;
 import com.ga.identity.repository.UserRepository;

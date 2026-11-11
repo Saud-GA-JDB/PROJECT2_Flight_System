@@ -1,4 +1,4 @@
-package com.ga.saudsFlightSystem.exception;
+package com.ga.common.web.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;

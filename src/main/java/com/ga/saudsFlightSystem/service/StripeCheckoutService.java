@@ -2,7 +2,7 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.model.request.response.PaymentResponse;
 import com.ga.saudsFlightSystem.model.request.response.CheckoutResponse;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.stripe.StripeClient;
 import com.stripe.exception.StripeException;
 import com.stripe.model.checkout.Session;

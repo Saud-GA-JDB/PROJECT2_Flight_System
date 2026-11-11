@@ -5,10 +5,10 @@ import com.ga.identity.model.UserProfile;
 import com.ga.identity.repository.UserRepository;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.BusinessConflictException;
-import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.BusinessConflictException;
+import com.ga.common.web.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;

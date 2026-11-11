@@ -1,6 +1,6 @@
 package com.ga.identity.controller;
 
-import com.ga.identity.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.service.AccountService;
 import com.ga.identity.service.EmployeeAccountService;
 import com.ga.identity.service.UserProfileService;

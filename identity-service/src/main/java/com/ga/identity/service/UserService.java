@@ -2,11 +2,11 @@ package com.ga.identity.service;
 
 import com.ga.identity.security.CurrentActorProvider;
 import com.ga.identity.security.CurrentActor;
-import com.ga.identity.exception.InvalidInformationException;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.identity.exception.LoginLimitExceededException;
-import com.ga.identity.exception.IllegalEndpoint;
-import com.ga.identity.exception.InformationExistException;
-import com.ga.identity.exception.InformationNotFoundException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InformationExistException;
+import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.model.request.response.PersonalProfile;
 import com.ga.identity.service.UserProfileService;
 import com.ga.identity.model.request.PersonalProfileUpdate;

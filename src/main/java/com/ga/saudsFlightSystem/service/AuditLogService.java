@@ -2,7 +2,7 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.repository.AuditLogRepository;
-import com.ga.saudsFlightSystem.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 

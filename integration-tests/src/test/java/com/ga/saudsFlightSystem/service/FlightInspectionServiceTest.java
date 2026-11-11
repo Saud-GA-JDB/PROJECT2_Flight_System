@@ -4,8 +4,8 @@ import com.ga.identity.model.User;
 import com.ga.identity.model.UserProfile;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
-import com.ga.saudsFlightSystem.exception.InvalidInformationException;
+import com.ga.common.web.exception.IllegalEndpoint;
+import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.FlightInspectionResponse;
 import com.ga.saudsFlightSystem.repository.FlightInspectionRepository;

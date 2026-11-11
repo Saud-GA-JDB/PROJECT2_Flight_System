@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.identity;
 
-import com.ga.saudsFlightSystem.exception.InformationNotFoundException;
+import com.ga.common.web.exception.InformationNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import java.util.List;

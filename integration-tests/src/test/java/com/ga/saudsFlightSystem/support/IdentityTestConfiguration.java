@@ -1,5 +1,6 @@
 package com.ga.saudsFlightSystem.support;
 
+import com.ga.common.security.CurrentActor;
 import com.ga.identity.config.IdentitySeeder;
 import com.ga.identity.controller.InternalIdentityController;
 import com.ga.identity.service.EmployeeAccountService;
@@ -134,9 +135,6 @@ public class IdentityTestConfiguration {
     }
 
     private static <T> T call(Supplier<T> operation) {
-        try { return operation.get(); }
-        catch (com.ga.identity.exception.InformationExistException ex) { throw new com.ga.saudsFlightSystem.exception.InformationExistException(ex.getMessage()); }
-        catch (com.ga.identity.exception.InformationNotFoundException ex) { throw new com.ga.saudsFlightSystem.exception.InformationNotFoundException(ex.getMessage()); }
-        catch (com.ga.identity.exception.InvalidInformationException ex) { throw new com.ga.saudsFlightSystem.exception.InvalidInformationException(ex.getMessage()); }
+        return operation.get();
     }
 }

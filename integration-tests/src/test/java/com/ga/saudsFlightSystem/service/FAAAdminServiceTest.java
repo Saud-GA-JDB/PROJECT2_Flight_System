@@ -5,7 +5,7 @@ import com.ga.identity.repository.UserRepository;
 import com.ga.identity.service.UserService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
-import com.ga.saudsFlightSystem.exception.IllegalEndpoint;
+import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.*;
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
