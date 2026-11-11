@@ -9,7 +9,7 @@ import java.util.Optional;
 @Component
 @RequiredArgsConstructor
 public class RemotePersonalProfileStore implements PersonalProfileStore {
-    private final IdentityClient client;
+    private final IdentityServiceClient client;
 
     @Override
     public Optional<PersonalProfile> findByUserId(Long userId) {

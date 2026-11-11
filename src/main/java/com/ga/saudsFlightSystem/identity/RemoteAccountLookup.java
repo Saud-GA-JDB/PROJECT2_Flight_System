@@ -10,7 +10,7 @@ import java.util.Optional;
 @Component
 @RequiredArgsConstructor
 public class RemoteAccountLookup implements AccountLookup {
-    private final IdentityClient client;
+    private final IdentityServiceClient client;
 
     @Override
     public Optional<String> findEmailAddressById(Long userId) {

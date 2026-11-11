@@ -11,7 +11,7 @@ import java.util.logging.Logger;
 @RequiredArgsConstructor
 public class PendingEmployeeActivation {
     private final JdbcTemplate jdbc;
-    private final IdentityClient client;
+    private final IdentityServiceClient client;
     private static final Logger logger = Logger.getLogger(PendingEmployeeActivation.class.getName());
 
     private record Link(String key, Long userId) {}

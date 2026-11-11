@@ -93,8 +93,8 @@ public class IdentityTestConfiguration {
 
     @Bean
     @Primary
-    public IdentityClient fixtureIdentityClient(InternalIdentityController controller, EmployeeAccountService provisioner) {
-        return new IdentityClient() {
+    public IdentityServiceClient fixtureIdentityClient(InternalIdentityController controller, EmployeeAccountService provisioner) {
+        return new IdentityServiceClient() {
             public AccountSnapshot account(Long id) { return call(() -> snapshot(controller.account(id))); }
             public Map<Long, AccountSnapshot> accounts(List<Long> ids) {
                 return controller.accounts(ids).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> snapshot(e.getValue())));

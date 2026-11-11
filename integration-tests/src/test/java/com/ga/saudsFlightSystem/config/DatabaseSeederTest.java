@@ -30,7 +30,7 @@ import static org.junit.Assert.*;
 })
 @Transactional
 public class DatabaseSeederTest {
-    @Autowired com.ga.saudsFlightSystem.identity.IdentityClient identity;
+    @Autowired com.ga.saudsFlightSystem.identity.IdentityServiceClient identity;
     @Autowired EntityManager em;
     @Autowired PasswordEncoder passwords;
     @Autowired com.ga.identity.repository.UserRepository users;

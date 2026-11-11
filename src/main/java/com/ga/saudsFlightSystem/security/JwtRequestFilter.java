@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.security;
 
-import com.ga.saudsFlightSystem.identity.IdentityClient;
+import com.ga.saudsFlightSystem.identity.IdentityServiceClient;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +16,7 @@ import java.util.List;
 
 @RequiredArgsConstructor
 public class JwtRequestFilter extends OncePerRequestFilter {
-    private final IdentityClient identity;
+    private final IdentityServiceClient identity;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {

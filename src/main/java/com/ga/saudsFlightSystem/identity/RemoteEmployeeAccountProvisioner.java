@@ -11,12 +11,12 @@ import java.util.logging.Logger;
 @Service
 @RequiredArgsConstructor
 public class RemoteEmployeeAccountProvisioner implements EmployeeAccountProvisioner {
-    private final IdentityClient client;
+    private final IdentityServiceClient client;
     private static final Logger logger = Logger.getLogger(RemoteEmployeeAccountProvisioner.class.getName());
 
     @Override
     public void checkExistingDetails(String emailAddress, String cpr) {
-        client.checkDetails(new IdentityClient.ExistingDetails(emailAddress, cpr));
+        client.checkDetails(new IdentityServiceClient.ExistingDetails(emailAddress, cpr));
     }
 
     @Override

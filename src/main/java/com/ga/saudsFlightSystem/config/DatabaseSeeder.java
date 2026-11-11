@@ -5,7 +5,7 @@ import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import jakarta.persistence.EntityManager;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import com.ga.saudsFlightSystem.identity.IdentityClient;
+import com.ga.saudsFlightSystem.identity.IdentityServiceClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +22,10 @@ import java.util.logging.Logger;
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
 public class DatabaseSeeder implements CommandLineRunner {
     private final EntityManager em;
-    private final IdentityClient identity;
+    private final IdentityServiceClient identity;
     private static final Logger logger = Logger.getLogger(DatabaseSeeder.class.getName());
 
-    public DatabaseSeeder(EntityManager em, IdentityClient identity) {
+    public DatabaseSeeder(EntityManager em, IdentityServiceClient identity) {
         this.em = em;
         this.identity = identity;
     }

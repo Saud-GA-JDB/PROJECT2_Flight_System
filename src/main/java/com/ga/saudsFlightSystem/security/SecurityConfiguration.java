@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.security;
 
-import com.ga.saudsFlightSystem.identity.IdentityClient;
+import com.ga.saudsFlightSystem.identity.IdentityServiceClient;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +16,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfiguration {
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, IdentityClient identity) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, IdentityServiceClient identity) throws Exception {
         http.csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(errors -> errors

@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 @FeignClient(name = "identity", url = "${identity.base-url}", configuration = IdentityClientConfiguration.class)
-public interface IdentityClient {
+public interface IdentityServiceClient {
     @GetMapping("/internal/identity/accounts/{id}")
     AccountSnapshot account(@PathVariable("id") Long id);
 
