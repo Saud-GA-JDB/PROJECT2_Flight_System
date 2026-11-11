@@ -318,9 +318,15 @@ public class DatabaseSeeder implements CommandLineRunner {
                     MaintenanceProvider value = new MaintenanceProvider();
                     value.setName("Sample Gulf Maintenance");
                     value.setContactEmail("seed.maintenance@mailsac.com");
-                    value.getAirlines().add(airline);
                     return value;
                 });
+        if (em.createQuery("select count(c) from MaintenanceContract c where c.providerId = :providerId and c.airlineId = :airlineId", Long.class)
+                .setParameter("providerId", provider.getId()).setParameter("airlineId", airline.getId()).getSingleResult() == 0) {
+            MaintenanceContract contract = new MaintenanceContract();
+            contract.setProviderId(provider.getId());
+            contract.setAirlineId(airline.getId());
+            em.persist(contract);
+        }
         for (MaintenanceEmployee.MaintenanceRole role : MaintenanceEmployee.MaintenanceRole.values()) {
             staff("maintenance." + role.name().toLowerCase() + "@mailsac.com",
                     role == MaintenanceEmployee.MaintenanceRole.ADMIN ? "990000050" : "990000051",
@@ -335,7 +341,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         }
         findOrCreate(MaintenanceRecord.class, "description", "Project 3 sample routine maintenance", () -> {
             MaintenanceRecord record = new MaintenanceRecord();
-            record.setAirplane(plane);
+            record.setAirplaneId(plane.getId());
             record.setProvider(provider);
             record.setDescription("Project 3 sample routine maintenance");
             return record;

@@ -19,6 +19,7 @@ import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
+import com.ga.saudsFlightSystem.repository.MaintenanceContractRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceRecordRepository;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
@@ -43,6 +44,7 @@ public class MaintenanceRecordService {
     private MaintenanceRecordRepository maintenanceRecordRepository;
     private MaintenanceEmployeeRepository maintenanceEmployeeRepository;
     private MaintenanceProviderRepository maintenanceProviderRepository;
+    private MaintenanceContractRepository maintenanceContractRepository;
     private AirplaneRepository airplaneRepository;
     private AuditLogService auditLogService;
     private AccountLookup accountLookup;
@@ -78,11 +80,11 @@ public class MaintenanceRecordService {
         MaintenanceProvider provider = maintenanceProviderRepository.findByIdForUpdate(request.getProviderId())
                         .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance provider with this id."));
 
-        if (!maintenanceProviderRepository.existsByIdAndAirlines_Id(provider.getId(), airlineId))
+        if (!maintenanceContractRepository.existsByProviderIdAndAirlineId(provider.getId(), airlineId))
             throw new InvalidInformationException("Your airline is not contracted with this provider.");
 
         MaintenanceRecord record = new MaintenanceRecord();
-        record.setAirplane(airplane);
+        record.setAirplaneId(airplane.getId());
         record.setProvider(provider);
 
         if (request.getDescription() != null)
@@ -132,7 +134,7 @@ public class MaintenanceRecordService {
         for (MaintenanceRecord record : records) {
             responses.add(new MaintenanceRecordResponse(
                     record.getId(),
-                    record.getAirplane().getId(),
+                    record.getAirplaneId(),
                     record.getProvider().getId(),
                     record.getTechnician() == null ? null : record.getTechnician().getId(),
                     record.getDescription(),
@@ -204,7 +206,7 @@ public class MaintenanceRecordService {
 
         return ResponseEntity.ok(new MaintenanceRecordResponse(
                 record.getId(),
-                record.getAirplane().getId(),
+                record.getAirplaneId(),
                 record.getProvider().getId(),
                 assignedEmployee.getId(),
                 record.getDescription(),
@@ -231,7 +233,7 @@ public class MaintenanceRecordService {
         for (MaintenanceRecord record : records) {
             responses.add(new MaintenanceRecordResponse(
                     record.getId(),
-                    record.getAirplane().getId(),
+                    record.getAirplaneId(),
                     record.getProvider().getId(),
                     technician.getId(),
                     record.getDescription(),
@@ -297,7 +299,9 @@ public class MaintenanceRecordService {
                 .orElseThrow(() -> new InformationNotFoundException("Couldn't find maintenance record with this id."));
         CurrentActor actor = activeActor();
         AirlineEmployee admin = requireAirlineAdmin(actor);
-        if (!Objects.equals(record.getAirplane().getAirline().getId(), admin.getAirline().getId()))
+        Airplane airplane = airplaneRepository.findById(record.getAirplaneId())
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find airplane with this id."));
+        if (!Objects.equals(airplane.getAirline().getId(), admin.getAirline().getId()))
             throw new IllegalEndpoint("You can only cancel maintenance for your airline's airplanes.");
         return ResponseEntity.ok(cancelMaintenance(record, actor, reason));
     }
@@ -390,8 +394,10 @@ public class MaintenanceRecordService {
 
         MaintenanceCancellationNotificationResponse payload = new MaintenanceCancellationNotificationResponse(
                 record.getId(), record.getStatus(), record.getCancelledAt());
+        Airplane airplane = airplaneRepository.findById(record.getAirplaneId())
+                .orElseThrow(() -> new InformationNotFoundException("Couldn't find airplane with this id."));
         Set<Long> recipients = new LinkedHashSet<>(accountLookup.findActiveUserIds(
-                airlineEmployeeRepository.findAdminUserIdsByAirlineId(record.getAirplane().getAirline().getId()), "AIRLINE_EMPLOYEE"));
+                airlineEmployeeRepository.findAdminUserIdsByAirlineId(airplane.getAirline().getId()), "AIRLINE_EMPLOYEE"));
         recipients.addAll(accountLookup.findActiveUserIds(
                 maintenanceEmployeeRepository.findCancellationRecipientUserIds(record.getId(), record.getProvider().getId()), "MAINTENANCE_EMPLOYEE"));
 
@@ -402,7 +408,7 @@ public class MaintenanceRecordService {
     }
 
     private MaintenanceRecordResponse toMaintenanceResponse(MaintenanceRecord record) {
-        return new MaintenanceRecordResponse(record.getId(), record.getAirplane().getId(), record.getProvider().getId(),
+        return new MaintenanceRecordResponse(record.getId(), record.getAirplaneId(), record.getProvider().getId(),
                 record.getTechnician() == null ? null : record.getTechnician().getId(), record.getDescription(), record.getFindings(),
                 record.getStatus(), record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt(),
                 record.getCancellationReason(), record.getCancelledAt(), record.getCancelledByUserId());

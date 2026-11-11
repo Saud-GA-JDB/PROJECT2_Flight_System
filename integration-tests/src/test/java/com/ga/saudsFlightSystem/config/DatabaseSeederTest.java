@@ -80,8 +80,11 @@ public class DatabaseSeederTest {
                 .setParameter("description", "Project 3 sample routine maintenance").getSingleResult();
         User technician = user("maintenance.technician@mailsac.com");
         assertEquals(maintenance.getProvider().getId(), maintenanceEmployee(technician).getProvider().getId());
-        assertTrue(maintenance.getProvider().getAirlines().stream()
-                .anyMatch(a -> a.getId().equals(maintenance.getAirplane().getAirline().getId())));
+        Long maintenanceAirlineId = em.find(Airplane.class, maintenance.getAirplaneId()).getAirline().getId();
+        assertEquals(Long.valueOf(1), em.createQuery(
+                "select count(c) from MaintenanceContract c where c.providerId = :providerId and c.airlineId = :airlineId", Long.class)
+                .setParameter("providerId", maintenance.getProvider().getId())
+                .setParameter("airlineId", maintenanceAirlineId).getSingleResult());
 
         Payment payment = em.createQuery("select p from Payment p where p.booking.bookingRef = 'P3PAY01'", Payment.class).getSingleResult();
         assertEquals(payable.getId(), payment.getBooking().getFlight().getId());
@@ -129,7 +132,7 @@ public class DatabaseSeederTest {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (String entity : new String[]{"User", "Airline", "Airplane", "Flight", "Booking", "Payment",
                 "CrewAssignment", "AirportOperator", "AirportEmployee", "FlightInspection",
-                "MaintenanceProvider", "MaintenanceEmployee", "MaintenanceRecord",
+                "MaintenanceProvider", "MaintenanceContract", "MaintenanceEmployee", "MaintenanceRecord",
                 "AirNavigationServiceProvider", "ControlFacility", "ATCEmployee"}) {
             counts.put(entity, em.createQuery("select count(e) from " + entity + " e", Long.class).getSingleResult());
         }

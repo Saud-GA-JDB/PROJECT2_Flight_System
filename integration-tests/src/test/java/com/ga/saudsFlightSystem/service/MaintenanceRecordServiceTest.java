@@ -111,8 +111,11 @@ public class MaintenanceRecordServiceTest {
         airplaneId = airplane.getId();
 
         MaintenanceProvider provider = provider("Provider " + suffix);
-        provider.getAirlines().add(airline);
         providerId = provider.getId();
+        MaintenanceContract contract = new MaintenanceContract();
+        contract.setProviderId(providerId);
+        contract.setAirlineId(airlineId);
+        entityManager.persist(contract);
         MaintenanceProvider otherProvider = provider("Other " + suffix);
         otherProviderId = otherProvider.getId();
 
@@ -175,6 +178,8 @@ public class MaintenanceRecordServiceTest {
                 .setParameter("ids", employeeIds).executeUpdate();
         entityManager.createQuery("DELETE FROM AirlineEmployee e WHERE e.id = :id")
                 .setParameter("id", airlineEmployeeId).executeUpdate();
+        entityManager.createQuery("DELETE FROM MaintenanceContract c WHERE c.providerId IN :ids")
+                .setParameter("ids", List.of(providerId, otherProviderId)).executeUpdate();
         entityManager.remove(entityManager.find(MaintenanceProvider.class, providerId));
         entityManager.remove(entityManager.find(MaintenanceProvider.class, otherProviderId));
         entityManager.flush();
@@ -309,12 +314,13 @@ public class MaintenanceRecordServiceTest {
     @Test
     public void historyCountsAcrossProvidersWithoutCurrentContractAndEnforcesScope() {
         MaintenanceRecord completed = new MaintenanceRecord();
-        completed.setAirplane(entityManager.find(Airplane.class, airplaneId));
+        completed.setAirplaneId(airplaneId);
         completed.setProvider(entityManager.find(MaintenanceProvider.class, otherProviderId));
         completed.setStatus(MaintenanceRecord.MaintenanceStatus.COMPLETED);
         completed.setCompletedAt(java.time.LocalDateTime.now());
         entityManager.persist(completed);
-        entityManager.find(MaintenanceProvider.class, providerId).getAirlines().clear();
+        entityManager.createQuery("DELETE FROM MaintenanceContract c WHERE c.providerId = :providerId")
+                .setParameter("providerId", providerId).executeUpdate();
         entityManager.flush();
         login(airlineAdminEmail);
         var all = service.getAirlineMaintenanceHistory(airplaneId, null, 0, 1).getBody();

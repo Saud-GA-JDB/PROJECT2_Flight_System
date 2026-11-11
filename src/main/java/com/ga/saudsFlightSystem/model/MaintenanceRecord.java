@@ -24,10 +24,9 @@ public class MaintenanceRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "airplane_id", nullable = false)
+    @Column(name = "airplane_id", nullable = false)
     @JsonIgnore
-    private Airplane airplane;
+    private Long airplaneId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "technician_id")

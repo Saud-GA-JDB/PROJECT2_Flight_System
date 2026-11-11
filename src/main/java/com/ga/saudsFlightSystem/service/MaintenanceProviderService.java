@@ -8,6 +8,7 @@ import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddMaintenanceProviderRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceProviderResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
+import com.ga.saudsFlightSystem.repository.MaintenanceContractRepository;
 import com.ga.saudsFlightSystem.repository.MaintenanceProviderRepository;
 import com.ga.common.security.CurrentActor;
 import com.ga.saudsFlightSystem.security.CurrentActorProvider;
@@ -24,6 +25,7 @@ import java.util.logging.Logger;
 @AllArgsConstructor
 public class MaintenanceProviderService {
     private MaintenanceProviderRepository maintenanceProviderRepository;
+    private MaintenanceContractRepository maintenanceContractRepository;
     private AuditLogService auditLogService;
     private CurrentActorProvider currentActorProvider;
     private AirlineEmployeeRepository airlineEmployeeRepository;
@@ -80,18 +82,20 @@ public class MaintenanceProviderService {
         MaintenanceProvider maintenanceProvider = maintenanceProviderRepository.findByIdForUpdate(providerId)
                 .orElseThrow( () -> new InformationNotFoundException("Couldn't find Maintenance provider with this id"));
 
-        Airline airline = airlineAdmin.getAirline();
+        Long airlineId = airlineAdmin.getAirline().getId();
 
-        if (maintenanceProviderRepository.existsByIdAndAirlines_Id(providerId, airline.getId()))
+        if (maintenanceContractRepository.existsByProviderIdAndAirlineId(providerId, airlineId))
             throw new InformationExistException("Already contracted");
 
-        maintenanceProvider.getAirlines().add(airline);
-        maintenanceProviderRepository.save(maintenanceProvider);
+        MaintenanceContract contract = new MaintenanceContract();
+        contract.setProviderId(providerId);
+        contract.setAirlineId(airlineId);
+        maintenanceContractRepository.save(contract);
 
         //TODO: send emails to maintenance provider and airline.
 
         String description = "Airline admin contracted maintenance provider with id " + maintenanceProvider.getId()
-                        + " to airline with id " + airline.getId();
+                        + " to airline with id " + airlineId;
 
         auditLogService.addAuditLogForActor(actor,
                 AuditLog.Action.MAINTENANCE_PROVIDER_LINKED,
