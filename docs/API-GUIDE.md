@@ -1,4 +1,4 @@
-> Identity extraction: all /auth/users endpoints now run on port 8081. Other endpoints stay on 8080. Start/seed Identity first, then the flight application. See the identity-service README for configuration and recovery.
+> Identity extraction: all /auth/users endpoints now run on port 8081. Maintenance routes use 8083; SSE uses 8084; Aviation routes use 8080. Start/seed Identity first, then the flight application. See the identity-service README for configuration and recovery.
 
 # Detailed API and operations guide
 
@@ -24,7 +24,7 @@ Use these endpoints in order. Send JSON with `Content-Type: application/json`. O
 | POST | `/auth/users/login` | Logs in using email and the current password (CPR is the initial password). Returns status 200 with the JWT in the response's `message` field. | `email`, `password` | `{"email":"you@example.com","password":"123456789"}` |
 | POST | `/auth/users/setup` | Completes the logged-in customer's details, changes the password, activates the account, then deletes pending after saving successfully. | `password`, `fName`, `lName`, `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
 
-For `/auth/users/register/email`, use a valid email address and a CPR containing exactly nine digits. Success returns status 200 with `{"message":"Verification email requested."}`. Invalid input or an unexpired pending registration returns 400; an email or CPR already registered to an account returns 409. Email sending failures return 500 with message `Could not send the email.`. These errors use the global response fields `timestamp`, `status`, `error`, `message`, and `path`. The pending registration is saved before sending the email, so a failed send can leave a pending registration that blocks another request until it expires.
+For `/auth/users/register/email`, use a valid email address and a CPR containing exactly nine digits. Success returns status 200 with `{"message":"Verification email requested."}`. Invalid input or an unexpired pending registration returns 400; an email or CPR already registered to an account returns 409. Notification/SMTP failures return 503 with message `Could not send the email.`. These errors use the global response fields `timestamp`, `status`, `error`, `message`, and `path`. The pending registration and synchronous Notification call share the Identity transaction, so a send failure rolls back the pending registration. SMTP acceptance cannot be undone after an uncertain timeout or a later database commit failure.
 
 Login does not require a Bearer token. Accounts with status `DEACTIVATED` cannot log in; inactive accounts can log in only while their status is `SETUP_REQUIRED`. Authentication failures return status 401 with the global error response fields `timestamp`, `status`, `error`, `message`, and `path`. The error is `UNAUTHORIZED`, and the message is `Error: Email or password is incorrect, or the account is inactive.`
 
@@ -59,7 +59,7 @@ Requires an active account and `Authorization: Bearer <token>`, including for th
 
 The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401. These responses and the successful 200 response contain a `message` field. The security answer is trimmed and converted to lowercase before checking it against the stored hash.
 
-The reset email is sent to the target customer's email address with subject `Reset Password`. Email sending failures return 500 through the global error handler, with fields `timestamp`, `status`, `error`, `message`, and `path`, and message `Could not send the email.`. The explicit password save occurs after the email is sent.
+The reset email is sent to the target customer's email address with subject `Reset Password`. Notification/SMTP failures return 503 through the global error handler, with fields `timestamp`, `status`, `error`, `message`, and `path`, and message `Could not send the email.`. The explicit password save occurs after the email is sent.
 
 Change password endpoint
 ---
@@ -272,7 +272,7 @@ The review email is sent to the user stored as the request's `requestedBy`, with
 Live notifications (SSE)
 ---
 
-An active, authenticated user opens `GET http://localhost:8084/notifications` with `Authorization: Bearer <JWT>` from Identity. This endpoint now belongs to the separate Notification application. See [Notification setup](../notification-service/README.md) for its service key and manual checks. Email remains in Aviation and Identity for this stage.
+An active, authenticated user opens `GET http://localhost:8084/notifications` with `Authorization: Bearer <JWT>` from Identity. This endpoint now belongs to the separate Notification application. See [Notification setup](../notification-service/README.md) for its service key and manual checks. Notification also owns SMTP email delivery; Aviation and Identity call its internal email endpoints through Feign.
 The response is `text/event-stream` and stays open. User ID and role come from the JWT-authenticated
 account, never from client-supplied parameters. Each tab/device gets its own connection.
 
@@ -859,3 +859,7 @@ mvn '-Dtest=MaintenanceRecordServiceTest,DatabaseSeederTest' '-Dspring.datasourc
 ```
 
 Verified 8 November 2026 on `aviation_operations_verify_20261107` with schema validation: 16 tests passed, zero failures/errors/skips (MaintenanceRecordServiceTest 15, DatabaseSeederTest 1). Coverage includes both cancellation routes, HTTP errors, cross-provider scoped history, current-account checks, record-lock races, atomic audit rollback and scoped after-commit SSE. Committed fixtures are cleaned up. The physical-flight suites were not rerun for this maintenance stage. Development `aviation` was inventoried read-only and has not received this migration.
+
+## Email service extraction (12 November 2026)
+
+Notification on 8084 owns SMTP and exposes service-key-protected POST `/internal/v1/emails` (200 after SMTP acceptance) and `/internal/v1/emails/async` (202, background send). The JSON body has `recipient`, `subject`, and `body`. Public business routes and message wording remain unchanged. Identity registration/reset calls wait for SMTP and return 503 with local rollback on failure. Aviation booking/airplane emails are sent after commit and failures are logged without undoing the action. Crew emails use the async endpoint after commit; only accepted background SMTP failures enter the existing in-memory three-hour retry list. See `notification-service/README.md` for configuration and test coverage.

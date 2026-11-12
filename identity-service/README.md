@@ -14,7 +14,7 @@ The extraction SQL has been applied to the current `aviation` database. Neither 
 
 Open this folder as its own Maven/Spring Boot project. It has its own `pom.xml`, Maven wrapper, application class, and configuration.
 
-Local settings are in `src/main/resources/application.properties`, just like the flight application. The local file is ignored by Git; `application-example.properties` is the checked-in template for another checkout. The local database and mail settings match the existing application. The shared service key and Identity's JWT signing key are configured locally, so this checkout does not require new environment variables to start.
+Local settings are in `src/main/resources/application.properties`, just like the flight application. The local file is ignored by Git; `application-example.properties` is the checked-in template for another checkout. The local database settings use the existing database. SMTP now belongs to Notification on port 8084. The shared service key and Identity's JWT signing key are configured locally, and email requires the same nonempty NOTIFICATION_SERVICE_KEY as Notification.
 
 The example template supports these environment variables if you prefer that configuration style:
 
@@ -23,7 +23,8 @@ The example template supports these environment variables if you prefer that con
 | `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Both; use the same database |
 | `IDENTITY_SERVICE_KEY` | Both; use the same nonempty private value |
 | `JWT_SECRET` | Identity only; a Base64 signing key of at least 32 random bytes |
-| `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | Both, for their existing email features |
+| `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | Notification only |
+| `NOTIFICATION_SERVICE_KEY`, `NOTIFICATION_BASE_URL` | Identity and Aviation call Notification; the same key is configured in all three apps |
 | `STRIPE_SECRET_KEY`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` | Flight application only |
 
 Keep the same `identity.service-key` in both local properties files. Identity owns `jwt-secret`; the flight application does not need that signing key.
@@ -68,3 +69,7 @@ Use the same command from the flight application's directory to build that appli
 Authentication/password tests belong to Identity. Existing tests that involve both applications are in the separate [integration-tests project](../integration-tests/README.md). They depend on the built JARs; neither application imports the other application's sources or depends on the integration-test project. These existing in-process fixtures do not verify HTTP outages or provisioning recovery. No new tests were added or executed.
 
 Two-process runtime checks are separate from compilation. After starting both applications, verify login on 8081, an authorized operational request on 8080, and employee creation followed by login. Stopping Identity should make protected flight requests fail with 503 instead of accepting stale account state.
+
+## Email dependency
+
+PendingRegistrationService and UserService call NotificationServiceClient directly with recipient, subject and body. Registration verification and password reset remain synchronous: SMTP acceptance is required for success. HTTP/SMTP failure returns 503 and rolls back the local transaction; SMTP and database commits are not atomic, so an uncertain timeout or later commit failure can still leave an already-sent email. No retry is added for these messages. Configure Notification's SMTP settings and start it before using these features. Identity no longer has a local EmailService, mail dependency or email executor.

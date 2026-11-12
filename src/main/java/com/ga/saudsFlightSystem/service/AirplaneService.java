@@ -38,7 +38,6 @@ public class AirplaneService {
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
     private NotificationService notificationService;
-    private EmailService emailService;
     private AuditLogService auditLogService;
     private FlightRepository flightRepository;
 
@@ -86,7 +85,7 @@ public class AirplaneService {
         String description = "Airline admin requested activation of airplane with id " + airplane.getId() + " (request id: " + request.getId() + ")";
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRPLANE_ACTIVATION_REQUESTED, AuditLog.EntityType.AIRPLANE_REQUEST, request.getId(), description);
 
-        emailService.sendEmail(accountLookup.findEmailAddressById(actor.userId())
+        notificationService.sendEmail(accountLookup.findEmailAddressById(actor.userId())
                 .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists.")), "Activation Request Submitted", String.format(
                 """
                         Your airplane activation request has been submitted for FAA review.
@@ -167,7 +166,7 @@ public class AirplaneService {
         String description = "Airline admin added airplane with id " + airplane.getId();
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRPLANE_CREATED, AuditLog.EntityType.AIRPLANE, airplane.getId(), description);
 
-        emailService.sendEmail(accountLookup.findEmailAddressById(actor.userId())
+        notificationService.sendEmail(accountLookup.findEmailAddressById(actor.userId())
                 .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists.")), "Airplane Added", String.format(
                 """
                         Your airplane has been added successfully.

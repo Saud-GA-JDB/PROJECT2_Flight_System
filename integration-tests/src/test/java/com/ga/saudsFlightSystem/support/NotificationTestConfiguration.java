@@ -17,11 +17,20 @@ public class NotificationTestConfiguration {
     @Bean
     @Primary
     public NotificationServiceClient fixtureNotificationClient(FixtureNotificationService notifications) {
-        return (key, request) -> {
-            if (request.userId() != null)
-                notifications.sendToUser(request.userId(), request.eventName(), request.data());
-            else
-                notifications.sendToRole(request.role(), request.eventName(), request.data());
+        return new NotificationServiceClient() {
+            @Override
+            public void send(String key, com.ga.saudsFlightSystem.model.request.NotificationRequest request) {
+                if (request.userId() != null)
+                    notifications.sendToUser(request.userId(), request.eventName(), request.data());
+                else
+                    notifications.sendToRole(request.role(), request.eventName(), request.data());
+            }
+
+            @Override
+            public void sendEmail(String key, com.ga.saudsFlightSystem.model.request.EmailRequest request) {}
+
+            @Override
+            public void sendAsyncEmail(String key, com.ga.saudsFlightSystem.model.request.EmailRequest request) {}
         };
     }
 

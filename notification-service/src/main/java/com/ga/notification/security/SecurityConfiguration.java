@@ -17,8 +17,8 @@ public class SecurityConfiguration extends com.ga.common.security.SecurityConfig
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ASYNC && request.getServletPath().equals("/notifications")).permitAll()
                 .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/**").permitAll()
-                // The controller checks the service key on this exact delivery endpoint.
-                .requestMatchers(HttpMethod.POST, "/internal/v1/notifications").permitAll()
+                // Each controller checks the service key on its exact delivery endpoints.
+                .requestMatchers(HttpMethod.POST, "/internal/v1/notifications", "/internal/v1/emails", "/internal/v1/emails/async").permitAll()
                 .requestMatchers(HttpMethod.GET, "/notifications").hasAuthority("ACCOUNT_ACTIVE")
                 .anyRequest().denyAll());
         return http.build();

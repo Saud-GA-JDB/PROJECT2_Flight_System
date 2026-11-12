@@ -1,5 +1,9 @@
 package com.ga.identity.service;
 
+import com.ga.identity.client.NotificationServiceClient;
+import com.ga.identity.model.request.EmailRequest;
+import org.springframework.beans.factory.annotation.Value;
+
 import com.ga.identity.service.UserProfileService;
 import com.ga.identity.model.request.response.PersonalProfile;
 import com.ga.common.web.exception.InformationNotFoundException;
@@ -12,7 +16,7 @@ import com.ga.identity.model.UserProfile;
 import com.ga.identity.model.request.response.RegistrationResponse;
 import com.ga.identity.repository.*;
 import com.ga.identity.validation.EmailValidation;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +26,14 @@ import java.time.LocalDateTime;
 import java.util.logging.Logger;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class PendingRegistrationService {
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final UserRepository userRepository;
     private final UserProfileService userProfileService;
-    private final EmailService emailService;
+    private final NotificationServiceClient notificationServiceClient;
+    @Value("${notification.service-key:${NOTIFICATION_SERVICE_KEY:}}")
+    private String notificationServiceKey;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
 
@@ -79,8 +85,8 @@ public class PendingRegistrationService {
         pending.setVerified(false);
         pendingRegistrationRepository.save(pending);
 
-        emailService.sendEmail(email, "Verify your email",
-                "Your verification code is " + code + ". It expires in 10 minutes.");
+        notificationServiceClient.sendEmail(notificationServiceKey, new EmailRequest(email, "Verify your email",
+                "Your verification code is " + code + ". It expires in 10 minutes."));
         logger.info("Verification email sent for pending registration with id " + pending.getId());
 
         return ResponseEntity.ok(new RegistrationResponse("Verification email requested."));

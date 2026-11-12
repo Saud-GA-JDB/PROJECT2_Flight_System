@@ -6,6 +6,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
+@org.springframework.cloud.openfeign.EnableFeignClients(clients = com.ga.identity.client.NotificationServiceClient.class)
 public class IdentityApplication {
     public static void main(String[] args) {
         SpringApplication.run(IdentityApplication.class, args);

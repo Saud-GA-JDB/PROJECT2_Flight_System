@@ -31,7 +31,7 @@ public class FAAAdminService {
     private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
-    private EmailService emailService;
+    private NotificationService notificationService;
     private AuditLogService auditLogService;
 
     private static final Logger logger = Logger.getLogger(FAAAdminService.class.getName());
@@ -116,7 +116,7 @@ public class FAAAdminService {
 
         String requesterEmail = accountLookup.findEmailAddressById(request.getRequestedByUserId())
                 .orElseThrow(() -> new InformationNotFoundException("No user with that ID exists."));
-        emailService.sendEmail(requesterEmail,
+        notificationService.sendEmail(requesterEmail,
                 "Activation Request " + request.getStatus(), String.format(
                         """
                                 Your airplane activation request has been reviewed.

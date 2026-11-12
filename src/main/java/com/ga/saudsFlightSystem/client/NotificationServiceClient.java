@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.client;
 
 import com.ga.saudsFlightSystem.model.request.NotificationRequest;
+import com.ga.saudsFlightSystem.model.request.EmailRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -10,4 +11,10 @@ import org.springframework.web.bind.annotation.RequestHeader;
 public interface NotificationServiceClient {
     @PostMapping("/internal/v1/notifications")
     void send(@RequestHeader("X-Service-Key") String serviceKey, @RequestBody NotificationRequest request);
+
+    @PostMapping("/internal/v1/emails")
+    void sendEmail(@RequestHeader("X-Service-Key") String serviceKey, @RequestBody EmailRequest request);
+
+    @PostMapping("/internal/v1/emails/async")
+    void sendAsyncEmail(@RequestHeader("X-Service-Key") String serviceKey, @RequestBody EmailRequest request);
 }

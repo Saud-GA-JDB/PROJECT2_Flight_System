@@ -10,6 +10,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(basePackages = "com.ga.notification")
 public class GlobalExceptionHandler extends com.ga.common.web.exception.GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.mail.MailException.class)
+    public ResponseEntity<ErrorResponse> emailFailed(Exception ex, HttpServletRequest request) {
+        return build("Email delivery is currently unavailable.", HttpStatus.SERVICE_UNAVAILABLE, request);
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> authenticationFailed(Exception ex, HttpServletRequest request) {
         return build("Valid authentication is required.", HttpStatus.UNAUTHORIZED, request);

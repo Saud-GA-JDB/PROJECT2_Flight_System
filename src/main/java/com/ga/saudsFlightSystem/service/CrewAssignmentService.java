@@ -16,7 +16,6 @@ import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -34,7 +33,6 @@ public class CrewAssignmentService {
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private FlightRepository flightRepository;
     private AuditLogService auditLogService;
-    private ApplicationEventPublisher eventPublisher;
     private NotificationService notificationService;
     private CurrentActorProvider currentActorProvider;
     private AccountLookup accountLookup;
@@ -99,10 +97,10 @@ public class CrewAssignmentService {
                 .orElse(null);
         if (employeeUserId != null) {
             accountLookup.findEmailAddressById(employeeUserId)
-                    .ifPresent(email -> eventPublisher.publishEvent( new Email( email,
+                    .ifPresent(email -> notificationService.sendAsyncEmail(email,
                     "New Crew Assignment",
                     "You have been assigned to flight " + flight.getFlightNumber()
-                            + " with duty " + assignment.getDuty())));
+                            + " with duty " + assignment.getDuty()));
         }
 
 

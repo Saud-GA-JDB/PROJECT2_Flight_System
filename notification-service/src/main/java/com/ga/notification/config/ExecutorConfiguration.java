@@ -1,4 +1,4 @@
-package com.ga.identity.config;
+package com.ga.notification.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

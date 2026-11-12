@@ -48,14 +48,14 @@ The backend now has four Spring Boot applications. Identity, Aviation, and Maint
 | Identity | 8081 | Accounts, profiles, registration, passwords, JWT authentication, identity audit logs |
 | Flight system | 8080 | Aviation employees and operations, bookings, payments and operational audit logs |
 | Maintenance | 8083 | Maintenance providers, contracts, employees, work records and maintenance audit logs |
-| Notification | 8084 | Live SSE connections, heartbeat and delivery to connected users/FAA admins |
+| Notification | 8084 | Live SSE connections and SMTP email delivery |
 
-The flight system calls Identity through Feign for authentication, account/profile reads and employee account provisioning. It stores scalar user IDs and has no Identity entities or repositories on its production classpath. Each business application keeps its own transactions. Email remains in Aviation and Identity for a later stage.
+The flight system calls Identity through Feign for authentication, account/profile reads and employee account provisioning. It stores scalar user IDs and has no Identity entities or repositories on its production classpath. Each business application keeps its own transactions. Notification owns SMTP; Aviation and Identity send recipient/subject/body through Feign.
 
 See [Identity setup and recovery](identity-service/README.md) for the two-process startup commands and provisioning behavior. Apply the extraction SQL supplied in chat before starting either application; both use schema validation.
 
 See [Maintenance setup and routes](maintenance-service/README.md) for the three-application setup and manual checks. Maintenance business endpoints now use port **8083**, including the maintenance methods under `/faaadmin` and `/airlineAdmin`. The root keeps Aviation scope lookups and a service-key-protected cancellation notification handoff. Older endpoint examples below and in Postman need their Maintenance requests pointed at 8083. No gateway, Docker, Kafka, or separate database is involved in this stage.
-See [Notification setup and manual checks](notification-service/README.md) for the SSE extraction. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation selects recipients and calls Notification after commit through Feign; Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation and Notification, separately from the existing Identity and Maintenance keys. Delivery is best effort with no stored history or replay. Compilation does not establish runtime behavior.
+See [Notification setup and manual checks](notification-service/README.md) for SSE and email setup. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation selects recipients and calls Notification after commit through Feign; Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation, Identity and Notification, separately from the existing Identity and Maintenance keys. SSE delivery is best effort with no stored history or replay. Identity email calls are synchronous and fail with 503 on delivery errors; Aviation emails are sent after commit. Build and local HTTP/SMTP checks passed on 12 November 2026; see the service README for coverage and limits.
 
 ## General approach
 
@@ -371,7 +371,7 @@ If you already have a local `application.properties`, keep it and compare it wit
 
 ### 4. Set environment variables
 
-Set these in the same terminal where you start the application. Replace the placeholder values with your own:
+Set these in the relevant application run configuration. SMTP variables belong only to Notification; database variables belong to Aviation, Identity and Maintenance. Set the same `NOTIFICATION_SERVICE_KEY` in Aviation, Identity and Notification. Replace the placeholder values with your own:
 
 ```powershell
 $env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5432/aviation"
@@ -466,7 +466,7 @@ MaintenanceRecordServiceTest separately passed five PostgreSQL integration tests
 - Cross-table CPR uniqueness remains a pre-check and is not guaranteed under simultaneous registration/profile changes.
 - SSE is live delivery within one backend instance. It has no persistent inbox, missed-event replay, or shared delivery across servers. Clients must reconnect and fetch outstanding requests.
 - Scheduled/actual flight times use local date-times without offsets. Pilot actual timestamps and scheduler checks explicitly use Asia/Bahrain; new event/clearance timestamps use UTC Instant. Older booking/scheduling cutoffs use server-local time. Full airport time-zone handling remains future work.
-- A failed verification email can leave a pending registration until expiry. Email and database transactions are not fully coordinated: a delivered email cannot be rolled back if a later database commit fails.
+- Verification/reset delivery failures roll back Identity changes and return 503. SMTP and database commits are not atomic: an accepted email cannot be undone after a later timeout or commit failure. Aviation email handoff failures are logged after commit and are not retried. Notification retains only background crew SMTP failures in memory for retry.
 
 
 ## Major challenges
@@ -849,9 +849,9 @@ Stripe network calls run outside database transactions. The application prepares
 
 #### Asynchronous processing
 
-Crew emails are submitted to a shared five-thread `ExecutorService` after the business transaction commits. This allows email delivery to run in the background and avoids sending confirmation for a transaction that later rolls back.
+After the Aviation transaction commits, crew emails are handed to Notification through Feign and submitted to its five-thread `ExecutorService`. This allows email delivery to run in the background and avoids sending confirmation for a transaction that later rolls back.
 
-Failed emails are stored in an in-memory list and retried by a scheduled task every three hours. A `ReentrantLock` protects the list while worker threads add failures and the retry task copies and clears it.
+Failed background SMTP sends are stored in Notification's in-memory list and retried by a scheduled task every three hours. A `ReentrantLock` protects the list while worker threads add failures and the retry task copies and clears it.
 
 Stripe API calls run synchronously on the request thread. Separate requests can still execute concurrently through the web server.
 

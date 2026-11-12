@@ -8,7 +8,6 @@ import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PessimisticLockException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.MailException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -60,13 +59,13 @@ public class GlobalExceptionHandler extends com.ga.common.web.exception.GlobalEx
         );
     }
 
-    @ExceptionHandler(MailException.class)
+    @ExceptionHandler(feign.FeignException.class)
     public ResponseEntity<ErrorResponse> handleMail(
-            MailException ex, HttpServletRequest request) {
+            feign.FeignException ex, HttpServletRequest request) {
         logger.severe("Could not send the email. Exception type: " + ex.getClass().getSimpleName());
         return build(
                 "Could not send the email.",
-                HttpStatus.INTERNAL_SERVER_ERROR,
+                HttpStatus.SERVICE_UNAVAILABLE,
                 request
         );
     }

@@ -74,8 +74,8 @@ public class IdentityTestConfiguration {
 
     @Bean
     @Primary
-    public com.ga.identity.service.EmailService identityTestMail() {
-        return org.mockito.Mockito.mock(com.ga.identity.service.EmailService.class);
+    public com.ga.identity.client.NotificationServiceClient identityTestMail() {
+        return org.mockito.Mockito.mock(com.ga.identity.client.NotificationServiceClient.class);
     }
 
     @Bean

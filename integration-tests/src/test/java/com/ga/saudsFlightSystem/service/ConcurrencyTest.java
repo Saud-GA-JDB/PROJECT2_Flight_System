@@ -80,8 +80,6 @@ public class ConcurrencyTest {
     @Autowired
     EntityManager entityManager;
     @MockitoBean
-    EmailService emailService;
-    @MockitoBean
     NotificationService notificationService;
     @MockitoBean
     AuditLogService auditLogService;

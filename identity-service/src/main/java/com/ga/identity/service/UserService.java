@@ -1,5 +1,9 @@
 package com.ga.identity.service;
 
+import com.ga.identity.client.NotificationServiceClient;
+import com.ga.identity.model.request.EmailRequest;
+import org.springframework.beans.factory.annotation.Value;
+
 import com.ga.identity.security.CurrentActorProvider;
 import com.ga.identity.security.CurrentActor;
 import com.ga.common.web.exception.InvalidInformationException;
@@ -68,7 +72,9 @@ public class UserService {
     private final PendingRegistrationRepository pendingRegistrationRepository;
     private final PasswordService passwordService;
     private final PhoneValidationService phoneValidationService;
-    private final EmailService emailService;
+    private final NotificationServiceClient notificationServiceClient;
+    @Value("${notification.service-key:${NOTIFICATION_SERVICE_KEY:}}")
+    private String notificationServiceKey;
     private final UserProfileService userProfileService;
     private final AuditLogService auditLogService;
     private final String UPLOAD_DIR = "uploads/";
@@ -78,7 +84,7 @@ public class UserService {
                        JWTUtils jwtUtils, @Lazy AuthenticationManager authenticationManager,
                        PendingRegistrationService pendingRegistrationService,
                        PendingRegistrationRepository pendingRegistrationRepository,
-                       PasswordService passwordService, PhoneValidationService phoneValidationService, EmailService emailService,
+                       PasswordService passwordService, PhoneValidationService phoneValidationService, NotificationServiceClient notificationServiceClient,
                        UserProfileService userProfileService,
                        AuditLogService auditLogService,
                        CurrentActorProvider currentActorProvider) {
@@ -91,7 +97,7 @@ public class UserService {
         this.pendingRegistrationRepository = pendingRegistrationRepository;
         this.passwordService = passwordService;
         this.phoneValidationService = phoneValidationService;
-        this.emailService = emailService;
+        this.notificationServiceClient = notificationServiceClient;
         this.userProfileService = userProfileService;
         this.auditLogService = auditLogService;
     }
@@ -285,14 +291,14 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(person.getCpr()));
         user.setFailedPasswordResetAttempts(0);
-        emailService.sendEmail(user.getEmailAddress(), "Reset Password", String.format(
+        notificationServiceClient.sendEmail(notificationServiceKey, new EmailRequest(user.getEmailAddress(), "Reset Password", String.format(
                 """
                         Dear %s. You have requested a password reset. The new password is your CPR, please use that to sign in and change your password immediately.
                         If you have not requested a password reset, Contact us immediately.
                         Best Regards,
                         Saud Flight System.""",
                         person.getFName()
-                ));
+                )));
         userRepository.save(user);
 
         String description = "User reset the password for user with id " + user.getId();

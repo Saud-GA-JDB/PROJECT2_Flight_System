@@ -32,7 +32,7 @@ public class BookingService {
     private FlightRepository flightRepository;
     private BookingRepository bookingRepository;
     private AccountLookup accountLookup;
-    private EmailService emailService;
+    private NotificationService notificationService;
     private AuditLogService auditLogService;
     private PaymentRepository paymentRepository;
     private CurrentActorProvider currentActorProvider;
@@ -150,7 +150,7 @@ public class BookingService {
 
         String bookingOwnerEmail = accountLookup.findEmailAddressById(savedBooking.getUserId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
-        emailService.sendEmail(bookingOwnerEmail, "Booking Cancelled", String.format(
+        notificationService.sendEmail(bookingOwnerEmail, "Booking Cancelled", String.format(
                 """
                         Your booking %s for flight %s has been cancelled.
                         Best Regards,
@@ -239,7 +239,7 @@ public class BookingService {
 
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.BOOKING_CREATED, AuditLog.EntityType.BOOKING, savedBooking.getId(), description);
 
-        emailService.sendEmail(bookingOwnerEmail, "Booking Confirmation", String.format(
+        notificationService.sendEmail(bookingOwnerEmail, "Booking Confirmation", String.format(
                 """
                         Your flight has been booked successfully.
                         Booking reference: %s

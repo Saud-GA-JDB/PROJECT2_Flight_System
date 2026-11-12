@@ -19,3 +19,13 @@ Compile without executing tests, from the repository root:
 These are the existing in-process fixtures, not proof of HTTP failure recovery. They require a configured test database before execution. No tests were added or run as part of the structure correction.
 
 Local fixture settings belong in `src/test/resources/application.properties` (ignored by Git). Use `application-example.properties` as a starting point for another checkout and configure `jwt-secret`/`jwt-expiration-ms` for the Identity fixtures. Select a test database before executing these tests.
+
+## Focused email extraction checks
+
+The email stage added three small test classes with 10 checks. They require no Spring application context, database, running services or SMTP provider:
+
+```powershell
+.\mvnw.cmd -f integration-tests/pom.xml test '-Dtest=EmailExtractionTest,EmailSenderTest,CrewEmailExtractionTest'
+```
+
+They verify commit/rollback handoff timing, crew employee-to-user resolution, SMTP content/failure handling, retained background failures and executor rejection. All passed on 12 November 2026. The real HTTP/SMTP boundary was checked separately using a temporary local capture server; see Notification's README. Existing combined-context fixtures substitute both mail clients, preventing SMTP calls through these paths. The broader database-dependent suite was compiled but not executed in this stage.
