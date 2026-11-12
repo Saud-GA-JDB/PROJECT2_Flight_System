@@ -1,6 +1,5 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.common.web.exception.InvalidInformationException;
@@ -36,7 +35,7 @@ public class CrewAssignmentService {
     private FlightRepository flightRepository;
     private AuditLogService auditLogService;
     private ApplicationEventPublisher eventPublisher;
-    private NotificationPublisher notificationService;
+    private NotificationService notificationService;
     private CurrentActorProvider currentActorProvider;
     private AccountLookup accountLookup;
     private PersonalProfileStore personalProfileStore;

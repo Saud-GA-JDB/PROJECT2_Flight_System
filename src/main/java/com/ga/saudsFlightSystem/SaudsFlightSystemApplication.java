@@ -5,7 +5,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @org.springframework.cloud.openfeign.EnableFeignClients(
-        clients = com.ga.saudsFlightSystem.identity.IdentityServiceClient.class)
+        clients = {com.ga.saudsFlightSystem.identity.IdentityServiceClient.class,
+                com.ga.saudsFlightSystem.client.NotificationServiceClient.class})
 @SpringBootApplication
 @EnableScheduling
 public class SaudsFlightSystemApplication {

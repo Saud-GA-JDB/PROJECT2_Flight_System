@@ -1,119 +1,52 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.notification.NotificationPublisher;
-import com.ga.common.security.CurrentActor;
-import jakarta.annotation.PreDestroy;
-import org.springframework.scheduling.annotation.Scheduled;
+import com.ga.saudsFlightSystem.client.NotificationServiceClient;
+import com.ga.saudsFlightSystem.model.request.NotificationRequest;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 import java.util.logging.Logger;
 
 @Service
-public class NotificationService implements NotificationPublisher {
+@RequiredArgsConstructor
+public class NotificationService {
     private static final Logger logger = Logger.getLogger(NotificationService.class.getName());
-    private record Connection(Long userId, String role, SseEmitter emitter) {}
+    private final NotificationServiceClient notificationServiceClient;
+    @Value("${notification.service-key:${NOTIFICATION_SERVICE_KEY:}}")
+    private String serviceKey;
 
-    private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
-
-    /**
-     * Opens a notification stream and removes its connection when it ends.
-     *
-     * @param actor authenticated caller receiving notifications
-     * @return the notification stream
-     * @throws IOException if the first connection message cannot be sent
-     */
-    public SseEmitter subscribe(CurrentActor actor) throws IOException {
-        SseEmitter emitter = createEmitter();
-        Connection connection = new Connection(actor.userId(), actor.role(), emitter);
-        emitter.onCompletion(() -> connections.remove(connection));
-        emitter.onError(error -> connections.remove(connection));
-        emitter.onTimeout(() -> {
-            connections.remove(connection);
-            emitter.complete();
-        });
-        connections.add(connection);
-        try {
-            emitter.send(SseEmitter.event().name("connected").reconnectTime(3000)
-                    .data("Notification stream connected"));
-        } catch (IOException | IllegalStateException error) {
-            connections.remove(connection);
-            throw error;
-        }
-        return emitter;
-    }
-
-
-    SseEmitter createEmitter() {
-        // Reconnecting periodically re-runs JWT authentication and account checks.
-        return new SseEmitter(300_000L);
-    }
-
-    @Override
     public void sendToUser(Long userId, String eventName, Object data) {
-        afterCommit(() -> send(c -> c.userId().equals(userId), eventName, data));
+        afterCommit(new NotificationRequest(userId, null, eventName, data));
     }
 
-    @Override
     public void sendToRole(String role, String eventName, Object data) {
-        afterCommit(() -> send(c -> role.equals(c.role()), eventName, data));
+        afterCommit(new NotificationRequest(null, role, eventName, data));
     }
 
-    // wait for the transaction to succeed so users do not receive notifications for rolled back changes
-    private void afterCommit(Runnable delivery) {
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
+    // Only Aviation knows whether its business transaction committed.
+    private void afterCommit(NotificationRequest request) {
+        if (TransactionSynchronizationManager.isActualTransactionActive() && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    delivery.run();
+                    deliver(request);
                 }
             });
         } else {
-            delivery.run();
+            deliver(request);
         }
     }
 
-    private void send(Predicate<Connection> recipient, String eventName, Object data) {
-        for (Connection connection : connections) {
-            if (recipient.test(connection)) {
-                deliver(connection, SseEmitter.event().name(eventName).data(data));
-            }
-        }
-    }
-
-    @Scheduled(fixedDelay = 25_000L)
-    public void heartbeat() {
-        for (Connection connection : connections) {
-            deliver(connection, SseEmitter.event().comment("keep-alive"));
-        }
-    }
-
-    private void deliver(Connection connection, SseEmitter.SseEventBuilder event) {
+    private void deliver(NotificationRequest request) {
         try {
-            connection.emitter().send(event);
-        } catch (IOException error) {
-            // The servlet container completes failed network writes.
-            connections.remove(connection);
-        } catch (RuntimeException error) {
-            connections.remove(connection);
-            try {
-                connection.emitter().completeWithError(error);
-            } catch (RuntimeException completionError) {
-                logger.warning("Could not complete a failed notification connection");
-            }
+            if (serviceKey.isBlank()) throw new IllegalStateException("Notification service key is missing.");
+            notificationServiceClient.send(serviceKey, request);
+        } catch (RuntimeException ex) {
+            // Delivery is best effort; a failed HTTP call must not fail a committed operation.
+            logger.warning("Notification " + request.eventName() + " was not delivered. Check Notification availability and service-key configuration.");
         }
-    }
-
-    @PreDestroy
-    public void closeConnections() {
-        connections.forEach(connection -> connection.emitter().complete());
-        connections.clear();
     }
 }

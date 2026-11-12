@@ -5,7 +5,7 @@ import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.model.request.MaintenanceCancellationNotificationRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceCancellationNotificationResponse;
-import com.ga.saudsFlightSystem.notification.NotificationPublisher;
+import com.ga.saudsFlightSystem.service.NotificationService;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -26,7 +26,7 @@ public class MaintenanceNotificationController {
     private final AirplaneRepository airplanes;
     private final AirlineEmployeeRepository employees;
     private final AccountLookup accounts;
-    private final NotificationPublisher notifications;
+    private final NotificationService notifications;
     @Value("${maintenance.notification-service-key:${MAINTENANCE_NOTIFICATION_SERVICE_KEY:}}")
     private String serviceKey;
 

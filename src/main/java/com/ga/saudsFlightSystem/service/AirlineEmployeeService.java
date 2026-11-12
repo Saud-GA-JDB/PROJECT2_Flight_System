@@ -4,7 +4,6 @@ import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
 import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
-import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.common.web.exception.InvalidInformationException;
@@ -41,7 +40,7 @@ public class AirlineEmployeeService {
     FlightRepository flightRepository;
     AirplaneService airplaneService;
     PhoneValidationService phoneValidationService;
-    NotificationPublisher notificationService;
+    NotificationService notificationService;
     AuditLogService auditLogService;
     private CurrentActorProvider currentActorProvider;
 

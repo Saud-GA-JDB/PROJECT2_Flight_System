@@ -1,6 +1,5 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
@@ -38,7 +37,7 @@ public class AirplaneService {
     private CurrentActorProvider currentActorProvider;
     private AirplaneRepository airplaneRepository;
     private AirplaneRequestRepository airplaneRequestRepository;
-    private NotificationPublisher notificationService;
+    private NotificationService notificationService;
     private EmailService emailService;
     private AuditLogService auditLogService;
     private FlightRepository flightRepository;

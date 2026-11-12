@@ -18,7 +18,6 @@ public class SecurityConfiguration extends com.ga.common.security.SecurityConfig
 
         http.authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                .requestMatchers(request -> request.getDispatcherType() == DispatcherType.ASYNC && request.getServletPath().equals("/notifications")).permitAll()
                 .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/payments/success", "/payments/cancel").permitAll()
                 // This endpoint checks the Maintenance service key in its controller.

@@ -32,7 +32,7 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .info(new Info().title("Saud's Flight System API").version("1.0")
                         .description("Flight booking, Stripe payments, airline and crew administration, FAA airplane approvals, "
-                                + "airport accounts, flight inspections, and SSE notifications. "
+                                + "airport accounts and flight inspections. SSE notifications are served separately on port 8084. "
                                 + "Log in through Identity on port 8081, copy the JWT, then use Authorize. "
                                 + "Unless marked public, endpoints require an active account, except account setup which requires authentication only. "
                                 + "Role and ownership rules apply as described on each operation."))
@@ -181,10 +181,6 @@ public class OpenApiConfiguration {
                     "Checkout cancellation landing page",
                     "Public informational response. Does not cancel the booking or expire the checkout session.",
                     "200", String.class, false);
-            document(openApi, "/notifications", PathItem.HttpMethod.GET,
-                    "Subscribe to live notifications",
-                    "Active account required. Receives events targeted to the user or role, including airplane, flight, and crew updates after transaction commit. Includes connection events and heartbeat comments. Reconnect after timeout; no persistent replay is provided. Use a streaming client supporting the Authorization header.",
-                    "200", String.class, false);
 
             document(openApi, "/faaadmin/airNavigationProviders", PathItem.HttpMethod.POST,
                     "Create air navigation provider",
@@ -309,8 +305,7 @@ public class OpenApiConfiguration {
             if (list) {
                 schema = new ArraySchema().items(schema);
             }
-            String mediaType = path.equals("/notifications") ? "text/event-stream"
-                    : body == String.class ? "text/plain" : "application/json";
+            String mediaType = body == String.class ? "text/plain" : "application/json";
             response.setContent(new Content().addMediaType(mediaType, new MediaType().schema(schema)));
         }
         // Replace inferred success codes while retaining any generated error responses.

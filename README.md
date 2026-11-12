@@ -41,19 +41,22 @@ The purpose is to connect three main users: customers who search and book flight
 
 ## Architecture
 
-The backend now has three Spring Boot applications sharing the existing PostgreSQL database:
+The backend now has four Spring Boot applications. Identity, Aviation, and Maintenance share the existing PostgreSQL database; Notification currently keeps only live SSE connections and needs no database:
 
 | Application | Port | Owns |
 | --- | --- | --- |
 | Identity | 8081 | Accounts, profiles, registration, passwords, JWT authentication, identity audit logs |
-| Flight system | 8080 | Aviation employees and operations, bookings, payments, operational audit logs and SSE |
+| Flight system | 8080 | Aviation employees and operations, bookings, payments and operational audit logs |
 | Maintenance | 8083 | Maintenance providers, contracts, employees, work records and maintenance audit logs |
+| Notification | 8084 | Live SSE connections, heartbeat and delivery to connected users/FAA admins |
 
-The flight system calls Identity through Feign for authentication, account/profile reads and employee account provisioning. It stores scalar user IDs and has no Identity entities or repositories on its production classpath. Each application keeps its own transactions and email support.
+The flight system calls Identity through Feign for authentication, account/profile reads and employee account provisioning. It stores scalar user IDs and has no Identity entities or repositories on its production classpath. Each business application keeps its own transactions. Email remains in Aviation and Identity for a later stage.
 
 See [Identity setup and recovery](identity-service/README.md) for the two-process startup commands and provisioning behavior. Apply the extraction SQL supplied in chat before starting either application; both use schema validation.
 
 See [Maintenance setup and routes](maintenance-service/README.md) for the three-application setup and manual checks. Maintenance business endpoints now use port **8083**, including the maintenance methods under `/faaadmin` and `/airlineAdmin`. The root keeps Aviation scope lookups and a service-key-protected cancellation notification handoff. Older endpoint examples below and in Postman need their Maintenance requests pointed at 8083. No gateway, Docker, Kafka, or separate database is involved in this stage.
+See [Notification setup and manual checks](notification-service/README.md) for the SSE extraction. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation selects recipients and calls Notification after commit through Feign; Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation and Notification, separately from the existing Identity and Maintenance keys. Delivery is best effort with no stored history or replay. Compilation does not establish runtime behavior.
+
 ## General approach
 
 I began with the broader aviation system idea and designed the entities around the ERD. The early work focused on airlines, airplanes, airports, flights, bookings, and user profiles. As authentication developed, I changed the model to separate shared login details into a `User` entity linked to the different profile types. This let authentication use one account structure while keeping each role's details in its own model.

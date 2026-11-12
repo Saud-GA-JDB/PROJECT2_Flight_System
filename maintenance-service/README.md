@@ -61,7 +61,7 @@ Employee creation preserves Identity's existing pending-account flow. Maintenanc
 
 ## Cancellation notifications
 
-The cancellation and its audit commit together. A short after-commit helper then makes **one Feign call** to Aviation's `/internal/v1/maintenance-notifications/cancellations` endpoint. The controller checks the service key, resolves airline admins, filters active recipients through Identity, and sends `Maintenance_Cancelled` through the existing SSE connections at `http://localhost:8080/notifications`.
+The cancellation and its audit commit together. A short after-commit helper then makes **one Feign call** to Aviation's `/internal/v1/maintenance-notifications/cancellations` endpoint. The controller checks the Maintenance service key, resolves airline admins, and filters active recipients through Identity. Aviation then calls Notification through Feign to deliver `Maintenance_Cancelled` to SSE connections at `http://localhost:8084/notifications`. See [Notification setup](../notification-service/README.md); Aviation and Notification need their matching `NOTIFICATION_SERVICE_KEY` in addition to the existing Maintenance handoff key.
 
 Maintenance supplies provider admins and the assigned technician as candidate user IDs. Aviation resolves current airline membership at delivery time. There is no queue, outbox, notification scheduler, or notification retry. An outage or a crash after commit can lose the notification; it does not undo the cancellation. Provider completion and cancellation do not require Aviation authorization; airline operations do and fail with 503 if Aviation cannot be reached.
 
@@ -76,7 +76,7 @@ After applying the audit-table SQL and starting the rebuilt apps:
 1. Log in through Identity; call Maintenance without a token and confirm 401, then with the correct role.
 2. Create a provider and provider admin; create a technician as that admin. Verify the new employee can log in after activation.
 3. Contract the provider as an airline admin, request work for an owned airplane, assign the technician, and complete it. Confirm terminal records cannot be assigned or cancelled.
-4. Create another request and cancel it. Check its history, audit row, and scoped SSE delivery on port 8080. Wrong-airline and wrong-provider callers must be rejected.
+4. Create another request and cancel it. Check its history, audit row, and scoped SSE delivery on port 8084 with Notification running. Wrong-airline and wrong-provider callers must be rejected.
 5. Check paginated history and Identity/Aviation outage responses. A provider cancellation should still commit during an Aviation outage, with notification failure logged.
 
 Builds and fixture compilation do not establish runtime behavior. No applications, seeders, live database changes, or automated tests were run during extraction.

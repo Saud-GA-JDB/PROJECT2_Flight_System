@@ -78,7 +78,7 @@ public class MaintenanceRecordServiceTest {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
     @Autowired ExecutorService applicationExecutor;
-    @MockitoSpyBean NotificationService notifications;
+    @MockitoSpyBean com.ga.saudsFlightSystem.support.NotificationTestConfiguration.FixtureNotificationService notifications;
     @MockitoSpyBean AuditLogService audits;
 
     Long recordId;

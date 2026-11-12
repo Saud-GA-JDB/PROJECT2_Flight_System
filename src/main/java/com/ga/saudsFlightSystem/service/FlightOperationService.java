@@ -1,6 +1,5 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.ATCEmployeeRepository;
 import com.ga.common.security.CurrentActorProvider;
@@ -44,7 +43,7 @@ public class FlightOperationService {
     private AirlineEmployeeRepository employeeRepository;
     private ControlFacilityRepository facilityRepository;
     private AuditLogService auditLogService;
-    private NotificationPublisher notificationService;
+    private NotificationService notificationService;
     private static final Logger logger = Logger.getLogger(FlightOperationService.class.getName());
 
     @Transactional(readOnly = true)

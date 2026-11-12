@@ -2,7 +2,7 @@
 
 These existing fixtures combine the applications in a Spring test context. They are kept here so an application's build does not compile another application's source code. This is a test project, not a service. Maintenance fixtures use small in-process client adapters and do not establish HTTP authentication, timeout, or failure-recovery behavior.
 
-They depend on the three applications' ordinary JARs. Each application also produces a runnable `-app.jar`. No application depends on this project or another application.
+They depend on the four applications' ordinary JARs. Each application also produces a runnable `-app.jar`. No application depends on this project or another application. The existing SSE fixtures use Aviation's real after-commit service and an in-process Feign substitute calling Notification's moved delivery code. Their assertions still cover transaction timing and scoped delivery, but do not prove HTTP serialization, service-key authentication, or timeouts.
 
 Compile without executing tests, from the repository root:
 
@@ -12,6 +12,7 @@ Compile without executing tests, from the repository root:
 .\mvnw.cmd -DskipTests install
 .\identity-service\mvnw.cmd -f identity-service/pom.xml -DskipTests install
 .\mvnw.cmd -f maintenance-service/pom.xml -DskipTests install
+.\mvnw.cmd -f notification-service/pom.xml -DskipTests install
 .\mvnw.cmd -f integration-tests/pom.xml -DskipTests test-compile
 ```
 

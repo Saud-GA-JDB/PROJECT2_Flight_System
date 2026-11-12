@@ -272,14 +272,14 @@ The review email is sent to the user stored as the request's `requestedBy`, with
 Live notifications (SSE)
 ---
 
-An active, authenticated user opens `GET /notifications` with `Authorization: Bearer <JWT>`.
+An active, authenticated user opens `GET http://localhost:8084/notifications` with `Authorization: Bearer <JWT>` from Identity. This endpoint now belongs to the separate Notification application. See [Notification setup](../notification-service/README.md) for its service key and manual checks. Email remains in Aviation and Identity for this stage.
 The response is `text/event-stream` and stays open. User ID and role come from the JWT-authenticated
 account, never from client-supplied parameters. Each tab/device gets its own connection.
 
 Try it in PowerShell (replace the token with an FAA admin token):
 
 ```powershell
-curl.exe -N -H "Authorization: Bearer YOUR_FAA_TOKEN" http://localhost:8080/notifications
+curl.exe -N -H "Authorization: Bearer YOUR_FAA_TOKEN" http://localhost:8084/notifications
 ```
 
 The first event is `connected`. While this command is running, use an airline admin token to call

@@ -76,7 +76,7 @@ public class FlightClearanceTransactionTest {
     @Autowired AirlineEmployeeRepository employees;
     @Autowired ExecutorService applicationExecutor;
     @Autowired PlatformTransactionManager transactionManager;
-    @MockitoSpyBean NotificationService notifications;
+    @MockitoSpyBean com.ga.saudsFlightSystem.support.NotificationTestConfiguration.FixtureNotificationService notifications;
     @MockitoSpyBean AuditLogService audits;
     List<Object> fixtures = new ArrayList<>();
     boolean committed;

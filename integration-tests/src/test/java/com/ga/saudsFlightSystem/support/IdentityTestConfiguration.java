@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
         })
 @EntityScan({"com.ga.identity.model", "com.ga.saudsFlightSystem.model", "com.ga.maintenance.model"})
 @EnableJpaRepositories(basePackages = {"com.ga.identity.repository", "com.ga.saudsFlightSystem.repository", "com.ga.maintenance.repository"}, nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class)
-@Import(IdentitySeeder.class)
+@Import({IdentitySeeder.class, NotificationTestConfiguration.class})
 public class IdentityTestConfiguration {
     @Bean
     @org.springframework.core.annotation.Order(0)
