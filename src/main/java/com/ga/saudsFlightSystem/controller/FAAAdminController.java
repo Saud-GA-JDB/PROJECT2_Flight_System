@@ -21,8 +21,6 @@ public class FAAAdminController {
     private FAAAdminService faaAdminService;
     private AirlineService airlineService;
     private AirlineEmployeeService airlineEmployeeService;
-    private MaintenanceProviderService maintenanceProviderService;
-    private MaintenanceEmployeeService maintenanceEmployeeService;
     private AirportOperatorService airportOperatorService;
     private AirportEmployeeService airportEmployeeService;
     private ATCService atcService;
@@ -79,15 +77,9 @@ public class FAAAdminController {
         return faaAdminService.reviewAirplaneRequest(requestId, request);
     }
 
-    @PostMapping("/maintenanceProviders")
-    public ResponseEntity<?> addMaintenanceProvider(@RequestBody AddMaintenanceProviderRequest request) {
-        return maintenanceProviderService.addMaintenanceProvider(request);
-    }
 
-    @PostMapping("/maintenanceProviders/{providerId}/addMaintenanceAdmin")
-    public ResponseEntity<?> addMaintenanceProviderAdmin(@PathVariable(name = "providerId") Long providerId, @RequestBody AddMaintenanceEmployeeRequest request) {
-        return maintenanceEmployeeService.addMaintenanceAdmin(providerId, request);
-    }
+
+
 
     @PostMapping("/airportOperators")
     public ResponseEntity<?> addAirportOperator(@RequestBody AddAirportOperatorRequest request) {

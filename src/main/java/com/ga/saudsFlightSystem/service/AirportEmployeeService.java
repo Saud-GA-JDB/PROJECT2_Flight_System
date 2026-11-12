@@ -4,7 +4,7 @@ import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
 import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;

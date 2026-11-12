@@ -1,13 +1,10 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.FlightOperation;
-import com.ga.saudsFlightSystem.model.MaintenanceRecord;
-import com.ga.saudsFlightSystem.model.request.CancelMaintenanceRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.AddAirplaneRequest;
-import com.ga.saudsFlightSystem.model.request.AddMaintenanceRecordRequest;
 import com.ga.saudsFlightSystem.service.*;
 import com.sun.tools.javac.Main;
 import lombok.AllArgsConstructor;
@@ -22,8 +19,6 @@ public class AirlineAdminController {
     private AirplaneService airplaneService;
     private CrewAssignmentService crewAssignmentService;
     private FlightService flightService;
-    private MaintenanceRecordService maintenanceRecordService;
-    private MaintenanceProviderService maintenanceProviderService;
     private FlightInspectionService flightInspectionService;
     private FlightOperationService operationService;
 
@@ -62,15 +57,9 @@ public class AirlineAdminController {
         return flightService.activateFlight(flightId);
     }
 
-    @PostMapping("/maintenanceProviders/{providerId}/contract")
-    public ResponseEntity<?> contractMaintenanceProvider(@PathVariable(name = "providerId") Long providerId) {
-        return maintenanceProviderService.contractMaintenanceProvider(providerId);
-    }
 
-    @PostMapping("/airplanes/{airplaneId}/maintenanceRequests")
-    public ResponseEntity<?> addMaintenanceRecord(@PathVariable(name = "airplaneId") Long airplaneId, @RequestBody AddMaintenanceRecordRequest request) {
-        return maintenanceRecordService.addMaintenanceRecord(airplaneId, request);
-    }
+
+
 
     @PostMapping("/flights/{flightId}/reinspection")
     public ResponseEntity<?> requestReinspection(@PathVariable(name = "flightId") Long flightId) {
@@ -94,15 +83,7 @@ public class AirlineAdminController {
         return operationService.getAirlineEvents(flightId, operation, page, size);
     }
 
-    @PostMapping("/maintenanceRequests/{requestId}/cancel")
-    public ResponseEntity<MaintenanceRecordResponse> cancelMaintenance(@PathVariable Long requestId, @RequestBody CancelMaintenanceRequest request) {
-        return maintenanceRecordService.cancelAirlineMaintenance(requestId, request.getReason());
-    }
 
-    @GetMapping("/airplanes/{airplaneId}/maintenanceRecords")
-    public ResponseEntity<MaintenanceRecordListResponse> getMaintenanceHistory(@PathVariable Long airplaneId,
-            @RequestParam(required = false) MaintenanceRecord.MaintenanceStatus status,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
-        return maintenanceRecordService.getAirlineMaintenanceHistory(airplaneId, status, page, size);
-    }
+
+
 }

@@ -13,7 +13,7 @@ import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.common.security.CurrentActor;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

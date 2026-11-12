@@ -32,7 +32,7 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .info(new Info().title("Saud's Flight System API").version("1.0")
                         .description("Flight booking, Stripe payments, airline and crew administration, FAA airplane approvals, "
-                                + "maintenance, airport accounts, flight inspections, and SSE notifications. "
+                                + "airport accounts, flight inspections, and SSE notifications. "
                                 + "Log in through Identity on port 8081, copy the JWT, then use Authorize. "
                                 + "Unless marked public, endpoints require an active account, except account setup which requires authentication only. "
                                 + "Role and ownership rules apply as described on each operation."))
@@ -85,14 +85,8 @@ public class OpenApiConfiguration {
                     "Review airplane activation",
                     "FAA admin only. Accepts or denies a pending activation request.",
                     "200", AirplaneRequestResponse.class, false);
-            document(openApi, "/faaadmin/maintenanceProviders", PathItem.HttpMethod.POST,
-                    "Create maintenance provider",
-                    "FAA admin only.",
-                    "201", MaintenanceProviderResponse.class, false);
-            document(openApi, "/faaadmin/maintenanceProviders/{providerId}/addMaintenanceAdmin", PathItem.HttpMethod.POST,
-                    "Create maintenance admin",
-                    "FAA admin only. Creates an admin account for the specified provider.",
-                    "201", MaintenanceEmployeeResponse.class, false);
+
+
             document(openApi, "/faaadmin/airportOperators", PathItem.HttpMethod.POST,
                     "Create airport operator",
                     "FAA admin only.",
@@ -133,14 +127,8 @@ public class OpenApiConfiguration {
                     "Activate flight",
                     "Admin of the flight's airline. Requires a PENDING_CREW flight with both actual times null, a pilot, secondary pilot, and flight attendant; delayed flights are allowed. Inspection clearance is not enforced here.",
                     "200", String.class, false);
-            document(openApi, "/airlineAdmin/maintenanceProviders/{providerId}/contract", PathItem.HttpMethod.POST,
-                    "Contract maintenance provider",
-                    "Airline admin only. Links the provider to the current airline.",
-                    "200", MaintenanceProviderResponse.class, false);
-            document(openApi, "/airlineAdmin/airplanes/{airplaneId}/maintenanceRequests", PathItem.HttpMethod.POST,
-                    "Request airplane maintenance",
-                    "Admin of the airplane's airline. Requires a contracted provider. Creates a pending request without a technician.",
-                    "201", MaintenanceRecordResponse.class, false);
+
+
             document(openApi, "/airlineAdmin/flights/{flightId}/reinspection", PathItem.HttpMethod.POST,
                     "Request reinspection",
                     "Admin of the flight's airline. Requires a failed latest inspection and a PENDING_CREW or ACTIVE flight with both actual times null. Creates a pending attempt awaiting assignment.",
@@ -169,45 +157,13 @@ public class OpenApiConfiguration {
                     "List assigned inspections",
                     "Airport inspector only. Returns inspections assigned to the current inspector.",
                     "200", FlightInspectionResponse.class, true);
-            document(openApi, "/maintenanceAdmin/technicians", PathItem.HttpMethod.POST,
-                    "Create maintenance technician",
-                    "Maintenance admin only. Creates a technician within the current provider; a license number is required.",
-                    "201", MaintenanceEmployeeResponse.class, false);
-            document(openApi, "/maintenanceAdmin/maintenanceRequests", PathItem.HttpMethod.GET,
-                    "List maintenance requests",
-                    "Maintenance admin only. Returns requests for the current provider.",
-                    "200", MaintenanceRecordResponse.class, true);
-            document(openApi, "/maintenanceAdmin/maintenanceRequests/{requestId}", PathItem.HttpMethod.POST,
-                    "Assign maintenance technician",
-                    "Admin of the request's provider. Assigns a technician from the same provider to a pending request. Terminal records return 409.",
-                    "200", MaintenanceRecordResponse.class, false);
-            document(openApi, "/maintenanceTechnician/maintenanceRecords", PathItem.HttpMethod.GET,
-                    "List assigned maintenance",
-                    "Maintenance technician only. Returns records assigned to the current technician.",
-                    "200", MaintenanceRecordResponse.class, true);
-            document(openApi, "/maintenanceTechnician/maintenanceRecords/{recordId}/complete", PathItem.HttpMethod.PUT,
-                    "Complete maintenance",
-                    "Assigned technician only. Completes a pending record with optional findings. Cancelled/completed records return 409 without changing findings. Does not activate the airplane or change inspection results.",
-                    "200", String.class, false);
-            for (String path : List.of("/airlineAdmin/maintenanceRequests/{requestId}/cancel",
-                    "/maintenanceAdmin/maintenanceRequests/{requestId}/cancel")) {
-                document(openApi, path, PathItem.HttpMethod.POST, "Cancel pending maintenance",
-                        "Active own-airline ADMIN or own-provider ADMIN required according to the route. "
-                                + "Body: {\"reason\":\"Work is no longer required\"}; trimmed reason must be 1-2000 characters. "
-                                + "Assigned and unassigned PENDING work can be cancelled. Record lock serializes cancellation, completion and assignment; first terminal action wins. "
-                                + "Preserves technician, findings and history; records server UTC cancelledAt and authenticated cancelledByUserId. "
-                                + "Cancellation and audit commit together. After-commit Maintenance_Cancelled SSE reaches active owning airline admins, responsible provider admins and assigned technician. "
-                                + "400 invalid input; 401 missing JWT; 403 role/scope; 404 missing record; 409 terminal state or lock conflict. No FAA or inspection changes.",
-                        "200", MaintenanceRecordResponse.class, false);
-            }
-            document(openApi, "/airlineAdmin/airplanes/{airplaneId}/maintenanceRecords", PathItem.HttpMethod.GET,
-                    "Read airline airplane maintenance history",
-                    "Active owning-airline ADMIN only. History across providers without requiring a current contract. "
-                            + "Optional status PENDING/COMPLETED/CANCELLED; page defaults to 0, size to 20 (1-100). "
-                            + "Scope/filter apply before count and pagination. Sorts createdAt descending, then id descending. "
-                            + "Includes cancellationReason, UTC cancelledAt and cancelledByUserId. Empty history returns empty content. "
-                            + "400 invalid filters; 401 missing JWT; 403 foreign airplane/role; 404 missing airplane. No business audits or notifications.",
-                    "200", MaintenanceRecordListResponse.class, false);
+
+
+
+
+
+
+
 
             document(openApi, "/payments/bookings/{bookingId}/checkout", PathItem.HttpMethod.POST,
                     "Start Stripe checkout",

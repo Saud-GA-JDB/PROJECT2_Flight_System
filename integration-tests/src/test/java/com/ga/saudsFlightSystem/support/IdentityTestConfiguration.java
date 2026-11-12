@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.support;
 
 import com.ga.common.security.CurrentActor;
+import com.ga.common.security.CurrentActorProvider;
 import com.ga.identity.config.IdentitySeeder;
 import com.ga.identity.controller.InternalIdentityController;
 import com.ga.identity.service.EmployeeAccountService;
@@ -31,8 +32,8 @@ import java.util.stream.Collectors;
                 @ComponentScan.Filter(type = FilterType.REGEX, pattern = "com\\.ga\\.identity\\.config\\..*"),
                 @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.ga.identity.IdentityApplication.class, com.ga.identity.security.SecurityConfiguration.class})
         })
-@EntityScan({"com.ga.identity.model", "com.ga.saudsFlightSystem.model"})
-@EnableJpaRepositories(basePackages = {"com.ga.identity.repository", "com.ga.saudsFlightSystem.repository"}, nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class)
+@EntityScan({"com.ga.identity.model", "com.ga.saudsFlightSystem.model", "com.ga.maintenance.model"})
+@EnableJpaRepositories(basePackages = {"com.ga.identity.repository", "com.ga.saudsFlightSystem.repository", "com.ga.maintenance.repository"}, nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class)
 @Import(IdentitySeeder.class)
 public class IdentityTestConfiguration {
     @Bean

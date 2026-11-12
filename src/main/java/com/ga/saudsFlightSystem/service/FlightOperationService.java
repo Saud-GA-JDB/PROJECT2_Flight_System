@@ -3,7 +3,7 @@ package com.ga.saudsFlightSystem.service;
 import com.ga.saudsFlightSystem.notification.NotificationPublisher;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.ATCEmployeeRepository;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.BusinessConflictException;

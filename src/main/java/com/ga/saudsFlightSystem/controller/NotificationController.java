@@ -1,7 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.service.NotificationService;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

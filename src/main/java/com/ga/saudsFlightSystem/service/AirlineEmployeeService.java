@@ -14,7 +14,7 @@ import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.response.AddFlightResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import com.ga.common.security.CurrentActor;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.validation.EmailValidation;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;

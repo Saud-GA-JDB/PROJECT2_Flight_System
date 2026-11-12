@@ -9,7 +9,7 @@ import com.ga.saudsFlightSystem.model.request.response.MaintenanceScopeResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.common.security.CurrentActor;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

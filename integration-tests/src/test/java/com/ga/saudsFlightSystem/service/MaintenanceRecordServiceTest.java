@@ -22,8 +22,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.ga.common.web.exception.InformationExistException;
 import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
-import com.ga.saudsFlightSystem.model.request.AddMaintenanceRecordRequest;
-import com.ga.saudsFlightSystem.model.request.response.MaintenanceRecordResponse;
+import com.ga.maintenance.model.MaintenanceProvider;
+import com.ga.maintenance.model.MaintenanceContract;
+import com.ga.maintenance.model.MaintenanceEmployee;
+import com.ga.maintenance.model.MaintenanceRecord;
+import com.ga.maintenance.model.AuditLog;
+import com.ga.maintenance.service.MaintenanceRecordService;
+import com.ga.maintenance.service.AuditLogService;
+import com.ga.maintenance.model.request.AddMaintenanceRecordRequest;
+import com.ga.maintenance.model.request.response.MaintenanceRecordResponse;
 import jakarta.persistence.EntityManager;
 import org.junit.After;
 import org.junit.Assert;
@@ -49,10 +56,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 
-@org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
+@org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.MaintenanceTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
         "app.seed.enabled=false",
+        "maintenance.notification-service-key=fixture",
         "spring.jpa.hibernate.ddl-auto=validate",
         "stripe.secret-key=sk_test_unused",
         "stripe.success-url=http://localhost:8080/payments/success",
@@ -148,7 +156,7 @@ public class MaintenanceRecordServiceTest {
         AddMaintenanceRecordRequest request = jsonMapper.readValue(
                 "{\"providerId\":" + providerId + ",\"description\":\"Inspect engine\"}",
                 AddMaintenanceRecordRequest.class);
-        var response = service.addMaintenanceRecord(airplaneId, request);
+        var response = service.addMaintenanceRecord(airplaneId, request, "Bearer fixture");
         MaintenanceRecordResponse record = (MaintenanceRecordResponse) response.getBody();
         Assert.assertEquals(HttpStatus.CREATED, response.getStatusCode());
         Assert.assertNotNull(record);
@@ -165,7 +173,7 @@ public class MaintenanceRecordServiceTest {
         if (!committedFixtures) return;
         if (!TestTransaction.isActive()) TestTransaction.start();
         entityManager.clear();
-        entityManager.createQuery("DELETE FROM AuditLog a WHERE a.entityType = :type AND a.entityId = :id")
+        entityManager.createQuery("DELETE FROM MaintenanceAuditLog a WHERE a.entityType = :type AND a.entityId = :id")
                 .setParameter("type", AuditLog.EntityType.MAINTENANCE_RECORD)
                 .setParameter("id", recordId).executeUpdate();
         entityManager.createQuery("DELETE FROM MaintenanceRecord r WHERE r.id = :id")
@@ -323,21 +331,21 @@ public class MaintenanceRecordServiceTest {
                 .setParameter("providerId", providerId).executeUpdate();
         entityManager.flush();
         login(airlineAdminEmail);
-        var all = service.getAirlineMaintenanceHistory(airplaneId, null, 0, 1).getBody();
+        var all = service.getAirlineMaintenanceHistory(airplaneId, null, 0, 1, "Bearer fixture").getBody();
         Assert.assertEquals(2, all.getTotalElements());
         Assert.assertEquals(2, all.getTotalPages());
         Assert.assertEquals(1, all.getContent().size());
-        var filtered = service.getAirlineMaintenanceHistory(airplaneId, MaintenanceRecord.MaintenanceStatus.COMPLETED, 0, 20).getBody();
+        var filtered = service.getAirlineMaintenanceHistory(airplaneId, MaintenanceRecord.MaintenanceStatus.COMPLETED, 0, 20, "Bearer fixture").getBody();
         Assert.assertEquals(1, filtered.getTotalElements());
         Assert.assertEquals(otherProviderId, filtered.getContent().get(0).getProviderId());
-        Assert.assertTrue(service.getAirlineMaintenanceHistory(airplaneId, null, 4, 20).getBody().getContent().isEmpty());
-        Assert.assertThrows(InformationNotFoundException.class, () -> service.getAirlineMaintenanceHistory(Long.MAX_VALUE, null, 0, 20));
+        Assert.assertTrue(service.getAirlineMaintenanceHistory(airplaneId, null, 4, 20, "Bearer fixture").getBody().getContent().isEmpty());
+        Assert.assertThrows(InformationNotFoundException.class, () -> service.getAirlineMaintenanceHistory(Long.MAX_VALUE, null, 0, 20, "Bearer fixture"));
         Airline foreign = new Airline();
         foreign.setAirlineCode(UUID.randomUUID().toString());
         entityManager.persist(foreign);
         entityManager.find(Airplane.class, airplaneId).setAirline(foreign);
-        Assert.assertThrows(IllegalEndpoint.class, () -> service.getAirlineMaintenanceHistory(airplaneId, null, 0, 20));
-        Assert.assertThrows(IllegalEndpoint.class, () -> service.cancelAirlineMaintenance(recordId, "Foreign airline"));
+        Assert.assertThrows(IllegalEndpoint.class, () -> service.getAirlineMaintenanceHistory(airplaneId, null, 0, 20, "Bearer fixture"));
+        Assert.assertThrows(IllegalEndpoint.class, () -> service.cancelAirlineMaintenance(recordId, "Foreign airline", "Bearer fixture"));
     }
 
     @Test
@@ -354,7 +362,7 @@ public class MaintenanceRecordServiceTest {
         login(adminEmail);
         service.assignService(recordId, technicianId);
         checkCompetingRequests(airlineAdminEmail, technicianEmail,
-                () -> service.cancelAirlineMaintenance(recordId, "Cancelled first"),
+                () -> service.cancelAirlineMaintenance(recordId, "Cancelled first", "Bearer fixture"),
                 () -> service.completeMaintenance(recordId, "Too late"), BusinessConflictException.class);
         MaintenanceRecord saved = savedRecord();
         Assert.assertEquals(MaintenanceRecord.MaintenanceStatus.CANCELLED, saved.getStatus());
@@ -379,7 +387,7 @@ public class MaintenanceRecordServiceTest {
     @Test
     public void cancellationWinsAgainstTechnicianAssignment() throws Exception {
         checkCompetingRequests(airlineAdminEmail, adminEmail,
-                () -> service.cancelAirlineMaintenance(recordId, "Cancelled first"),
+                () -> service.cancelAirlineMaintenance(recordId, "Cancelled first", "Bearer fixture"),
                 () -> service.assignService(recordId, technicianId), BusinessConflictException.class);
         Assert.assertNull(savedRecord().getTechnician());
         assertAuditCount(AuditLog.Action.MAINTENANCE_CANCELLED);
@@ -389,7 +397,7 @@ public class MaintenanceRecordServiceTest {
     public void auditFailureRollsBackCancellationAndNotifications() throws Exception {
         commitFixtures();
         AtomicInteger sent = subscribe(airlineAdminEmail);
-        doThrow(new IllegalStateException("Injected failure")).when(audits).addAuditLog(any(), eq(AuditLog.Action.MAINTENANCE_CANCELLED), any(), any(), any());
+        doThrow(new IllegalStateException("Injected failure")).when(audits).addAuditLogForActor(any(), eq(AuditLog.Action.MAINTENANCE_CANCELLED), any(), any(), any());
         try {
             Assert.assertThrows(IllegalStateException.class, () -> runAs(adminEmail, () -> service.cancelProviderMaintenance(recordId, "Rollback")));
         } finally {
@@ -574,7 +582,7 @@ public class MaintenanceRecordServiceTest {
 
     private void assertAuditCount(AuditLog.Action action) {
         Long count = entityManager.createQuery(
-                "SELECT COUNT(a) FROM AuditLog a WHERE a.entityType = :type AND a.entityId = :id AND a.action = :action",
+                "SELECT COUNT(a) FROM MaintenanceAuditLog a WHERE a.entityType = :type AND a.entityId = :id AND a.action = :action",
                 Long.class).setParameter("type", AuditLog.EntityType.MAINTENANCE_RECORD)
                 .setParameter("id", recordId).setParameter("action", action).getSingleResult();
         Assert.assertEquals(Long.valueOf(1), count);

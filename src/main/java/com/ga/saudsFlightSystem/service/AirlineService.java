@@ -9,7 +9,7 @@ import com.ga.saudsFlightSystem.model.AuditLog;
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
 import com.ga.saudsFlightSystem.repository.AirlineRepository;
 import com.ga.common.security.CurrentActor;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

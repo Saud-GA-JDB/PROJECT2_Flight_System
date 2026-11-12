@@ -1,14 +1,17 @@
 # Existing integration fixtures
 
-These tests exercise both applications in one Spring test context. They are kept here so neither application's build compiles the other application's source code. This is a test project, not a service.
+These existing fixtures combine the applications in a Spring test context. They are kept here so an application's build does not compile another application's source code. This is a test project, not a service. Maintenance fixtures use small in-process client adapters and do not establish HTTP authentication, timeout, or failure-recovery behavior.
 
-They depend on the two applications' ordinary JARs. Each application also produces a runnable `-app.jar`. Neither application depends on this project or on the other application.
+They depend on the three applications' ordinary JARs. Each application also produces a runnable `-app.jar`. No application depends on this project or another application.
 
 Compile without executing tests, from the repository root:
 
 ```powershell
+.\mvnw.cmd -f common-web/pom.xml -DskipTests install
+.\mvnw.cmd -f common-security/pom.xml -DskipTests install
 .\mvnw.cmd -DskipTests install
 .\identity-service\mvnw.cmd -f identity-service/pom.xml -DskipTests install
+.\mvnw.cmd -f maintenance-service/pom.xml -DskipTests install
 .\mvnw.cmd -f integration-tests/pom.xml -DskipTests test-compile
 ```
 

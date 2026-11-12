@@ -8,7 +8,7 @@ import com.ga.saudsFlightSystem.model.Booking;
 import com.ga.saudsFlightSystem.model.Flight;
 import com.ga.saudsFlightSystem.model.Payment;
 import com.ga.common.security.CurrentActor;
-import com.ga.saudsFlightSystem.security.CurrentActorProvider;
+import com.ga.common.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.model.request.response.PaymentResponse;
 import com.ga.saudsFlightSystem.model.request.response.CheckoutResponse;
 import com.ga.saudsFlightSystem.repository.FlightRepository;

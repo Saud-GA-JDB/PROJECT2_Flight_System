@@ -41,16 +41,19 @@ The purpose is to connect three main users: customers who search and book flight
 
 ## Architecture
 
-The backend now runs as two Spring Boot applications sharing the existing PostgreSQL database:
+The backend now has three Spring Boot applications sharing the existing PostgreSQL database:
 
 | Application | Port | Owns |
 | --- | --- | --- |
 | Identity | 8081 | Accounts, profiles, registration, passwords, JWT authentication, identity audit logs |
-| Flight system | 8080 | Employees, aviation operations, bookings, payments, maintenance, operational audit logs and SSE |
+| Flight system | 8080 | Aviation employees and operations, bookings, payments, operational audit logs and SSE |
+| Maintenance | 8083 | Maintenance providers, contracts, employees, work records and maintenance audit logs |
 
 The flight system calls Identity through Feign for authentication, account/profile reads and employee account provisioning. It stores scalar user IDs and has no Identity entities or repositories on its production classpath. Each application keeps its own transactions and email support.
 
 See [Identity setup and recovery](identity-service/README.md) for the two-process startup commands and provisioning behavior. Apply the extraction SQL supplied in chat before starting either application; both use schema validation.
+
+See [Maintenance setup and routes](maintenance-service/README.md) for the three-application setup and manual checks. Maintenance business endpoints now use port **8083**, including the maintenance methods under `/faaadmin` and `/airlineAdmin`. The root keeps Aviation scope lookups and a service-key-protected cancellation notification handoff. Older endpoint examples below and in Postman need their Maintenance requests pointed at 8083. No gateway, Docker, Kafka, or separate database is involved in this stage.
 ## General approach
 
 I began with the broader aviation system idea and designed the entities around the ERD. The early work focused on airlines, airplanes, airports, flights, bookings, and user profiles. As authentication developed, I changed the model to separate shared login details into a `User` entity linked to the different profile types. This let authentication use one account structure while keeping each role's details in its own model.
@@ -77,6 +80,8 @@ These are local development links, not hosted documentation. `localhost` means t
 
 - Flight API base URL: `http://localhost:8080`
 - Identity API and login: `http://localhost:8081`
+- Maintenance API: `http://localhost:8083`
+- [Maintenance Swagger UI](http://localhost:8083/swagger-ui/index.html)
 - [Identity Swagger UI](http://localhost:8081/swagger-ui/index.html)
 - [Swagger UI](http://localhost:8080/swagger-ui/index.html)
 - [OpenAPI JSON](http://localhost:8080/v3/api-docs)

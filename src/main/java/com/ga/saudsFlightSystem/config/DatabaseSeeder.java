@@ -123,7 +123,6 @@ public class DatabaseSeeder implements CommandLineRunner {
                     T value = factory.get();
                     if (value instanceof AirlineEmployee e) e.setUserId(userId);
                     else if (value instanceof AirportEmployee e) e.setUserId(userId);
-                    else if (value instanceof MaintenanceEmployee e) e.setUserId(userId);
                     else if (value instanceof ATCEmployee e) e.setUserId(userId);
                     em.persist(value);
                     return value;
@@ -313,39 +312,6 @@ public class DatabaseSeeder implements CommandLineRunner {
             inspection.setAirport(airport);
             em.persist(inspection);
         }
-        MaintenanceProvider provider = findOrCreate(MaintenanceProvider.class, "contactEmail",
-                "seed.maintenance@mailsac.com", () -> {
-                    MaintenanceProvider value = new MaintenanceProvider();
-                    value.setName("Sample Gulf Maintenance");
-                    value.setContactEmail("seed.maintenance@mailsac.com");
-                    return value;
-                });
-        if (em.createQuery("select count(c) from MaintenanceContract c where c.providerId = :providerId and c.airlineId = :airlineId", Long.class)
-                .setParameter("providerId", provider.getId()).setParameter("airlineId", airline.getId()).getSingleResult() == 0) {
-            MaintenanceContract contract = new MaintenanceContract();
-            contract.setProviderId(provider.getId());
-            contract.setAirlineId(airline.getId());
-            em.persist(contract);
-        }
-        for (MaintenanceEmployee.MaintenanceRole role : MaintenanceEmployee.MaintenanceRole.values()) {
-            staff("maintenance." + role.name().toLowerCase() + "@mailsac.com",
-                    role == MaintenanceEmployee.MaintenanceRole.ADMIN ? "990000050" : "990000051",
-                    "MAINTENANCE_EMPLOYEE", () -> {
-                        MaintenanceEmployee employee = new MaintenanceEmployee();
-                        employee.setProvider(provider);
-                        employee.setMaintenanceRole(role);
-                        if (role == MaintenanceEmployee.MaintenanceRole.TECHNICIAN)
-                            employee.setLicenseNumber("SEED-TECH-001");
-                        return employee;
-                    });
-        }
-        findOrCreate(MaintenanceRecord.class, "description", "Project 3 sample routine maintenance", () -> {
-            MaintenanceRecord record = new MaintenanceRecord();
-            record.setAirplaneId(plane.getId());
-            record.setProvider(provider);
-            record.setDescription("Project 3 sample routine maintenance");
-            return record;
-        });
         Flight paymentFlight = flight("GF-P3-PAY", plane, airport, destination, departure.plusDays(1));
         booking("P3PAY01", customer, paymentFlight, "standard-3", Booking.BookingStatus.BOOKED);
         Booking payable = em.createQuery("select b from Booking b where b.bookingRef = 'P3PAY01'", Booking.class).getSingleResult();

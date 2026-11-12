@@ -16,6 +16,7 @@ public class SecurityConfiguration extends com.ga.common.security.SecurityConfig
 
         http.authorizeHttpRequests(auth -> auth
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                .requestMatchers("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui.html", "/swagger-ui/**").permitAll()
                 .anyRequest().hasAuthority("ACCOUNT_ACTIVE"));
 
         return http.build();

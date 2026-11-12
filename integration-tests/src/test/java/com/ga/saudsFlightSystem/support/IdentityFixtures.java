@@ -2,6 +2,7 @@ package com.ga.saudsFlightSystem.support;
 
 import com.ga.identity.model.User;
 import com.ga.saudsFlightSystem.model.*;
+import com.ga.maintenance.model.MaintenanceEmployee;
 import com.ga.common.security.CurrentActor;
 import jakarta.persistence.EntityManager;
 
@@ -17,7 +18,7 @@ public class IdentityFixtures {
         return new CurrentActor(user.getId(), user.getRole().name(), user.getStatus().name(), user.isActive());
     }
 
-    public static void linkEmployee(User user, BaseEntity employee) {
+    public static void linkEmployee(User user, Object employee) {
         if (user.getId() == null) em.persist(user);
         if (employee instanceof AirlineEmployee value) value.setUserId(user.getId());
         else if (employee instanceof AirportEmployee value) value.setUserId(user.getId());

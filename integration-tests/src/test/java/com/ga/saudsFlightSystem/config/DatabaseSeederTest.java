@@ -4,6 +4,8 @@ import com.ga.identity.model.User;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
 import com.ga.saudsFlightSystem.model.*;
+import com.ga.maintenance.model.MaintenanceRecord;
+import com.ga.maintenance.config.MaintenanceSeeder;
 import jakarta.persistence.EntityManager;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -19,7 +21,7 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 /** Runs against the configured PostgreSQL test database; all row changes roll back. */
-@org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
+@org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.MaintenanceTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
         "app.seed.enabled=false",
@@ -32,6 +34,9 @@ import static org.junit.Assert.*;
 public class DatabaseSeederTest {
     @Autowired com.ga.saudsFlightSystem.identity.IdentityServiceClient identity;
     @Autowired EntityManager em;
+    @Autowired com.ga.maintenance.client.IdentityServiceClient maintenanceIdentity;
+    @Autowired com.ga.maintenance.client.AviationServiceClient aviation;
+    @Autowired org.springframework.security.authentication.AuthenticationManager authenticationManager;
     @Autowired PasswordEncoder passwords;
     @Autowired com.ga.identity.repository.UserRepository users;
 
@@ -40,6 +45,13 @@ public class DatabaseSeederTest {
         new com.ga.identity.config.IdentitySeeder(users, passwords).run();
         DatabaseSeeder seeder = new DatabaseSeeder(em, identity);
         seeder.run();
+        var authentication = authenticationManager.authenticate(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("flighttest.airline@mailsac.com", "TestPassword1"));
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(authentication);
+        try {
+            new MaintenanceSeeder(em, maintenanceIdentity, aviation, flight("GF-P3-READY").getAirplane().getId(), "Bearer fixture").run();
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
         em.flush();
         em.clear();
 
@@ -102,6 +114,13 @@ public class DatabaseSeederTest {
         maintenance.setTechnician(maintenanceEmployee(technician));
         maintenance.setCompletedAt(java.time.LocalDateTime.now());
         seeder.run();
+        authentication = authenticationManager.authenticate(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("flighttest.airline@mailsac.com", "TestPassword1"));
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(authentication);
+        try {
+            new MaintenanceSeeder(em, maintenanceIdentity, aviation, flight("GF-P3-READY").getAirplane().getId(), "Bearer fixture").run();
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
         em.flush();
         em.clear();
 
