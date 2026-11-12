@@ -863,3 +863,35 @@ Verified 8 November 2026 on `aviation_operations_verify_20261107` with schema va
 ## Email service extraction (12 November 2026)
 
 Notification on 8084 owns SMTP and exposes service-key-protected POST `/internal/v1/emails` (200 after SMTP acceptance) and `/internal/v1/emails/async` (202, background send). The JSON body has `recipient`, `subject`, and `body`. Public business routes and message wording remain unchanged. Identity registration/reset calls wait for SMTP and return 503 with local rollback on failure. Aviation booking/airplane emails are sent after commit and failures are logged without undoing the action. Crew emails use the async endpoint after commit; only accepted background SMTP failures enter the existing in-memory three-hour retry list. See `notification-service/README.md` for configuration and test coverage.
+
+## Airline crew account creation
+
+Use an active airline administrator bearer token on Aviation (8080):
+
+```http
+POST http://localhost:8080/airlineAdmin/employees?role=PILOT
+```
+
+```json
+{
+  "fName": "Ahmed",
+  "lName": "Ali",
+  "emailAddress": "ahmed.pilot@example.com",
+  "cpr": "926111220",
+  "phoneNumberOpeningCode": "+973",
+  "phoneNumber": "33123458",
+  "hireDate": "2026-11-12",
+  "salary": 1500,
+  "password": "TestPassword1",
+  "securityQuestion": "What is your favourite city?",
+  "securityQuestionAnswer": "manama"
+}
+```
+
+For an attendant use `?role=FLIGHT_ATTENDANT` and different unique email/CPR values. No airlineId is accepted as a creation parameter: the service uses the logged-in admin's airline. ADMIN and GATE_RECEPTION are not permitted here. The password follows the existing validator: 8-30 characters, at least one uppercase letter and digit, no whitespace.
+
+Success is 201 with id, userId, airlineId, fName, lName, emailAddress, airlineRole, hireDate and salary. The response omits password, CPR and security answers. `id` is the employee ID for `/airlineAdmin/flights/{flightId}/addCrewAssignment`; `userId` identifies the Identity account. No new email is sent at creation.
+
+After commit, the existing Identity activation handoff allows login via `POST http://localhost:8081/auth/users/login` using the new email and supplied password. If a temporary activation handoff failed, the existing 30-second recovery task retries. Invalid input/unsupported role returns 400; insufficient account/membership permissions 403; duplicate account details 409. Missing bearer authentication is handled by the existing shared filter.
+
+Apply the audit-action constraint SQL supplied in chat before live testing: existing `audit_logs_action_check` must allow AIRLINE_EMPLOYEE_CREATED without removing other actions. No new tables or Identity changes are required. Manual sequence: create a pilot and attendant, log in as each, assign their employee IDs to an eligible flight of the same airline with PILOT/FLIGHT_ATTENDANT duties, and check assignment email at their account addresses. Use mailboxes you control when checking delivery.

@@ -9,6 +9,8 @@ import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
+import com.ga.saudsFlightSystem.model.request.AddAirlineEmployeeRequest;
+import com.ga.saudsFlightSystem.model.request.response.AirlineEmployeeResponse;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
 import com.ga.saudsFlightSystem.model.request.response.AddFlightResponse;
 import com.ga.saudsFlightSystem.repository.*;
@@ -25,6 +27,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.logging.Logger;
 
 import static com.ga.saudsFlightSystem.model.Flight.FlightStatus.PENDING_CREW;
@@ -40,11 +43,102 @@ public class AirlineEmployeeService {
     FlightRepository flightRepository;
     AirplaneService airplaneService;
     PhoneValidationService phoneValidationService;
+    private PasswordService passwordService;
     NotificationService notificationService;
     AuditLogService auditLogService;
     private CurrentActorProvider currentActorProvider;
 
     private static final Logger logger = Logger.getLogger(AirlineEmployeeService.class.getName());
+
+    @Transactional
+    public ResponseEntity<AirlineEmployeeResponse> addAirlineEmployee(AirlineEmployee.AirlineRole role, AddAirlineEmployeeRequest request) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()) || !"AIRLINE_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("Only active airline admins can create employees.");
+
+        AirlineEmployee admin = airlineEmployeeRepository
+                .findByUserIdAndRole(actor.userId(), AirlineEmployee.AirlineRole.ADMIN)
+                .orElseThrow(() -> new IllegalEndpoint("Only airline admins can create employees."));
+        if (admin.getAirline() == null)
+            throw new IllegalEndpoint("The admin must belong to an airline.");
+        if (role != AirlineEmployee.AirlineRole.PILOT && role != AirlineEmployee.AirlineRole.FLIGHT_ATTENDANT)
+            throw new InvalidInformationException("Choose PILOT or FLIGHT_ATTENDANT.");
+
+        LocalDate hireDate = validateAddAirlineEmployeeRequest(request);
+        employeeAccountProvisioner.checkExistingDetails(request.getEmailAddress().trim(), request.getCpr());
+
+        AirlineEmployee employee = new AirlineEmployee();
+        employee.setAirline(admin.getAirline());
+        employee.setAirlineRole(role);
+        employee.setHireDate(hireDate);
+        employee.setSalary(request.getSalary());
+        airlineEmployeeRepository.save(employee);
+
+        ProvisionedAccount account = employeeAccountProvisioner.createAccount(
+                new EmployeeAccountRequest(
+                        AccountType.AIRLINE_EMPLOYEE,
+                        employee.getId(),
+                        request.getEmailAddress().trim(),
+                        request.getPassword(),
+                        request.getSecurityQuestion().trim(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT),
+                        request.getFName().trim(),
+                        request.getLName().trim(),
+                        request.getCpr(),
+                        request.getPhoneNumberOpeningCode().trim(),
+                        request.getPhoneNumber().trim()
+                ));
+        employee.setUserId(account.userId());
+
+        String description = "Airline admin created employee with id " + employee.getId()
+                + " and role " + role + " for airline with id " + admin.getAirline().getId();
+        auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_EMPLOYEE_CREATED, AuditLog.EntityType.USER, account.userId(), description);
+        logger.info(description + " (user id: " + actor.userId() + ")");
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new AirlineEmployeeResponse(
+                        employee.getId(), account.userId(), admin.getAirline().getId(),
+                        request.getFName().trim(), request.getLName().trim(), account.emailAddress(),
+                        employee.getAirlineRole(), employee.getHireDate(), employee.getSalary()
+                ));
+    }
+
+    private LocalDate validateAddAirlineEmployeeRequest(AddAirlineEmployeeRequest request) {
+        if (request == null)
+            throw new InvalidInformationException("Please fill in all the required fields.");
+        checkEmployeeField(request.getFName());
+        checkEmployeeField(request.getLName());
+        checkEmployeeField(request.getEmailAddress());
+        checkEmployeeField(request.getPhoneNumberOpeningCode());
+        checkEmployeeField(request.getPhoneNumber());
+        checkEmployeeField(request.getSecurityQuestion());
+        checkEmployeeField(request.getSecurityQuestionAnswer());
+
+        if (request.getCpr() == null || !request.getCpr().matches("[0-9]{9}"))
+            throw new InvalidInformationException("CPR must contain exactly 9 digits.");
+        if (!EmailValidation.isValid(request.getEmailAddress().trim()))
+            throw new InvalidInformationException("Invalid email format.");
+        if (!phoneValidationService.isValidPhoneNumber(request.getPhoneNumber().trim(), request.getPhoneNumberOpeningCode().trim()))
+            throw new InvalidInformationException("Invalid phone number or country code.");
+        if (request.getPassword() == null || !passwordService.isValidPassword(request.getPassword()))
+            throw new InvalidInformationException("Password must contain 8–30 characters, an uppercase letter, a digit, and no whitespace.");
+        if (request.getSalary() == null || request.getSalary() <= 0)
+            throw new InvalidInformationException("Salary must be greater than zero.");
+        if (request.getHireDate() == null || request.getHireDate().isBlank())
+            throw new InvalidInformationException("Hire date is required.");
+        try {
+            return LocalDate.parse(request.getHireDate().trim());
+        } catch (DateTimeParseException ex) {
+            throw new InvalidInformationException("Hire date must be a valid date in yyyy-MM-dd format.");
+        }
+    }
+
+    private void checkEmployeeField(String field) {
+        if (field == null || field.isBlank())
+            throw new InvalidInformationException("Please fill in all the required fields.");
+        if (field.trim().length() > 255)
+            throw new InvalidInformationException("Fields must not exceed 255 characters.");
+    }
 
     /**
      * Lets an FAA admin create an airline admin account with CPR as its password.

@@ -1,6 +1,8 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.FlightOperation;
+import com.ga.saudsFlightSystem.model.AirlineEmployee;
+import com.ga.saudsFlightSystem.model.request.AddAirlineEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.AddFlightRequest;
@@ -21,6 +23,11 @@ public class AirlineAdminController {
     private FlightService flightService;
     private FlightInspectionService flightInspectionService;
     private FlightOperationService operationService;
+
+    @PostMapping("/employees")
+    public ResponseEntity<AirlineEmployeeResponse> addAirlineEmployee(@RequestParam("role") AirlineEmployee.AirlineRole role, @RequestBody AddAirlineEmployeeRequest request) {
+        return airlineEmployeeService.addAirlineEmployee(role, request);
+    }
 
     @PostMapping("/airplanes")
     public ResponseEntity<?> addAirplane(@RequestBody AddAirplaneRequest request) {

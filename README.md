@@ -168,6 +168,19 @@ Payment preparation and updates use a pessimistic booking lock. Payments also us
 
 `PaymentServiceTest` keeps its own two-thread executor to simulate simultaneous requests and check duplicate-payment prevention and competing payment updates. These tests verify database concurrency protection, not the removed Stripe task wrapper. They require a configured test database and the fixtures described in `TESTING-NOTES-TEMP.md`. Run them with `./mvnw -f integration-tests/pom.xml -Dtest=PaymentServiceTest test` (or `.\mvnw.cmd -f integration-tests/pom.xml -Dtest=PaymentServiceTest test` on Windows).
 
+### Create airline crew accounts
+
+An active airline admin can create a pilot or flight attendant on port 8080:
+
+- `POST /airlineAdmin/employees?role=PILOT`
+- `POST /airlineAdmin/employees?role=FLIGHT_ATTENDANT`
+
+Use the admin's Identity bearer token. The airline comes from the admin's membership. The body contains fName, lName, emailAddress, cpr, phoneNumberOpeningCode, phoneNumber, hireDate (yyyy-MM-dd), positive salary, password, securityQuestion and securityQuestionAnswer. Other roles are rejected. See the [request example](docs/API-GUIDE.md#airline-crew-account-creation).
+
+A 201 response includes `id` (employee ID for crew assignments), `userId`, airlineId, names, emailAddress, airlineRole, hireDate and salary. Identity creates the login account using the supplied password; the existing provisioner activates it after the local transaction commits. No welcome email is sent by account creation. The existing FAA airline-admin creation route retains its original behavior.
+
+Existing databases must allow `AIRLINE_EMPLOYEE_CREATED` in `audit_logs_action_check` before using the route. The SQL was supplied in chat; it adds this action while preserving existing values. Do not rerun the older crew-assignment audit SQL, which omits newer actions.
+
 ### Crew assignment endpoints
 
 These endpoints require an active account and a bearer JWT belonging to an airline employee with the `ADMIN` airline role. The flight must belong to that admin's airline.
