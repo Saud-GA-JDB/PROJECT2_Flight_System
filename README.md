@@ -4,6 +4,18 @@ Saud's Flight System is a Java REST API for flight booking, airline administrati
 
 The purpose is to connect three main users: customers who search and book flights, airline administrators who manage airplanes and schedules, and FAA administrators who review airplane activation requests. Maintenance providers and airport employees also manage maintenance requests and per-flight inspections. It is an educational project, with a wider aviation workflow planned in the ERD.
 
+## Shared library
+
+All four services depend on the [common library](common/README.md), organized into `security`, `web`, and `events` packages. It replaces `common-security` and `common-web` while preserving their existing Java package names.
+
+Build it from the repository root before building any service:
+
+```powershell
+.\mvnw.cmd -f common/pom.xml install
+```
+
+In IntelliJ, unlink the two old common modules, link `common/pom.xml`, and reload Maven projects. The root POM still builds Aviation; the services remain separate Maven projects.
+
 ## Main features
 
 - Customer registration with email verification, account setup, JWT login, password management, and profile updates with optional images.

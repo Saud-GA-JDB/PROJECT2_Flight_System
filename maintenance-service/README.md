@@ -13,8 +13,7 @@ Set **the same `MAINTENANCE_NOTIFICATION_SERVICE_KEY` environment variable** for
 From the repository root, build without running tests:
 
 ```powershell
-.\mvnw.cmd -f common-web/pom.xml -DskipTests install
-.\mvnw.cmd -f common-security/pom.xml -DskipTests install
+.\mvnw.cmd -f common/pom.xml -DskipTests install
 .\mvnw.cmd -DskipTests install
 .\mvnw.cmd -f identity-service/pom.xml -DskipTests install
 .\mvnw.cmd -f maintenance-service/pom.xml -DskipTests install
@@ -55,7 +54,7 @@ History uses `page=0`, `size=20` by default and optional `status`. Cancellation 
 
 ## What remains shared
 
-`common-security` supplies authentication and reading the current actor. Each app's small security configuration selects its routes. The local actor provider only asks Identity for fresh account state at existing authorization checkpoints. `common-web` supplies common exceptions and error responses.
+The `common` library's `security` package supplies authentication and reading the current actor. Each app's small security configuration selects its routes. The local actor provider only asks Identity for fresh account state at existing authorization checkpoints. Its `web` package supplies common exceptions and error responses.
 
 Employee creation preserves Identity's existing pending-account flow. Maintenance saves the employee link, activates the account after commit, and retries pending linked accounts every 30 seconds. This is **account activation recovery**, not a notification retry. It reads only Maintenance employees. Known rollbacks cancel the pending account; the limitations documented in [Identity recovery](../identity-service/README.md) still apply.
 

@@ -43,12 +43,7 @@
     <dependencies>
         <dependency>
             <groupId>com.ga</groupId>
-            <artifactId>common-security</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>com.ga</groupId>
-            <artifactId>common-web</artifactId>
+            <artifactId>common</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>

@@ -7,8 +7,7 @@ They depend on the four applications' ordinary JARs. Each application also produ
 Compile without executing tests, from the repository root:
 
 ```powershell
-.\mvnw.cmd -f common-web/pom.xml -DskipTests install
-.\mvnw.cmd -f common-security/pom.xml -DskipTests install
+.\mvnw.cmd -f common/pom.xml -DskipTests install
 .\mvnw.cmd -DskipTests install
 .\identity-service\mvnw.cmd -f identity-service/pom.xml -DskipTests install
 .\mvnw.cmd -f maintenance-service/pom.xml -DskipTests install

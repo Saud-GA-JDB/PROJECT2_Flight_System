@@ -12,7 +12,7 @@ Identity does not import employee entities. The flight application does not impo
 
 The extraction SQL has been applied to the current `aviation` database. Neither application performs schema changes on startup (`ddl-auto=validate`). Do not rerun that migration on this database.
 
-Open this folder as its own Maven/Spring Boot project. It has its own `pom.xml`, Maven wrapper, application class, and configuration.
+Open this folder as its own Maven/Spring Boot project. It has its own `pom.xml`, Maven wrapper, application class, and configuration. First install the shared library from the repository root with `.\mvnw.cmd -f common/pom.xml install`. In IntelliJ, link `common/pom.xml` alongside the service POMs; it replaces the old common modules.
 
 Local settings are in `src/main/resources/application.properties`, just like the flight application. The local file is ignored by Git; `application-example.properties` is the checked-in template for another checkout. The local database settings use the existing database. SMTP now belongs to Notification on port 8084. The shared service key and Identity's JWT signing key are configured locally, and email requires the same nonempty NOTIFICATION_SERVICE_KEY as Notification.
 

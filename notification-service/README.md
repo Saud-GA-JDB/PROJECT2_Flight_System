@@ -25,8 +25,7 @@ No SQL or seeding is needed for Notification. The existing Maintenance audit tab
 From the repository root, build without executing tests:
 
 ```powershell
-.\mvnw.cmd -f common-web/pom.xml -DskipTests install
-.\mvnw.cmd -f common-security/pom.xml -DskipTests install
+.\mvnw.cmd -f common/pom.xml -DskipTests install
 .\mvnw.cmd -DskipTests install
 .\mvnw.cmd -f identity-service/pom.xml -DskipTests install
 .\mvnw.cmd -f notification-service/pom.xml -DskipTests install
