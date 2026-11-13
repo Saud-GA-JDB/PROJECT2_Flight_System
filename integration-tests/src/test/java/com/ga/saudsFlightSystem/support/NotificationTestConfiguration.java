@@ -47,11 +47,6 @@ public class NotificationTestConfiguration {
     public NotificationServiceClient fixtureNotificationClient() {
         return new NotificationServiceClient() {
             @Override
-            public void send(String key, com.ga.saudsFlightSystem.model.request.NotificationRequest request) {
-                throw new AssertionError("SSE notifications must use Kafka, not the old HTTP client.");
-            }
-
-            @Override
             public void sendEmail(String key, com.ga.saudsFlightSystem.model.request.EmailRequest request) {}
 
             @Override

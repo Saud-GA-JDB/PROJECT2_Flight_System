@@ -67,19 +67,19 @@ The flight system calls Identity through Feign for authentication, account/profi
 See [Identity setup and recovery](identity-service/README.md) for the two-process startup commands and provisioning behavior. Apply the extraction SQL supplied in chat before starting either application; both use schema validation.
 
 See [Maintenance setup and routes](maintenance-service/README.md) for the three-application setup and manual checks. Maintenance business endpoints now use port **8083**, including the maintenance methods under `/faaadmin` and `/airlineAdmin`. The root keeps Aviation scope lookups and a service-key-protected cancellation notification handoff. Older endpoint examples below and in Postman need their Maintenance requests pointed at 8083. The Maintenance extraction itself added no gateway, Docker, Kafka, or separate database.
-See [Notification setup and manual checks](notification-service/README.md) for SSE and email setup. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation now publishes its selected recipients' SSE notifications to Kafka after commit; the consumer is pending, as described below. Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation, Identity and Notification for email delivery, separately from the existing Identity and Maintenance keys. Identity email calls remain synchronous and fail with 503 on delivery errors; Aviation emails are sent after commit. The service README records the earlier HTTP/SMTP checks and their limits.
+See [Notification setup and manual checks](notification-service/README.md) for SSE and email setup. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation publishes its selected recipients' SSE notifications to Kafka after commit; Notification's consumer dispatches them to matching live connections. Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation, Identity and Notification for email delivery, separately from the existing Identity and Maintenance keys. Identity email calls remain synchronous and fail with 503 on delivery errors; Aviation emails are sent after commit. The service README records verification coverage and its limits.
 
-## Kafka: producer stage
+## Kafka notifications
 
 Aviation now sends all existing live notification events through `producer/KafkaProducer.java`, after the business transaction commits. Rollback publishes nothing. The existing `sendToUser` and `sendToRole` calls preserve their audiences and event names. Email still uses Feign.
 
-**This is an intermediate implementation:** Notification's Kafka consumer and the Docker broker setup are not implemented yet. Aviation no longer calls the old SSE HTTP endpoint, so business SSE events will not reach connected browsers until those next steps are complete. The legacy endpoint remains temporarily for the consumer-stage cleanup.
+The producer and consumer Java code are implemented. The old internal SSE HTTP endpoint and request DTOs have been removed. **Docker broker setup and real-broker verification are still pending.** Running this flow requires a reachable Kafka broker and the configured topic.
 
 | Setting | Value |
 | --- | --- |
 | Topic | `aviation-notification-topic` |
 | Producer | Aviation |
-| Planned consumer / group | Notification / `notification-group` |
+| Consumer / group | Notification / `notification-group` |
 | Key | `role:FAA_ADMIN` or `user:<userId>` |
 | Value | JSON string containing the shared `NotificationEvent` |
 | Partitions / replicas | 1 / 1 |
@@ -97,7 +97,13 @@ Example event:
 }
 ```
 
-Each notification gets a UUID. Role broadcasts use `userId: null` and `role: "FAA_ADMIN"`; their existing response DTO is serialized in `data`. The eventual consumer will dispatch to matching live SSE connections, with no stored notification history.
+Each notification gets a UUID. Role broadcasts use `userId: null` and `role: "FAA_ADMIN"`; their existing response DTO is serialized in `data`. Notification's `consumer/KafkaConsumer.java` reads this JSON, validates it, checks for a recent duplicate, and calls the existing `NotificationService` to dispatch to matching live SSE connections. There is no stored notification history.
+
+The lesson-style `KafkaConsumerConfig` defines `consumerConfigs`, `consumerFactory`, and `kafkaListenerContainerFactory`. It uses string deserializers, `enable.auto.commit=false`, `earliest`, one consumer thread, and a poll batch of at most 10 records. Topic auto-creation by the consumer is disabled. The simple `consume(String message)` listener uses `AckMode.RECORD`: Spring commits progress after a successful return, without manual acknowledgment code. `earliest` applies when there is no usable committed offset, not on every restart.
+
+The last 10,000 dispatched event IDs are remembered in memory; duplicates in that window return without another SSE dispatch. Failed dispatches are not remembered. Restart/eviction removes this protection, and a crash during fan-out can cause duplicates. Invalid JSON/recipient data is logged and skipped immediately. Unexpected processing exceptions get two retries one second apart, then a logged skip; the skipped notification has no automatic replay or dead-letter queue. The record error handler leaves `ackAfterHandle` enabled so recovered records can be committed by the container.
+
+Run one Notification instance because SSE connections are process-local. Kafka retains accepted records during consumer downtime within retention, but a restart can drain them before browsers reconnect. No connected recipient or a broken browser connection completes the live dispatch attempt; committing a record does not mean the browser received or read it. Slow clients can still delay the one consumer thread and grow lag.
 
 `config/KafkaTopicConfig.java` declares the topic. With a reachable broker, Boot's Kafka admin creates it on startup. If the broker is unavailable at startup, creation is not guaranteed until initialization is retried or Aviation is restarted with the broker available. The bean specifies settings for topic creation; do not assume it overwrites a pre-existing topic's retention settings.
 
@@ -105,7 +111,7 @@ Both configurations use `kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:local
 
 Immediate or asynchronous publication failure is logged without failing an already committed business operation. There is no persistent retry queue or outbox: a crash between commit and publishing, or an exhausted send, can lose a notification. Idempotence addresses broker retries, not database/Kafka atomicity. Retention does not provide an offline inbox for admins.
 
-Producer verification commands and coverage are documented in [integration-tests](integration-tests/README.md#kafka-producer-checks). No live Kafka delivery or browser fan-out has been verified in this stage. The implementation follows the uploaded Kafka lesson, adapting its JSON mapper to Boot 4 and observing asynchronous send results; see [Spring Kafka sending](https://docs.spring.io/spring-kafka/reference/kafka/sending-messages.html) and [topic configuration](https://docs.spring.io/spring-kafka/reference/kafka/configuring-topics.html).
+Verification commands and coverage are documented in [integration-tests](integration-tests/README.md#kafka-producer-and-consumer-checks). Focused tests cover producer/consumer behavior, simulated SSE connections, and a real listener container with Kafka's `MockConsumer` for offset timing. They do not prove real-broker recovery or network/browser delivery. The implementation follows the uploaded Kafka lesson, adapting its JSON mapper to Boot 4 and using record acknowledgment to keep the listener simple; see [Spring Kafka sending](https://docs.spring.io/spring-kafka/reference/kafka/sending-messages.html), [topic configuration](https://docs.spring.io/spring-kafka/reference/kafka/configuring-topics.html), [listener acknowledgment](https://docs.spring.io/spring-kafka/reference/kafka/receiving-messages/message-listener-container.html), and [error handling](https://docs.spring.io/spring-kafka/reference/kafka/annotation-error-handling.html).
 
 ## General approach
 

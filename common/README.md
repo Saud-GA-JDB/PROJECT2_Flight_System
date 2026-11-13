@@ -18,4 +18,4 @@ From the repository root, build/install this library before building the applica
 
 Each application depends on `com.ga:common:0.0.1-SNAPSHOT`. After changing shared code, reinstall the library and rebuild the affected applications. In IntelliJ, unlink the old common modules, link `common/pom.xml`, and reload Maven projects.
 
-`NotificationEvent` contains `eventId`, `userId`, `role`, `eventName`, and `data`. Supply either a user ID or a role, not both. Aviation's Kafka producer now uses this record. The planned Notification consumer will validate it; that consumer is not implemented yet.
+`NotificationEvent` contains `eventId`, `userId`, `role`, `eventName`, and `data`. Supply either a user ID or a role, not both. Aviation's Kafka producer serializes this record; Notification's consumer reads and validates it. Service-specific business DTOs travel as JSON inside `data`.

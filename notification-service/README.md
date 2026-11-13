@@ -4,7 +4,7 @@ Notification is a separate Spring Boot application on **8084**. It owns the exis
 
 Notification has no database entities or repositories: Identity, Aviation and Maintenance continue using the one existing PostgreSQL database. SMTP is configured only here; callers keep their recipient lookup and message wording.
 
-**Kafka migration status (13 November 2026):** Aviation now publishes live notification events to `aviation-notification-topic` after commit. This service's Kafka consumer is not implemented yet, so those events do not reach browsers in this intermediate stage. The old internal SSE HTTP endpoint remains temporarily, but Aviation no longer calls it. Email continues through Feign. See the [producer-stage documentation](../README.md#kafka-producer-stage).
+**Kafka migration status (13 November 2026):** Aviation publishes live notification events to `aviation-notification-topic` after commit. This service's `KafkaConsumer` processes them and dispatches to matching SSE connections. The old internal SSE HTTP endpoint has been removed. Email continues through Feign. Docker broker setup and live-broker verification are pending; see the [Kafka documentation](../README.md#kafka-notifications).
 
 ## Setup
 
@@ -18,6 +18,7 @@ Configure these values in the run configurations:
 | `IDENTITY_SERVICE_KEY` | Notification, matching Identity's existing key | Authenticates SSE subscribers through Identity |
 | `IDENTITY_BASE_URL` | Notification, default `http://localhost:8081` | Identity address |
 | `NOTIFICATION_BASE_URL` | Aviation and Identity, default `http://localhost:8084` | Delivery address |
+| `KAFKA_BOOTSTRAP_SERVERS` | Aviation and Notification, default `localhost:9092` | Kafka broker address; future containers use `kafka:29092` |
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | Notification only | SMTP connection and sender |
 
 This checkout's local Notification properties reuse Aviation's existing Identity connection settings. The example file uses environment variables. The new notification key is separate from `MAINTENANCE_NOTIFICATION_SERVICE_KEY`, which still protects Maintenance -> Aviation. Neither key is sent by normal SSE subscribers. A missing/wrong delivery key rejects delivery. Aviation logs the failure after commit; Identity returns 503 and rolls back verification/reset changes.
@@ -45,7 +46,8 @@ Swagger: [Notification API](http://localhost:8084/swagger-ui/index.html).
 
 1. Aviation performs its existing business validation, writes and audits, and selects recipients.
 2. Aviation waits for its transaction to commit, then `KafkaProducer` publishes JSON to `aviation-notification-topic`.
-3. The next stage will add Notification's Kafka consumer to deliver the unchanged event name and payload to matching SSE connections. Until then there is no automatic Kafka-to-SSE handoff.
+3. Notification's `KafkaConsumer` reads and validates the event, suppresses recent duplicate IDs, and calls `NotificationService.sendToUser` or `sendToRole` with the unchanged event name and JSON payload.
+4. When the listener returns successfully, Spring commits that record's offset using `AckMode.RECORD`. Unexpected failures reach the configured error handler.
 
 The small local Aviation `NotificationService` owns the after-commit callback. If there is no active transaction (the Maintenance handoff has already committed), it publishes immediately. The producer observes asynchronous send success/failure. Publication can still briefly block for broker metadata or buffer space; configured waits are bounded. A failed publication cannot undo the business commit, and there is no durable retry queue.
 
@@ -59,21 +61,26 @@ Maintenance keeps its existing after-commit HTTP call to Aviation. Aviation reso
 - Shared authentication requires an active account. Missing/invalid tokens return 401; non-active accounts are denied; an Identity outage during authentication returns 503.
 - Existing event names/payloads, the `connected` event, 25-second heartbeat and five-minute connection timeout are retained. Reconnecting repeats authentication. Already-open streams are not immediately revoked when account state changes.
 - Run one Notification instance: connection state is process-local. Restarting it closes streams. Clients must reconnect.
-- Delivery is best effort. Disconnected users, crashes and outages can lose messages. There is no SSE table, queue, replay or SSE retry scheduler.
+- Kafka retains accepted events within the topic's 24-hour retention while the consumer is unavailable. The group resumes from committed offsets. That is service recovery, not browser history: events consumed while an admin is disconnected are missed.
+- Recent duplicate IDs are suppressed using a bounded in-memory set of 10,000 IDs. Restart or eviction permits duplicates again. No stored notification history or SSE replay is added.
+- Invalid JSON or recipients are skipped immediately. Other processing failures get two retries one second apart, then a logged skip. Skipped notifications are not automatically replayed. Existing broken SSE connections are handled locally, without retrying the entire audience.
+- A successful listener return means a live dispatch attempt completed, not browser receipt. There may be no matching connections. Old delayed events can be delivered after circumstances change; clients should refresh authoritative state.
 - Existing business locks, audits and authorization remain in their owning applications.
 
 ## Manual checks
 
-These historical checks exercised the former HTTP-based SSE handoff on 12 November 2026. They are not verification of the new Kafka path; repeat relevant checks after the consumer and broker setup are complete.
+The following Kafka/network checks remain to be run after broker setup. Earlier HTTP-based SSE checks on 12 November 2026 do not verify this Kafka path. Start a reachable broker and Aviation first so its topic bean can create the topic, then start Notification.
 
 1. Login on 8081. Subscribe on 8084 with that token and confirm `connected` and heartbeat comments. Without a token expect 401; an invalid token must also be rejected.
 2. Trigger an airplane, crew or flight operation on Aviation. Confirm the same event and payload reach the intended user. Open an unrelated user's stream and confirm scoped events do not reach it. For activation requests, check the FAA admin audience.
 3. Cancel a pending maintenance request with the correct permissions. Confirm the cancellation, audit and `Maintenance_Cancelled` event; unrelated users should receive nothing.
-4. Send a direct internal notification without `X-Service-Key`, with a wrong key, and with the configured key. Expect 401 for the first two; with the correct key, malformed recipient/event input returns 400 and a valid request delivers only to its target. A normal bearer token alone cannot authorize delivery.
-5. Stop Notification and perform an otherwise valid flight operation. The operation and audit should commit, with a delivery warning in Aviation. Restart Notification and reconnect: missed events are not replayed.
+4. Publish a duplicate envelope with the same event ID and verify one live dispatch within the cache window. Publish invalid JSON or an unsupported role and verify logged skipping without SSE delivery. The old internal SSE HTTP endpoint is no longer available; service keys still protect email endpoints.
+5. Stop Notification and perform an otherwise valid flight operation with Kafka available. The operation and audit should commit, and Kafka should accept the event. Restart Notification and inspect group catch-up. Browser connections were closed; do not assume they reconnect before the consumer drains pending events. Pause just the listener in a test harness if testing backlog delivery to connections that stay open.
 6. Stop Identity and attempt a new subscription with a bearer token: expect 503. Check that a normal five-minute stream reconnect reruns authentication when Identity is available.
 
 Existing SSE fixtures now use an in-process producer substitute and do not verify a Kafka broker. The earlier separate manual checks exercised the HTTP boundary with running applications and PostgreSQL; seeders were disabled.
+
+The focused producer/consumer/email suite passed 42 checks on 13 November 2026. It covers routing, validation, duplicates, retry exhaustion, two simulated connected FAA admins with an unrelated user excluded, and `RECORD` offset timing using Kafka's `MockConsumer`. Aviation and Notification clean builds passed. No real broker, HTTP browser stream, database, or SMTP server was used in these focused checks; see [test commands](../integration-tests/README.md#kafka-producer-and-consumer-checks).
 
 ## Email flow
 
