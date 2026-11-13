@@ -2,6 +2,7 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
 import com.ga.saudsFlightSystem.model.request.EmailRequest;
+import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -15,7 +16,8 @@ import static org.mockito.Mockito.*;
 // No application context, database, HTTP, or SMTP. Runtime checks cover the real endpoints.
 class EmailExtractionTest {
     private final NotificationServiceClient client = mock(NotificationServiceClient.class);
-    private final NotificationService service = new NotificationService(client);
+    private final KafkaProducer producer = mock(KafkaProducer.class);
+    private final NotificationService service = new NotificationService(client, producer);
 
     EmailExtractionTest() {
         ReflectionTestUtils.setField(service, "serviceKey", "test-key");
@@ -25,6 +27,7 @@ class EmailExtractionTest {
     void clearTransaction() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) TransactionSynchronizationManager.clearSynchronization();
         TransactionSynchronizationManager.setActualTransactionActive(false);
+        verifyNoInteractions(producer);
     }
 
     private void beginTransaction() {

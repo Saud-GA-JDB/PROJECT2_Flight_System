@@ -2,7 +2,9 @@
 
 Notification is a separate Spring Boot application on **8084**. It owns the existing live SSE connections, heartbeat, connection cleanup, and SMTP email delivery. Aviation remains on **8080**, Identity on **8081**, and Maintenance on **8083**.
 
-This stage uses a controller, a concrete service, a request DTO and Feign clients in Aviation and Identity. It has no database entities or repositories: Identity, Aviation and Maintenance continue using the one existing PostgreSQL database. SMTP is configured only here; callers keep their recipient lookup and message wording.
+Notification has no database entities or repositories: Identity, Aviation and Maintenance continue using the one existing PostgreSQL database. SMTP is configured only here; callers keep their recipient lookup and message wording.
+
+**Kafka migration status (13 November 2026):** Aviation now publishes live notification events to `aviation-notification-topic` after commit. This service's Kafka consumer is not implemented yet, so those events do not reach browsers in this intermediate stage. The old internal SSE HTTP endpoint remains temporarily, but Aviation no longer calls it. Email continues through Feign. See the [producer-stage documentation](../README.md#kafka-producer-stage).
 
 ## Setup
 
@@ -39,17 +41,17 @@ java -jar notification-service/target/notification-service-0.0.1-SNAPSHOT-app.ja
 
 Swagger: [Notification API](http://localhost:8084/swagger-ui/index.html).
 
-## Request flow
+## Current live notification flow
 
 1. Aviation performs its existing business validation, writes and audits, and selects recipients.
-2. Aviation waits for its transaction to commit, then `NotificationServiceClient` sends JSON to `POST /internal/v1/notifications` with `X-Service-Key`.
-3. Notification validates the key and request, then delivers the unchanged event name and payload to matching SSE connections.
+2. Aviation waits for its transaction to commit, then `KafkaProducer` publishes JSON to `aviation-notification-topic`.
+3. The next stage will add Notification's Kafka consumer to deliver the unchanged event name and payload to matching SSE connections. Until then there is no automatic Kafka-to-SSE handoff.
 
-The small local Aviation `NotificationService` owns the after-commit callback and failure logging. An HTTP call cannot see another application's transaction, so this callback must stay in Aviation. If there is no active transaction (the Maintenance handoff has already committed), it sends immediately. Requests are synchronous and bounded by Feign timeouts, with no automatic delivery retry; a slow dependency can delay the response after commit.
+The small local Aviation `NotificationService` owns the after-commit callback. If there is no active transaction (the Maintenance handoff has already committed), it publishes immediately. The producer observes asynchronous send success/failure. Publication can still briefly block for broker metadata or buffer space; configured waits are bounded. A failed publication cannot undo the business commit, and there is no durable retry queue.
 
-The internal DTO contains `userId`, `role`, `eventName` and `data`. Supply exactly one positive `userId` or the `FAA_ADMIN` role. FAA airplane activation requests are the existing role-wide event; other audiences are selected by user ID. Business DTOs remain in Aviation and are sent as JSON, not imported into Notification.
+The shared Kafka `NotificationEvent` contains `eventId`, `userId`, `role`, `eventName` and `data`. Supply exactly one positive `userId` or the `FAA_ADMIN` role. FAA airplane activation requests are the existing role-wide event; other audiences are selected by user ID. Business DTOs remain in Aviation and are sent as JSON, not imported into Notification.
 
-Maintenance keeps its existing after-commit call to Aviation. Aviation resolves airline admins, filters current active recipients through Identity, and forwards `Maintenance_Cancelled` to Notification. Notification does not read airline, flight, user or maintenance tables.
+Maintenance keeps its existing after-commit HTTP call to Aviation. Aviation resolves airline admins, filters current active recipients through Identity, and publishes `Maintenance_Cancelled` to Kafka. Notification does not read airline, flight, user or maintenance tables.
 
 ## SSE behavior and limits
 
@@ -62,7 +64,7 @@ Maintenance keeps its existing after-commit call to Aviation. Aviation resolves 
 
 ## Manual checks
 
-These checks were exercised locally on 12 November 2026. Repeat them when changing the runtime configuration.
+These historical checks exercised the former HTTP-based SSE handoff on 12 November 2026. They are not verification of the new Kafka path; repeat relevant checks after the consumer and broker setup are complete.
 
 1. Login on 8081. Subscribe on 8084 with that token and confirm `connected` and heartbeat comments. Without a token expect 401; an invalid token must also be rejected.
 2. Trigger an airplane, crew or flight operation on Aviation. Confirm the same event and payload reach the intended user. Open an unrelated user's stream and confirm scoped events do not reach it. For activation requests, check the FAA admin audience.
@@ -71,7 +73,7 @@ These checks were exercised locally on 12 November 2026. Repeat them when changi
 5. Stop Notification and perform an otherwise valid flight operation. The operation and audit should commit, with a delivery warning in Aviation. Restart Notification and reconnect: missed events are not replayed.
 6. Stop Identity and attempt a new subscription with a bearer token: expect 503. Check that a normal five-minute stream reconnect reruns authentication when Identity is available.
 
-Existing SSE fixtures use an in-process client substitute and do not verify the HTTP boundary. Separate manual checks exercised running applications and the existing PostgreSQL database; seeders were disabled.
+Existing SSE fixtures now use an in-process producer substitute and do not verify a Kafka broker. The earlier separate manual checks exercised the HTTP boundary with running applications and PostgreSQL; seeders were disabled.
 
 ## Email flow
 
@@ -88,7 +90,7 @@ Identity calls Feign directly inside its existing transaction. A failed handoff 
 
 Aviation uses its existing concrete NotificationService to call Feign after commit. Ordinary email failure now logs a warning without undoing the booking/airplane operation. These calls still wait for the bounded HTTP response after commit. Crew assignment replaces the old local application event with an after-commit call to the async endpoint.
 
-Notification keeps the existing five-thread executor, locked in-memory failed-email list, and three-hour retry schedule for background emails only. A failed HTTP handoff is not queued. Restart can lose pending emails; uncertain delivery can produce duplicates. No persistent queue, new tables, Kafka, Docker or gateway were added.
+Notification keeps the existing five-thread executor, locked in-memory failed-email list, and three-hour retry schedule for background emails only. A failed HTTP email handoff is not queued. Restart can lose pending emails; uncertain delivery can produce duplicates. The email path adds no persistent queue or new tables and does not use Kafka.
 
 Both callers default to a 2-second connect timeout and 15-second read timeout. SMTP socket connection/read/write timeouts are 2/3/3 seconds. Keep Feign logging disabled so message bodies and verification codes are not logged.
 

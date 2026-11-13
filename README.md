@@ -66,8 +66,46 @@ The flight system calls Identity through Feign for authentication, account/profi
 
 See [Identity setup and recovery](identity-service/README.md) for the two-process startup commands and provisioning behavior. Apply the extraction SQL supplied in chat before starting either application; both use schema validation.
 
-See [Maintenance setup and routes](maintenance-service/README.md) for the three-application setup and manual checks. Maintenance business endpoints now use port **8083**, including the maintenance methods under `/faaadmin` and `/airlineAdmin`. The root keeps Aviation scope lookups and a service-key-protected cancellation notification handoff. Older endpoint examples below and in Postman need their Maintenance requests pointed at 8083. No gateway, Docker, Kafka, or separate database is involved in this stage.
-See [Notification setup and manual checks](notification-service/README.md) for SSE and email setup. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation selects recipients and calls Notification after commit through Feign; Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation, Identity and Notification, separately from the existing Identity and Maintenance keys. SSE delivery is best effort with no stored history or replay. Identity email calls are synchronous and fail with 503 on delivery errors; Aviation emails are sent after commit. Build and local HTTP/SMTP checks passed on 12 November 2026; see the service README for coverage and limits.
+See [Maintenance setup and routes](maintenance-service/README.md) for the three-application setup and manual checks. Maintenance business endpoints now use port **8083**, including the maintenance methods under `/faaadmin` and `/airlineAdmin`. The root keeps Aviation scope lookups and a service-key-protected cancellation notification handoff. Older endpoint examples below and in Postman need their Maintenance requests pointed at 8083. The Maintenance extraction itself added no gateway, Docker, Kafka, or separate database.
+See [Notification setup and manual checks](notification-service/README.md) for SSE and email setup. Connect to **`http://localhost:8084/notifications`** with the token from Identity. Aviation now publishes its selected recipients' SSE notifications to Kafka after commit; the consumer is pending, as described below. Maintenance cancellation still goes through Aviation first. Set the same `NOTIFICATION_SERVICE_KEY` for Aviation, Identity and Notification for email delivery, separately from the existing Identity and Maintenance keys. Identity email calls remain synchronous and fail with 503 on delivery errors; Aviation emails are sent after commit. The service README records the earlier HTTP/SMTP checks and their limits.
+
+## Kafka: producer stage
+
+Aviation now sends all existing live notification events through `producer/KafkaProducer.java`, after the business transaction commits. Rollback publishes nothing. The existing `sendToUser` and `sendToRole` calls preserve their audiences and event names. Email still uses Feign.
+
+**This is an intermediate implementation:** Notification's Kafka consumer and the Docker broker setup are not implemented yet. Aviation no longer calls the old SSE HTTP endpoint, so business SSE events will not reach connected browsers until those next steps are complete. The legacy endpoint remains temporarily for the consumer-stage cleanup.
+
+| Setting | Value |
+| --- | --- |
+| Topic | `aviation-notification-topic` |
+| Producer | Aviation |
+| Planned consumer / group | Notification / `notification-group` |
+| Key | `role:FAA_ADMIN` or `user:<userId>` |
+| Value | JSON string containing the shared `NotificationEvent` |
+| Partitions / replicas | 1 / 1 |
+| Retention | 24 hours (`86400000` milliseconds), deletion policy |
+
+Example event:
+
+```json
+{
+  "eventId": "61cb7d33-ecde-4e88-9dc6-06e386720a49",
+  "userId": 25,
+  "role": null,
+  "eventName": "FLIGHT_CREATED",
+  "data": "Flight GF25 added successfully."
+}
+```
+
+Each notification gets a UUID. Role broadcasts use `userId: null` and `role: "FAA_ADMIN"`; their existing response DTO is serialized in `data`. The eventual consumer will dispatch to matching live SSE connections, with no stored notification history.
+
+`config/KafkaTopicConfig.java` declares the topic. With a reachable broker, Boot's Kafka admin creates it on startup. If the broker is unavailable at startup, creation is not guaranteed until initialization is retried or Aviation is restarted with the broker available. The bean specifies settings for topic creation; do not assume it overwrites a pre-existing topic's retention settings.
+
+Both configurations use `kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}` and pass that value to `spring.kafka.bootstrap-servers`. A later container setup will use `KAFKA_BOOTSTRAP_SERVERS=kafka:29092`. Aviation uses string serializers, `acks=all`, idempotence, a two-second maximum send-block wait, and a 30-second delivery timeout. `send` returns a future: only its completion logs success. Failure logs contain notification identifiers and the error type; the default payload-logging producer listener is disabled in Aviation's local and example configuration.
+
+Immediate or asynchronous publication failure is logged without failing an already committed business operation. There is no persistent retry queue or outbox: a crash between commit and publishing, or an exhausted send, can lose a notification. Idempotence addresses broker retries, not database/Kafka atomicity. Retention does not provide an offline inbox for admins.
+
+Producer verification commands and coverage are documented in [integration-tests](integration-tests/README.md#kafka-producer-checks). No live Kafka delivery or browser fan-out has been verified in this stage. The implementation follows the uploaded Kafka lesson, adapting its JSON mapper to Boot 4 and observing asynchronous send results; see [Spring Kafka sending](https://docs.spring.io/spring-kafka/reference/kafka/sending-messages.html) and [topic configuration](https://docs.spring.io/spring-kafka/reference/kafka/configuring-topics.html).
 
 ## General approach
 

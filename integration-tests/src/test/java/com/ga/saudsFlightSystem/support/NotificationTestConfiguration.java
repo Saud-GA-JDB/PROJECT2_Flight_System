@@ -1,12 +1,19 @@
 package com.ga.saudsFlightSystem.support;
 
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
+import com.ga.common.events.NotificationEvent;
+import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-// Keeps the existing transaction/scoping fixtures in process; this does not test HTTP.
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+
+// Keeps transaction/scoping fixtures in process; this does not test a Kafka broker.
 @TestConfiguration
 public class NotificationTestConfiguration {
     @Bean
@@ -16,14 +23,32 @@ public class NotificationTestConfiguration {
 
     @Bean
     @Primary
-    public NotificationServiceClient fixtureNotificationClient(FixtureNotificationService notifications) {
+    public KafkaProducer fixtureKafkaProducer(FixtureNotificationService notifications) {
+        KafkaProducer producer = mock(KafkaProducer.class);
+        doAnswer(invocation -> {
+            NotificationEvent event = invocation.getArgument(0);
+            if (event.userId() != null)
+                notifications.sendToUser(event.userId(), event.eventName(), event.data());
+            else
+                notifications.sendToRole(event.role(), event.eventName(), event.data());
+            return null;
+        }).when(producer).sendNotificationDetails(any(NotificationEvent.class));
+        return producer;
+    }
+
+    @Bean
+    public KafkaAdmin fixtureKafkaAdmin() {
+        // Prevent topic creation/network calls in database-focused fixtures.
+        return mock(KafkaAdmin.class);
+    }
+
+    @Bean
+    @Primary
+    public NotificationServiceClient fixtureNotificationClient() {
         return new NotificationServiceClient() {
             @Override
             public void send(String key, com.ga.saudsFlightSystem.model.request.NotificationRequest request) {
-                if (request.userId() != null)
-                    notifications.sendToUser(request.userId(), request.eventName(), request.data());
-                else
-                    notifications.sendToRole(request.role(), request.eventName(), request.data());
+                throw new AssertionError("SSE notifications must use Kafka, not the old HTTP client.");
             }
 
             @Override

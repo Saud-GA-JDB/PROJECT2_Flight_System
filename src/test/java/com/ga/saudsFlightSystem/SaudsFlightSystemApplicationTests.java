@@ -9,6 +9,9 @@ class SaudsFlightSystemApplicationTests {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.ga.saudsFlightSystem.identity.IdentityServiceClient identityClient;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    org.springframework.kafka.core.KafkaAdmin kafkaAdmin;
+
 	@Test
 	void contextLoads() {
 	}

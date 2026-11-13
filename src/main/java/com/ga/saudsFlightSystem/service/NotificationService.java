@@ -1,14 +1,16 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
-import com.ga.saudsFlightSystem.model.request.NotificationRequest;
+import com.ga.common.events.NotificationEvent;
 import com.ga.saudsFlightSystem.model.request.EmailRequest;
+import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.UUID;
 import java.util.logging.Logger;
 
 @Service
@@ -16,15 +18,20 @@ import java.util.logging.Logger;
 public class NotificationService {
     private static final Logger logger = Logger.getLogger(NotificationService.class.getName());
     private final NotificationServiceClient notificationServiceClient;
+    private final KafkaProducer kafkaProducer;
     @Value("${notification.service-key:${NOTIFICATION_SERVICE_KEY:}}")
     private String serviceKey;
 
     public void sendToUser(Long userId, String eventName, Object data) {
-        afterCommit(() -> deliver(new NotificationRequest(userId, null, eventName, data)));
+        NotificationEvent event = new NotificationEvent(
+                UUID.randomUUID().toString(), userId, null, eventName, data);
+        afterCommit(() -> kafkaProducer.sendNotificationDetails(event));
     }
 
     public void sendToRole(String role, String eventName, Object data) {
-        afterCommit(() -> deliver(new NotificationRequest(null, role, eventName, data)));
+        NotificationEvent event = new NotificationEvent(
+                UUID.randomUUID().toString(), null, role, eventName, data);
+        afterCommit(() -> kafkaProducer.sendNotificationDetails(event));
     }
 
     public void sendEmail(String recipient, String subject, String body) {
@@ -48,16 +55,6 @@ public class NotificationService {
             });
         } else {
             delivery.run();
-        }
-    }
-
-    private void deliver(NotificationRequest request) {
-        try {
-            if (serviceKey.isBlank()) throw new IllegalStateException("Notification service key is missing.");
-            notificationServiceClient.send(serviceKey, request);
-        } catch (RuntimeException ex) {
-            // Delivery is best effort; a failed HTTP call must not fail a committed operation.
-            logger.warning("Notification " + request.eventName() + " was not delivered. Check Notification availability and service-key configuration.");
         }
     }
 

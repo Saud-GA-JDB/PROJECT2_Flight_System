@@ -8,6 +8,7 @@ import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.EmailRequest;
+import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -26,7 +27,8 @@ import static org.mockito.Mockito.*;
 
 class CrewEmailExtractionTest {
     private final NotificationServiceClient client = mock(NotificationServiceClient.class);
-    private final NotificationService notifications = new NotificationService(client);
+    private final KafkaProducer producer = mock(KafkaProducer.class);
+    private final NotificationService notifications = new NotificationService(client, producer);
     private final CrewAssignmentRepository assignments = mock(CrewAssignmentRepository.class);
     private final AirlineEmployeeRepository employees = mock(AirlineEmployeeRepository.class);
     private final FlightRepository flights = mock(FlightRepository.class);
@@ -75,11 +77,15 @@ class CrewEmailExtractionTest {
     @Test
     void crewUsesLinkedUserEmailAndAsyncEndpointAfterCommit() {
         service.addCrewAssignment(5L, request);
-        verifyNoInteractions(client);
+        verifyNoInteractions(client, producer);
         TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
         verify(client).sendAsyncEmail("test-key", new EmailRequest("pilot@example.com", "New Crew Assignment", "You have been assigned to flight TEST5 with duty PILOT"));
         verify(accounts, never()).findEmailAddressById(8L);
         verify(client, never()).sendEmail(anyString(), any());
+        verify(producer).sendNotificationDetails(argThat(event ->
+                Long.valueOf(10L).equals(event.userId()) && "Assignment_Created".equals(event.eventName())));
+        verify(producer).sendNotificationDetails(argThat(event ->
+                Long.valueOf(80L).equals(event.userId()) && "Flight_Assignment".equals(event.eventName())));
     }
 
     @Test
@@ -87,6 +93,6 @@ class CrewEmailExtractionTest {
         doThrow(new IllegalStateException("audit failed")).when(audits).addAuditLogForActor(any(), any(), any(), any(), anyString());
         assertThrows(IllegalStateException.class, () -> service.addCrewAssignment(5L, request));
         TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-        verifyNoInteractions(client);
+        verifyNoInteractions(client, producer);
     }
 }
