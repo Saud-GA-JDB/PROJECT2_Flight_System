@@ -1,5 +1,66 @@
 # Existing integration fixtures
 
+## Cucumber API tests
+
+The Cucumber tests are organized into `config/CucumberSpringConfiguration`,
+`runners/TestRunner`, `definitions/*APIStepDefinitions`, and `resources/features/*API.feature`.
+They use JUnit 4 `@RunWith(Cucumber.class)`, REST Assured requests, `Assert` assertions,
+and Spring Boot on a random port. The dependency versions support this project's Java 17
+and Spring Boot setup, using the existing Maven Surefire configuration.
+
+The 14 scenarios focus on the main workflows:
+
+| Feature | Coverage |
+| --- | --- |
+| BookingAPI | Search, book, list, cancel, occupied-seat rejection, customer ownership |
+| AirlineAPI | FAA creates an airline/admin; airline admin schedules, assigns crew and activates a flight |
+| AirplaneAPI | Airline registers and requests activation; FAA accepts or denies |
+| FlightOperationAPI | Pilot requests clearance and takes off/lands; responsible towers approve/reject; take-off needs approval |
+| ATCAPI | Tower admin creates and lists own-tower controllers |
+| InspectionAPI | Airport admin assigns; inspector lists and passes/fails the inspection |
+| MaintenanceAPI | Airline requests; provider admin assigns; technician lists and completes maintenance |
+
+Install the application JARs with the commands below after changing application code.
+Then run only the Cucumber suite from the repository root:
+
+```powershell
+.\mvnw.cmd -f integration-tests/pom.xml test '-Dtest=TestRunner'
+```
+
+You can also run the suite directly in IntelliJ IDEA:
+
+1. Load `integration-tests/pom.xml` as a Maven project if it is not already linked, then reload Maven projects.
+2. Open `src/test/java/runners/TestRunner.java` in this module and click the green Run arrow beside the class.
+3. In **Run > Edit Configurations**, check that the JUnit configuration uses the integration-test module's classpath and Java 17. Set its working directory to the `integration-tests` folder, because the runner's feature path is relative to that folder.
+4. Run `TestRunner`. Keep PostgreSQL running; the tests start their own application server.
+
+The same setup and cleanup hooks run through IntelliJ. The application JARs must be installed
+as described below after application changes. See [IntelliJ's Maven testing guide](https://www.jetbrains.com/help/idea/work-with-tests-in-maven.html).
+
+The suite uses the **existing PostgreSQL connection** in the local
+`src/test/resources/application.properties`. It validates the existing schema and never
+creates, drops or upgrades it. A `@Before` hook creates unique scenario records, and an
+`@After` hook removes those records and their bookings, crew, inspections, requests,
+control events and audit rows in a committed transaction, even after a failed step.
+Cleanup uses the scenario's exact emails, airline codes and generated IDs. It does not
+truncate tables, reset sequences or rely on rollback of HTTP requests. Each scenario logs
+its `cucumber-<UUID>` identifier for locating records if the JVM is forcibly stopped before
+cleanup. Keep this suite sequential and let it finish so its cleanup hook can run.
+
+These are HTTP API tests against a combined test context. They reuse the existing Identity
+and Maintenance adapters: role accounts log in through the real login endpoint and send
+bearer tokens, but cross-service calls stay in process. Email delivery and Kafka publishing
+use the existing test substitutes. Application seeders and scheduled jobs are disabled in
+the Cucumber context so they do not update unrelated database records. Separate application
+processes, real Feign transport, SMTP and Kafka delivery are outside this suite's coverage.
+
+Verified on 14 November 2026: all **14 scenarios / 109 steps passed** against the existing
+local PostgreSQL database. All 14 cleanup hooks completed. A separate read-only database
+check found no remaining Cucumber accounts, airlines, airplanes, airports, operators,
+providers or towers, and no audit rows for the scenario actors in the three audit tables.
+
+## Existing service fixtures
+
 These existing fixtures combine the applications in a Spring test context. They are kept here so an application's build does not compile another application's source code. This is a test project, not a service. Maintenance fixtures use small in-process client adapters and do not establish HTTP authentication, timeout, or failure-recovery behavior.
 
 They depend on the four applications' ordinary JARs. Each application also produces a runnable `-app.jar`. No application depends on this project or another application. The existing SSE fixtures use Aviation's real after-commit service and an in-process Kafka producer substitute calling Notification's delivery code. A mocked Kafka admin prevents broker connections during these fixtures. Their assertions still cover transaction timing and scoped delivery, but do not prove real Kafka transport. The old SSE Feign method and its fixture override have been removed; consumer processing has separate focused tests below.

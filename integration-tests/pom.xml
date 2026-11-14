@@ -10,7 +10,10 @@
     <groupId>com.ga</groupId>
     <artifactId>flight-system-integration-tests</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <properties><java.version>17</java.version></properties>
+    <properties>
+        <java.version>17</java.version>
+        <cucumber.version>8.0.4</cucumber.version>
+    </properties>
     <dependencies>
         <dependency><groupId>com.ga</groupId><artifactId>notification-service</artifactId><version>0.0.1-SNAPSHOT</version><scope>test</scope></dependency>
         <dependency><groupId>com.ga</groupId><artifactId>maintenance-service</artifactId><version>0.0.1-SNAPSHOT</version><scope>test</scope></dependency>
@@ -22,5 +25,9 @@
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-mail-test</artifactId><scope>test</scope></dependency>
         <dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency>
         <dependency><groupId>org.junit.vintage</groupId><artifactId>junit-vintage-engine</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-java</artifactId><version>${cucumber.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-junit</artifactId><version>${cucumber.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-spring</artifactId><version>${cucumber.version}</version><scope>test</scope></dependency>
+        <dependency><groupId>io.rest-assured</groupId><artifactId>rest-assured</artifactId><version>6.0.0</version><scope>test</scope></dependency>
     </dependencies>
 </project>
