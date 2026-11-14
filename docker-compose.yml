@@ -1,0 +1,169 @@
+name: sauds-flight-system
+
+services:
+  postgres_db:
+    image: postgres:18.6
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_DB: aviation
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      TZ: Asia/Bahrain
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aviation"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  kafka:
+    image: apache/kafka:4.1.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9092:9092"
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: HOST://:9092,INTERNAL://:29092,CONTROLLER://:29093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        - CMD
+        - /opt/kafka/bin/kafka-topics.sh
+        - --bootstrap-server
+        - kafka:29092
+        - --list
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  identity:
+    build:
+      context: .
+      args:
+        SERVICE: identity-service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      SERVER_PORT: 8081
+      APP_SEED_ENABLED: "false"
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres_db:5432/aviation}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-${POSTGRES_PASSWORD}}
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      NOTIFICATION_BASE_URL: http://notification:8084
+      NOTIFICATION_SERVICE_KEY: ${NOTIFICATION_SERVICE_KEY:?Set NOTIFICATION_SERVICE_KEY}
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+
+  aviation:
+    build:
+      context: .
+      args:
+        SERVICE: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      APP_SEED_ENABLED: "false"
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres_db:5432/aviation}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-${POSTGRES_PASSWORD}}
+      IDENTITY_BASE_URL: http://identity:8081
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      NOTIFICATION_BASE_URL: http://notification:8084
+      NOTIFICATION_SERVICE_KEY: ${NOTIFICATION_SERVICE_KEY:?Set NOTIFICATION_SERVICE_KEY}
+      MAINTENANCE_NOTIFICATION_SERVICE_KEY: ${MAINTENANCE_NOTIFICATION_SERVICE_KEY:?Set MAINTENANCE_NOTIFICATION_SERVICE_KEY}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_ADMIN_FAIL_FAST: "true"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?Set STRIPE_SECRET_KEY}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:?Set STRIPE_SUCCESS_URL}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:?Set STRIPE_CANCEL_URL}
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+
+  notification:
+    build:
+      context: .
+      args:
+        SERVICE: notification-service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8084:8084"
+    environment:
+      SERVER_PORT: 8084
+      IDENTITY_BASE_URL: http://identity:8081
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      NOTIFICATION_SERVICE_KEY: ${NOTIFICATION_SERVICE_KEY:?Set NOTIFICATION_SERVICE_KEY}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:?Set SPRING_MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:?Set SPRING_MAIL_PASSWORD}
+    depends_on:
+      kafka:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      aviation:
+        condition: service_healthy
+
+  maintenance:
+    build:
+      context: .
+      args:
+        SERVICE: maintenance-service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8083:8083"
+    environment:
+      SERVER_PORT: 8083
+      APP_SEED_ENABLED: "false"
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres_db:5432/aviation}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-${POSTGRES_PASSWORD}}
+      AVIATION_BASE_URL: http://aviation:8080
+      IDENTITY_BASE_URL: http://identity:8081
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      MAINTENANCE_NOTIFICATION_SERVICE_KEY: ${MAINTENANCE_NOTIFICATION_SERVICE_KEY:?Set MAINTENANCE_NOTIFICATION_SERVICE_KEY}
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      aviation:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  kafka_data:
