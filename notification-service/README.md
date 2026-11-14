@@ -67,9 +67,13 @@ Maintenance keeps its existing after-commit HTTP call to Aviation. Aviation reso
 - A successful listener return means a live dispatch attempt completed, not browser receipt. There may be no matching connections. Old delayed events can be delivered after circumstances change; clients should refresh authoritative state.
 - Existing business locks, audits and authorization remain in their owning applications.
 
+## Docker verification
+
+The complete local stack now runs through the root Compose file. See the [Docker setup and verification guide](../docs/DOCKER.md). On 14 November 2026, real-broker synthetic notifications were verified against authenticated HTTP SSE streams, including role/user filtering and duplicate suppression. This was not an actual activation-request workflow, password-login check, browser test, or outage-recovery test. The broader checks below remain useful acceptance scenarios.
+
 ## Manual checks
 
-The following Kafka/network checks remain to be run after broker setup. Earlier HTTP-based SSE checks on 12 November 2026 do not verify this Kafka path. Start a reachable broker and Aviation first so its topic bean can create the topic, then start Notification.
+The following full-workflow Kafka/network checks remain acceptance scenarios beyond the synthetic Docker smoke test. Earlier HTTP-based SSE checks on 12 November 2026 do not verify this Kafka path. When running services manually, start a reachable broker and Aviation first so its topic bean can create the topic, then start Notification. Compose handles this startup order automatically after the initial database restore.
 
 1. Login on 8081. Subscribe on 8084 with that token and confirm `connected` and heartbeat comments. Without a token expect 401; an invalid token must also be rejected.
 2. Trigger an airplane, crew or flight operation on Aviation. Confirm the same event and payload reach the intended user. Open an unrelated user's stream and confirm scoped events do not reach it. For activation requests, check the FAA admin audience.

@@ -4,6 +4,14 @@ Saud's Flight System is a Java REST API for flight booking, airline administrati
 
 The purpose is to connect three main users: customers who search and book flights, airline administrators who manage airplanes and schedules, and FAA administrators who review airplane activation requests. Maintenance providers and airport employees also manage maintenance requests and per-flight inspections. It is an educational project, with a wider aviation workflow planned in the ERD.
 
+## Run the complete application with Docker
+
+One reusable [Dockerfile](Dockerfile) builds separate Aviation, Identity, Maintenance, and Notification images. [Docker Compose](docker-compose.yml) runs those four applications with PostgreSQL and Kafka. Each image builds the shared `common` library first and packages only its selected executable application JAR. Local credentials and existing build output are excluded from the Docker build context.
+
+Follow the [Docker setup guide](docs/DOCKER.md) before the first startup: configure the ignored `.env`, start the database and broker, and restore a copy of the existing `aviation` database **before** starting the applications. An empty database is insufficient because the applications validate an existing schema; seeding stays disabled. The original Windows database remains separate and is not synchronized with the Docker copy.
+
+After that initial setup, use `docker compose up -d --build --wait`. Application ports remain 8080, 8081, 8083 and 8084; Docker PostgreSQL is available on localhost:5433 and Kafka on localhost:9092. Stop competing local application runs before using these ports. The guide also covers persistence, verification, and environment-specific configuration for a later managed PostgreSQL deployment.
+
 ## Shared library
 
 All four services depend on the [common library](common/README.md), organized into `security`, `web`, and `events` packages. It replaces `common-security` and `common-web` while preserving their existing Java package names.
