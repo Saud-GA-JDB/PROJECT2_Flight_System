@@ -37,11 +37,3 @@ build/
 /docs/WORKFLOW-COMPLETION-PLAN.md
 /microservice-plan.md
 /kafka-plan.md
-
-# Local Docker settings and data
-/.env
-/.env.*
-!/.env.example
-/backups/
-/uploads/
-**/src/main/resources/application.properties
