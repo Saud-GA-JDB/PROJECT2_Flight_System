@@ -2,6 +2,8 @@
 
 The system has four independently runnable services. Aviation, Identity, and Maintenance share PostgreSQL but own different tables. Notification has no database. `common` is a shared library, not a service.
 
+Aviation, Identity, and Maintenance use the `public` schema in the shared `aviation` PostgreSQL database. Each service manages its own tables and obtains other services' information through APIs rather than directly accessing their tables. Ownership is enforced by application design, not separate schemas or database permissions. Notification has no database or schema.
+
 | Service | Responsibility and reason for the boundary | Data owned | Main APIs |
 | --- | --- | --- | --- |
 | **Identity — 8081** | Centralizes registration, login, JWT authentication, passwords, profiles, and employee accounts so all services use consistent account management. | Users, profiles, pending registrations, identity audit logs. | `/auth/users/*`; `/internal/identity/*` for authentication, account/profile lookups, and employee provisioning. |

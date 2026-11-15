@@ -4,7 +4,7 @@ Notification is a separate Spring Boot application on **8084**. It owns the exis
 
 Notification has no database entities or repositories: Identity, Aviation and Maintenance continue using the one existing PostgreSQL database. SMTP is configured only here; callers keep their recipient lookup and message wording.
 
-**Kafka migration status (13 November 2026):** Aviation publishes live notification events to `aviation-notification-topic` after commit. This service's `KafkaConsumer` processes them and dispatches to matching SSE connections. The old internal SSE HTTP endpoint has been removed. Email continues through Feign. Docker broker setup and live-broker verification are pending; see the [Kafka documentation](../README.md#kafka-notifications).
+**Kafka migration status (14 November 2026):** Aviation publishes live notification events to `aviation-notification-topic` after commit. This service's `KafkaConsumer` processes them and dispatches to matching SSE connections. The old internal SSE HTTP endpoint has been removed. Email continues through Feign. Docker broker setup and synthetic real-broker-to-SSE checks are complete; see [Docker verification](#docker-verification) for coverage and remaining checks, and the [Kafka documentation](../README.md#kafka-notifications) for configuration.
 
 ## Setup
 
@@ -18,7 +18,7 @@ Configure these values in the run configurations:
 | `IDENTITY_SERVICE_KEY` | Notification, matching Identity's existing key | Authenticates SSE subscribers through Identity |
 | `IDENTITY_BASE_URL` | Notification, default `http://localhost:8081` | Identity address |
 | `NOTIFICATION_BASE_URL` | Aviation and Identity, default `http://localhost:8084` | Delivery address |
-| `KAFKA_BOOTSTRAP_SERVERS` | Aviation and Notification, default `localhost:9092` | Kafka broker address; future containers use `kafka:29092` |
+| `KAFKA_BOOTSTRAP_SERVERS` | Aviation and Notification, default `localhost:9092` | Kafka broker address; Docker Compose sets `kafka:29092` |
 | `SPRING_MAIL_HOST`, `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | Notification only | SMTP connection and sender |
 
 This checkout's local Notification properties reuse Aviation's existing Identity connection settings. The example file uses environment variables. The new notification key is separate from `MAINTENANCE_NOTIFICATION_SERVICE_KEY`, which still protects Maintenance -> Aviation. Neither key is sent by normal SSE subscribers. A missing/wrong delivery key rejects delivery. Aviation logs the failure after commit; Identity returns 503 and rolls back verification/reset changes.
@@ -73,7 +73,9 @@ The complete local stack now runs through the root Compose file. See the [Docker
 
 ## Manual checks
 
-The following full-workflow Kafka/network checks remain acceptance scenarios beyond the synthetic Docker smoke test. Earlier HTTP-based SSE checks on 12 November 2026 do not verify this Kafka path. When running services manually, start a reachable broker and Aviation first so its topic bean can create the topic, then start Notification. Compose handles this startup order automatically after the initial database restore.
+On 15 November 2026, the [Docker Cucumber notification test](../integration-tests/README.md#docker-cucumber-notification-test) also passed with real password login and an actual airplane activation request delivered to the connected FAA admin through Kafka and SSE. Temporary database records were cleaned up.
+
+The following checks cover broader Kafka/network behavior beyond that single successful workflow and the earlier synthetic smoke test. Earlier HTTP-based SSE checks on 12 November 2026 do not verify this Kafka path. When running services manually, start a reachable broker and Aviation first so its topic bean can create the topic, then start Notification. Compose handles this startup order automatically after the initial database restore.
 
 1. Login on 8081. Subscribe on 8084 with that token and confirm `connected` and heartbeat comments. Without a token expect 401; an invalid token must also be rejected.
 2. Trigger an airplane, crew or flight operation on Aviation. Confirm the same event and payload reach the intended user. Open an unrelated user's stream and confirm scoped events do not reach it. For activation requests, check the FAA admin audience.

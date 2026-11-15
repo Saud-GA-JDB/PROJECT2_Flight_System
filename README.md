@@ -81,9 +81,11 @@ See [Notification setup and manual checks](notification-service/README.md) for S
 
 ## Kafka notifications
 
+When an airline admin requests airplane activation, Aviation commits the request and publishes `airplane-activation-requested` to Kafka. Notification consumes it and alerts connected FAA admins through SSE. This separates saving the business request from live notification delivery, allowing Notification to process accepted events independently.
+
 Aviation now sends all existing live notification events through `producer/KafkaProducer.java`, after the business transaction commits. Rollback publishes nothing. The existing `sendToUser` and `sendToRole` calls preserve their audiences and event names. Email still uses Feign.
 
-The producer and consumer Java code are implemented. The old internal SSE HTTP endpoint and request DTOs have been removed. **Docker broker setup and real-broker verification are still pending.** Running this flow requires a reachable Kafka broker and the configured topic.
+The producer and consumer Java code are implemented. The old internal SSE HTTP endpoint and request DTOs have been removed. Docker Compose runs Kafka with the four applications. On 14 November 2026, real-broker synthetic events reached authenticated HTTP SSE streams, with user/role filtering and duplicate suppression verified. See the [Docker verification record](docs/DOCKER.md#verification-on-14-november-2026) for coverage and remaining checks.
 
 | Setting | Value |
 | --- | --- |
@@ -117,7 +119,7 @@ Run one Notification instance because SSE connections are process-local. Kafka r
 
 `config/KafkaTopicConfig.java` declares the topic. With a reachable broker, Boot's Kafka admin creates it on startup. If the broker is unavailable at startup, creation is not guaranteed until initialization is retried or Aviation is restarted with the broker available. The bean specifies settings for topic creation; do not assume it overwrites a pre-existing topic's retention settings.
 
-Both configurations use `kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}` and pass that value to `spring.kafka.bootstrap-servers`. A later container setup will use `KAFKA_BOOTSTRAP_SERVERS=kafka:29092`. Aviation uses string serializers, `acks=all`, idempotence, a two-second maximum send-block wait, and a 30-second delivery timeout. `send` returns a future: only its completion logs success. Failure logs contain notification identifiers and the error type; the default payload-logging producer listener is disabled in Aviation's local and example configuration.
+Both configurations use `kafka.bootstrap-servers=${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}` and pass that value to `spring.kafka.bootstrap-servers`. Docker Compose sets `KAFKA_BOOTSTRAP_SERVERS=kafka:29092` for Aviation and Notification. Aviation uses string serializers, `acks=all`, idempotence, a two-second maximum send-block wait, and a 30-second delivery timeout. `send` returns a future: only its completion logs success. Failure logs contain notification identifiers and the error type; the default payload-logging producer listener is disabled in Aviation's local and example configuration.
 
 Immediate or asynchronous publication failure is logged without failing an already committed business operation. There is no persistent retry queue or outbox: a crash between commit and publishing, or an exhausted send, can lose a notification. Idempotence addresses broker retries, not database/Kafka atomicity. Retention does not provide an offline inbox for admins.
 
@@ -525,7 +527,9 @@ Use the same token in Swagger's **Authorize** dialog. Raw documentation is avail
 
 ### Testing
 
-Cross-application service fixtures are now in [integration-tests](integration-tests/README.md). Install both applications locally before compiling or running those fixtures; neither application's build includes the other's source files.
+Cross-application service fixtures are now in [integration-tests](integration-tests/README.md). Install the four application JARs locally before compiling or running those fixtures; application builds do not include other applications' source files.
+
+The separate [Docker Cucumber notification test](integration-tests/README.md#docker-cucumber-notification-test) verifies an actual airplane activation request through Identity, Aviation, Kafka and Notification's SSE stream. It passed against the local Docker stack on 15 November 2026 and cleans up its temporary database records.
 
 Some older service tests depend on seeded PostgreSQL fixtures, and some send real email. Use a dedicated seeded test database and working SMTP settings. Follow the [test setup and fixture notes](docs/API-GUIDE.md#database-seeding) before running the service suite. Manual changes to fixtures can affect results.
 

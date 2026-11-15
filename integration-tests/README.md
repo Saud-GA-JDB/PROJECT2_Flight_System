@@ -59,6 +59,38 @@ local PostgreSQL database. All 14 cleanup hooks completed. A separate read-only 
 check found no remaining Cucumber accounts, airlines, airplanes, airports, operators,
 providers or towers, and no audit rows for the scenario actors in the three audit tables.
 
+Re-run on 15 November 2026 after adding the separate Docker runner: all 14 scenarios / 109 steps passed again, with all scenario cleanup hooks completed.
+
+## Docker Cucumber notification test
+
+`dockerbdd/runners/DockerTestRunner` runs one scenario from `resources/docker-features/NotificationAPI.feature`: an airline admin requests airplane activation and an FAA admin receives the matching SSE notification through real Kafka. It follows the existing JUnit 4 runner, Gherkin, REST Assured and `Assert` style. Java's HTTP client reads the SSE stream.
+
+Start the local stack using the [Docker guide](../docs/DOCKER.md), and install the application JARs using the commands below before compiling the tests. The fixture database must be the same local test database used by those containers. Run from the repository root:
+
+```powershell
+$env:DOCKER_TEST_DATABASE_PASSWORD = 'YOUR_DOCKER_DATABASE_PASSWORD'
+.\mvnw.cmd -f integration-tests/pom.xml test '-Dtest=dockerbdd.runners.DockerTestRunner'
+```
+
+Supply the password through the shell or IDE environment; do not commit it. This runner does not load the root `.env` automatically.
+
+| Environment variable | Default |
+| --- | --- |
+| `DOCKER_TEST_DATABASE_URL` | `jdbc:postgresql://localhost:5433/aviation` |
+| `DOCKER_TEST_DATABASE_USERNAME` | `postgres` |
+| `DOCKER_TEST_DATABASE_PASSWORD` | Required: local Docker database password |
+| `DOCKER_TEST_IDENTITY_URL` | `http://localhost:8081` |
+| `DOCKER_TEST_AVIATION_URL` | `http://localhost:8080` |
+| `DOCKER_TEST_NOTIFICATION_URL` | `http://localhost:8084` |
+
+The small Spring configuration supplies only JDBC fixture setup/cleanup; it does not start an application or substitute Kafka/Feign. A setup transaction creates two active test accounts, their profiles, an airline/admin membership and a grounded airplane. Requests log in through Identity and request activation through Aviation. The test waits for SSE connection confirmation before submitting, then checks HTTP 201, the `airplane-activation-requested` event, matching request/airplane IDs, registration number and `PENDING` status. Event waiting is bounded to 15 seconds after the HTTP assertions.
+
+The `@After` hooks close the SSE stream and remove only the scenario's database records, including audits and the activation request, even after a failed step. Setup failures roll back. Forced process termination can prevent cleanup; the unique `docker-cucumber-<UUID>` marker is printed for recovery. No schema changes or general seeding occur. The normal activation email path still runs, using a temporary `.invalid` address; SMTP delivery is not asserted. Kafka retains the test event according to topic retention, and connected FAA admins can receive this test notification.
+
+Run this only against local test services and data. The runner and glue are separate from the original 14 scenarios; `DockerTestRunner` is explicitly selected and is not included by Maven's default test-name patterns. Missing configuration or unavailable services fail the test rather than silently skipping it.
+
+Verified on 15 November 2026: the scenario passed against the running Docker services with real Identity login, HTTP service communication, Kafka publication/consumption and SSE delivery. Producer and consumer logs contained the same event ID. Cleanup completed, and an independent database check found no remaining test accounts, airline or airplane. This covers the successful workflow, not broker outages, overload, browser rendering, SMTP delivery or AWS deployment.
+
 ## Existing service fixtures
 
 These existing fixtures combine the applications in a Spring test context. They are kept here so an application's build does not compile another application's source code. This is a test project, not a service. Maintenance fixtures use small in-process client adapters and do not establish HTTP authentication, timeout, or failure-recovery behavior.
@@ -90,7 +122,9 @@ The Kafka checks cover after-commit versus rollback behavior, immediate publicat
 
 Consumer checks cover string/structured payload routing, validation, duplicate suppression, retry after a failed dispatch, retry exhaustion, logged skipping, and fan-out to two mock FAA admin emitters while excluding an unrelated user. A test-only bean post-processor prevents annotation listeners from starting in context checks; the production listener needs no `autoStartup` option. `KafkaRecordCommitTest` runs the real listener container against Kafka's `MockConsumer`, holding dispatch with a latch and checking that the record offset commits only after dispatch returns.
 
-On 13 November 2026, all 42 selected checks passed (32 Kafka checks and 10 existing email checks), and all 28 integration-test source files compiled. Aviation and Notification clean builds and installs passed. These tests use mocks, a small non-web context, or a simulated consumer: no database, real broker, SMTP server, or application processes. Actual topic creation/retention, broker recovery, network/browser fan-out, and the database-dependent suite remain unverified in this stage.
+On 13 November 2026, all 42 selected checks passed (32 Kafka checks and 10 existing email checks), and all 28 integration-test source files compiled. Aviation and Notification clean builds and installs passed. These tests use mocks, a small non-web context, or a simulated consumer: no database, real broker, SMTP server, or application processes.
+
+Separate Docker checks on 14 November 2026 verified topic creation and retention settings, synthetic real-broker delivery to authenticated HTTP SSE streams, user/role filtering, and duplicate suppression. See the [Docker verification record](../docs/DOCKER.md#verification-on-14-november-2026). Browser delivery, broker-outage recovery, and an actual activation-request workflow were not exercised by those checks. The database-backed Cucumber results are recorded above; they use in-process service adapters and substitute Kafka delivery.
 
 Local fixture settings belong in `src/test/resources/application.properties` (ignored by Git). Use `application-example.properties` as a starting point for another checkout and configure `jwt-secret`/`jwt-expiration-ms` for the Identity fixtures. Select a test database before executing these tests.
 

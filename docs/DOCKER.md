@@ -114,6 +114,28 @@ docker compose stop
 
 Inspect logs locally before sharing them; application logs may contain account or operational details.
 
+## Monitoring and logging
+
+Run these commands from the repository root:
+
+```powershell
+# Follow application logs
+docker compose logs --follow --tail 100 aviation identity maintenance notification
+
+# Inspect running, stopped, and unhealthy containers
+docker compose ps --all
+
+# Inspect Kafka broker logs
+docker compose logs --tail 100 kafka
+
+# Check consumer progress and backlog
+docker compose exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:29092 --describe --group notification-group
+```
+
+Application logs include business actions and failure warnings. Aviation logs Kafka publication results; Notification logs dispatch and skipped messages. Match `eventId` values when available. Consumer `LAG` shows records not yet committed; sustained growth warrants investigation.
+
+For a failed service, inspect its status and recent logs. Current health checks confirm application responsiveness, not every downstream dependency. Monitoring is manual: no centralized log collection, automated alerts, or AWS CloudWatch integration is configured.
+
 ## Persistence and shutdown
 
 The `postgres_data` and `kafka_data` named volumes survive ordinary container recreation and `docker compose down`. Profile files persist in root `uploads/`. Do not run `docker compose down -v` unless intentionally deleting the Docker database and Kafka data. Changing `POSTGRES_PASSWORD` in `.env` does not change the password of an already initialized PostgreSQL volume.
@@ -121,6 +143,8 @@ The `postgres_data` and `kafka_data` named volumes survive ordinary container re
 The PostgreSQL health check only establishes server readiness; it does not establish that the aviation schema has been restored. The restore step is deliberately manual and runs only for a fresh destination. Startup must not automatically replay a dump into an existing database.
 
 ## Later managed PostgreSQL deployment
+
+Amazon RDS for PostgreSQL is the planned deployment target; it has not been deployed as part of the local Docker setup.
 
 The three database-backed images already accept `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`. A deployed environment can point those settings to managed PostgreSQL such as RDS without changing Java business code. Provision/import the database, configure private network access, supply secrets through the deployment environment, and configure certificate-verified TLS as required there.
 
@@ -137,6 +161,12 @@ This Compose file is the local development stack and still starts/depends on its
 - The existing focused Kafka/email suite passed 42 tests with no failures, errors, or skips.
 
 These checks did not trigger an actual airplane-activation business operation, send SMTP email, call Stripe, verify broker-outage recovery, or execute the full database-dependent/Cucumber suites. Those checks remain separate from container startup and the synthetic Kafka-to-SSE smoke test. The ignored local verification script and test log are under `backups/`; they are not required to run the application.
+
+## Docker Cucumber workflow verification on 15 November 2026
+
+The [Docker Cucumber notification test](../integration-tests/README.md#docker-cucumber-notification-test) passed against the running stack. It logged in through Identity, submitted an actual airplane activation request through Aviation, and received the matching `airplane-activation-requested` event over Notification's SSE stream through real Kafka. Producer and consumer logs shared the same event ID. The SSE stream closed and temporary database records were removed; a separate database check confirmed cleanup.
+
+This adds business-workflow and password-login coverage to the earlier synthetic checks. It does not verify SMTP delivery, browser rendering, broker-outage recovery, overload or AWS deployment. See the linked guide for configuration and the explicit runner command.
 
 ## References
 
