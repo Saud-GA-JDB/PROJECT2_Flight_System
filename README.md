@@ -61,6 +61,8 @@ In IntelliJ, unlink the two old common modules, link `common/pom.xml`, and reloa
 
 ## Architecture
 
+See [Service boundaries](docs/SERVICE-BOUNDARIES.md) for each service's responsibility, rationale, APIs, data ownership, and synchronous or asynchronous communication.
+
 The backend now has four Spring Boot applications. Identity, Aviation, and Maintenance share the existing PostgreSQL database; Notification currently keeps only live SSE connections and needs no database:
 
 | Application | Port | Owns |
