@@ -13,8 +13,9 @@ import com.ga.common.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -24,6 +25,7 @@ public class AirlineService {
     private AirlineRepository airlineRepository;
     private AuditLogService auditLogService;
     private CurrentActorProvider currentActorProvider;
+    private AirlineCacheService airlineCacheService;
 
     private static final Logger logger = Logger.getLogger(AirlineService.class.getName());
 
@@ -60,6 +62,14 @@ public class AirlineService {
         String description = "FAA admin created airline with id " + savedAirline.getId();
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_CREATED, AuditLog.EntityType.AIRLINE, savedAirline.getId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        airlineCacheService.evictAirlines();
+                    }
+                }
+        );
         return new AirlineResponse(savedAirline.getId(), savedAirline.getName(), savedAirline.getAirlineCode(), savedAirline.getHeadquartersCountry());
     }
     public List<AirlineResponse> getAllAirlines() {
@@ -67,12 +77,6 @@ public class AirlineService {
         if (!"FAA_ADMIN".equals(actor.role()))
             throw new IllegalEndpoint("You are not allowed this endpoint");
 
-        List<AirlineResponse> response = new ArrayList<>();
-
-        for (Airline airline : airlineRepository.findAll()) {
-            response.add(new AirlineResponse(airline.getId(), airline.getName(), airline.getAirlineCode(), airline.getHeadquartersCountry()));
-        }
-
-        return response;
+        return airlineCacheService.getAllAirlines();
     }
 }
