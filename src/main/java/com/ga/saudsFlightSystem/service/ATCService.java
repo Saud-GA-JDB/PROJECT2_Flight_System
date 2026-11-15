@@ -26,6 +26,8 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Locale;
 import java.util.ArrayList;
@@ -47,6 +49,7 @@ public class ATCService {
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
     private AuditLogService auditLogService;
+    private ATCCacheService atcCacheService;
 
     private static final Logger logger = Logger.getLogger(ATCService.class.getName());
 
@@ -69,6 +72,14 @@ public class ATCService {
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIR_NAVIGATION_PROVIDER_CREATED,
                 AuditLog.EntityType.AIR_NAVIGATION_PROVIDER, provider.getId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        atcCacheService.evictProviders();
+                    }
+                }
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(providerResponse(provider));
     }
 
@@ -76,11 +87,8 @@ public class ATCService {
     public ResponseEntity<ProviderListResponse> getProviders(int page, int size) {
         requireFAAAdmin();
         validatePagination(page, size);
-        List<ProviderResponse> content = new ArrayList<>();
-        for (AirNavigationServiceProvider provider : providerRepository.findProviders(size, (long) page * size))
-            content.add(providerResponse(provider));
-        long totalElements = providerRepository.count();
-        return ResponseEntity.ok(new ProviderListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
+
+        return ResponseEntity.ok(atcCacheService.getProviders(page, size));
     }
 
     @Transactional
@@ -111,21 +119,32 @@ public class ATCService {
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.CONTROL_FACILITY_CREATED,
                 AuditLog.EntityType.CONTROL_FACILITY, facility.getId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        atcCacheService.evictFacilities();
+                    }
+                }
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(facilityResponse(facility));
     }
 
     @Transactional
-    public ResponseEntity<FacilityListResponse> getFacilities(Long providerId, int page, int size) {
+    public ResponseEntity<FacilityListResponse> getFacilities(
+            Long providerId, int page, int size) {
         requireFAAAdmin();
         checkId(providerId);
         validatePagination(page, size);
+
         if (!providerRepository.existsById(providerId))
-            throw new InformationNotFoundException("Couldn't find an air navigation provider with this ID.");
-        List<FacilityResponse> content = new ArrayList<>();
-        for (ControlFacility facility : facilityRepository.findByProviderId(providerId, size, (long) page * size))
-            content.add(facilityResponse(facility));
-        long totalElements = facilityRepository.countByProvider_Id(providerId);
-        return ResponseEntity.ok(new FacilityListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
+            throw new InformationNotFoundException(
+                    "Couldn't find an air navigation provider with this ID."
+            );
+
+        return ResponseEntity.ok(
+                atcCacheService.getFacilities(providerId, page, size)
+        );
     }
 
     @Transactional

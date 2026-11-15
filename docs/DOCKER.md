@@ -14,7 +14,7 @@ Run commands from the repository root in PowerShell. Docker Desktop must be runn
 | `kafka` | Single KRaft broker/controller | `localhost:9092` |
 | `redis` | Disposable Aviation cache | `localhost:6379` |
 
-Aviation caches the FAA airline list in Redis. Successful airline creation clears the cached list after the database transaction commits. The list also expires after ten minutes as a fallback and is cleared when Aviation finishes starting. Redis failures are logged and reads fall back to PostgreSQL. For local application runs, start Redis with `docker compose up -d redis`.
+Aviation caches the FAA airline list, navigation-provider pages, and control-facility pages in Redis. Successful creation clears the corresponding cache after the database transaction commits. Creating a provider clears all provider pages; creating a facility clears all facility pages across providers. Cached entries expire after ten minutes as a fallback and are cleared when Aviation finishes starting. Authorization and request validation run before cached reads. Redis failures are logged and reads fall back to PostgreSQL. For local application runs, start Redis with `docker compose up -d redis`.
 
 All published ports bind to loopback. Stop existing applications or other containers using these ports first. The original Windows PostgreSQL can remain on port 5432.
 
