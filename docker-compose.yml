@@ -1,6 +1,34 @@
 name: sauds-flight-system
 
 services:
+  gateway:
+    build:
+      context: .
+      args:
+        SERVICE: gateway-service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8085:8085"
+    environment:
+      SERVER_PORT: 8085
+      IDENTITY_BASE_URL: http://identity:8081
+      AVIATION_BASE_URL: http://aviation:8080
+      MAINTENANCE_BASE_URL: http://maintenance:8083
+      NOTIFICATION_BASE_URL: http://notification:8084
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --max-time
+        - "4"
+        - http://localhost:8085/actuator/health
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+
   redis:
     image: redis:8.2-alpine
     restart: unless-stopped

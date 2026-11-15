@@ -6,17 +6,17 @@ The purpose is to connect three main users: customers who search and book flight
 
 ## Run the complete application with Docker
 
-One reusable [Dockerfile](Dockerfile) builds separate Aviation, Identity, Maintenance, and Notification images. [Docker Compose](docker-compose.yml) runs those four applications with PostgreSQL and Kafka. Each image builds the shared `common` library first and packages only its selected executable application JAR. Local credentials and existing build output are excluded from the Docker build context.
+One reusable [Dockerfile](Dockerfile) builds separate Gateway, Aviation, Identity, Maintenance, and Notification images. [Docker Compose](docker-compose.yml) runs them with PostgreSQL, Kafka, and Redis. Each image builds the shared `common` library first and packages only its selected executable application JAR. Local credentials and existing build output are excluded from the Docker build context.
 
 Follow the [Docker setup guide](docs/DOCKER.md) before the first startup: configure the ignored `.env`, start the database and broker, and restore a copy of the existing `aviation` database **before** starting the applications. An empty database is insufficient because the applications validate an existing schema; seeding stays disabled. The original Windows database remains separate and is not synchronized with the Docker copy.
 
-After that initial setup, use `docker compose up -d --build --wait`. Application ports remain 8080, 8081, 8083 and 8084; Docker PostgreSQL is available on localhost:5433 and Kafka on localhost:9092. Stop competing local application runs before using these ports. The guide also covers persistence, verification, and environment-specific configuration for a later managed PostgreSQL deployment.
+After that initial setup, use `docker compose up -d --build --wait`. Clients use **`http://localhost:8085`** with existing API paths, including `/auth/users/login` and `/notifications`. The gateway routes requests to the four services, preserves their authentication checks, and does not expose `/internal/**`. Direct service ports 8080, 8081, 8083 and 8084 remain available locally for debugging and Swagger; PostgreSQL uses localhost:5433 and Kafka localhost:9092. Stop competing local application runs before using these ports.
 
 ## Shared library
 
-All four services depend on the [common library](common/README.md), organized into `security`, `web`, and `events` packages. It replaces `common-security` and `common-web` while preserving their existing Java package names.
+The four backend services depend on the [common library](common/README.md), organized into `security`, `web`, and `events` packages. The gateway is independent. The library replaces `common-security` and `common-web` while preserving their existing Java package names.
 
-Build it from the repository root before building any service:
+Build it from the repository root before building a backend service:
 
 ```powershell
 .\mvnw.cmd -f common/pom.xml install
@@ -63,10 +63,11 @@ In IntelliJ, unlink the two old common modules, link `common/pom.xml`, and reloa
 
 See [Service boundaries](docs/SERVICE-BOUNDARIES.md) for each service's responsibility, rationale, APIs, data ownership, and synchronous or asynchronous communication.
 
-The backend now has four Spring Boot applications. Identity, Aviation, and Maintenance share the existing PostgreSQL database; Notification currently keeps only live SSE connections and needs no database:
+The backend has four Spring Boot services behind a Spring Cloud Gateway application. Identity, Aviation, and Maintenance share the existing PostgreSQL database; Notification and Gateway need no database:
 
 | Application | Port | Owns |
 | --- | --- | --- |
+| Gateway | 8085 | Client entry point and HTTP routing |
 | Identity | 8081 | Accounts, profiles, registration, passwords, JWT authentication, identity audit logs |
 | Flight system | 8080 | Aviation employees and operations, bookings, payments and operational audit logs |
 | Maintenance | 8083 | Maintenance providers, contracts, employees, work records and maintenance audit logs |
@@ -149,7 +150,8 @@ After starting the application:
 
 These are local development links, not hosted documentation. `localhost` means the computer opening the link, so the backend must be running on that computer at port 8080. If the browser reports a refused connection, start the application using the installation steps below and keep it running. GitHub does not host these pages; another developer must run their own local instance. The YAML endpoint may download a file instead of displaying a page.
 
-- Flight API base URL: `http://localhost:8080`
+- Gateway API base URL (all business services): `http://localhost:8085`
+- Direct Flight API base URL: `http://localhost:8080`
 - Identity API and login: `http://localhost:8081`
 - Maintenance API: `http://localhost:8083`
 - [Maintenance Swagger UI](http://localhost:8083/swagger-ui/index.html)

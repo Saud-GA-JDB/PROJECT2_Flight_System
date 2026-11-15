@@ -6,6 +6,7 @@ Run commands from the repository root in PowerShell. Docker Desktop must be runn
 
 | Compose service | Purpose | Host address |
 | --- | --- | --- |
+| `gateway` | Client API entry point | `http://localhost:8085` |
 | `aviation` | Root Spring Boot application | `http://localhost:8080` |
 | `identity` | Accounts, authentication, profiles | `http://localhost:8081` |
 | `maintenance` | Maintenance workflows | `http://localhost:8083` |
@@ -18,11 +19,17 @@ Aviation caches the FAA airline list, navigation-provider pages, and control-fac
 
 All published ports bind to loopback. Stop existing applications or other containers using these ports first. The original Windows PostgreSQL can remain on port 5432.
 
-The root Dockerfile builds `common` and the application selected by its `SERVICE` argument. Each final image contains one executable `*-app.jar`; `common` is a library inside that JAR, not another container. Maven tests are skipped during image packaging and are run separately when validating changes.
+The root Dockerfile builds `common` and the application selected by its `SERVICE` argument. Each final image contains one executable `*-app.jar`; the four backend services include `common`, while Gateway is independent. Maven tests are skipped during image packaging and are run separately when validating changes.
 
 The build uses the checked-in `application-example.properties` as its application configuration. `.dockerignore` excludes local properties, `.env`, build output, uploads and backups. Runtime credentials are supplied through Compose's explicit `environment` entries. Reading `.env` for interpolation does not automatically inject every variable into every container. Do not put credentials into Docker build arguments or commit the local `.env`.
 
-The containers use Asia/Bahrain as their JVM timezone because existing flight rules use local date/time values. The API-documentation health check establishes that the application responds; it does not prove SMTP, Stripe, or every downstream operation works.
+The containers use Asia/Bahrain as their JVM timezone because existing flight rules use local date/time values. Gateway uses `/actuator/health`; other applications use API-documentation health checks. These establish that each application responds, not that every downstream operation works.
+
+### Gateway
+
+With the backend running, use `docker compose up -d --build --wait gateway`. Send requests to `http://localhost:8085` using existing paths. `/auth/users/**` goes to Identity, maintenance endpoints to Maintenance (before overlapping Aviation admin routes), `/notifications` to Notification, and other configured business paths to Aviation. Tokens pass through to existing service security; `/internal/**` is not routed. Swagger remains on the direct service ports.
+
+For an IDE/local run, copy `gateway-service/src/main/resources/application-example.properties` to `application.properties` in the same directory, then run `.\mvnw.cmd -f gateway-service/pom.xml spring-boot:run`. Defaults use localhost; Compose supplies Docker service addresses. Check `http://localhost:8085/actuator/health`. The gateway can start independently of the backends. EC2 HTTPS and public exposure are deployment configuration, not enabled here.
 
 ## 1. Configure local settings
 
@@ -34,7 +41,7 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 
 Fill every empty credential field. Use this project's existing JWT key, service keys, Stripe sandbox configuration, and SMTP account where applicable. `JWT_SECRET` must be Base64 encoding of at least 32 random bytes. Set a password for the new Docker PostgreSQL instance; it need not match the original database password. Keep the same service-key value wherever that key is used.
 
-Keep Stripe success/cancel URLs browser-accessible, usually on localhost:8080 for this setup. Internal service calls use Compose names such as `http://identity:8081`, and Kafka clients inside containers use `kafka:29092`. These addresses are distinct from browser/host addresses.
+Keep Stripe success/cancel URLs browser-accessible, preferably `http://localhost:8085/payments/success` and `http://localhost:8085/payments/cancel` when using the gateway. Internal service calls use Compose names such as `http://identity:8081`, and Kafka clients inside containers use `kafka:29092`. These addresses are distinct from browser/host addresses.
 
 Single-quote `.env` values containing `$` so Compose does not interpolate them. Validate without printing resolved secrets:
 
