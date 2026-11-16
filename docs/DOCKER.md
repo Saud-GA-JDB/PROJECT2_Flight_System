@@ -31,6 +31,22 @@ With the backend running, use `docker compose up -d --build --wait gateway`. Sen
 
 For an IDE/local run, copy `gateway-service/src/main/resources/application-example.properties` to `application.properties` in the same directory, then run `.\mvnw.cmd -f gateway-service/pom.xml spring-boot:run`. Defaults use localhost; Compose supplies Docker service addresses. Check `http://localhost:8085/actuator/health`. The gateway can start independently of the backends. EC2 HTTPS and public exposure are deployment configuration, not enabled here.
 
+### Frontend CORS
+
+The gateway allows browser calls from the origins listed in `FRONTEND_ORIGINS`. The default is `http://localhost:5173,http://localhost:3000`. Setting the variable replaces the defaults. Use comma-separated exact origins without paths or trailing slashes.
+
+To configure browser access:
+
+1. Add `FRONTEND_ORIGINS` to the backend's existing `.env`. For local development, use your frontend's actual origin. For EC2 deployment, use the address users visit for the S3-hosted frontend, such as its CloudFront/custom-domain origin: `FRONTEND_ORIGINS=https://app.example.com` (example only).
+2. Run `docker compose config --quiet` to validate Compose without printing credentials.
+3. With the backend services running, apply the gateway configuration using `docker compose up -d --build --wait gateway`.
+4. Configure the frontend's API base URL as the gateway URL: locally `http://localhost:8085`, or the deployed public HTTPS address. Continue sending JWTs in the `Authorization` header. Do not enable cross-origin cookies with `credentials: "include"`.
+5. Check a login or authenticated request from the frontend in the browser's Network panel. Preflight requests should succeed, and responses should contain `Access-Control-Allow-Origin` matching the frontend origin. An actual protected request without a valid JWT should still return `401`.
+
+The gateway handles preflight `OPTIONS` requests; protected API requests retain their existing authentication and authorization. If you run Gateway directly from an IDE, configure `FRONTEND_ORIGINS` in that process's environment rather than relying on Compose's `.env`.
+
+The Compose gateway port remains bound to `127.0.0.1:8085`. A public EC2 deployment needs an HTTPS entry point that forwards to it, for example a reverse proxy on the EC2 host. The frontend and API browser-facing URLs should both use HTTPS in deployment. Changing an S3 bucket's CORS settings does not configure this API's CORS.
+
 ## 1. Configure local settings
 
 For a new checkout, copy the template without overwriting an existing `.env`:

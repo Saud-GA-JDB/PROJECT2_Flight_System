@@ -44,7 +44,13 @@ Every paged response has `{content: T[], page, size, totalElements, totalPages}`
 
 ### Browser access and interactive API docs
 
-No CORS configuration is currently present in the gateway or application code. A React app served on another port/origin needs a development proxy or backend/deployment CORS configuration before direct browser requests will work. A same-origin `/api` proxy example appears below; that prefix belongs to the frontend proxy, not the backend.
+The gateway handles CORS for browser requests. `FRONTEND_ORIGINS` is a comma-separated list of exact allowed frontend origins (protocol, hostname and port, without paths or trailing slashes). It defaults to `http://localhost:5173,http://localhost:3000`. Setting it replaces those defaults. All browser API calls should go through the gateway.
+
+Allowed methods are `GET`, `POST`, `PUT`, `DELETE` and `OPTIONS`; allowed request headers are `Authorization`, `Content-Type` and `Accept`. The gateway handles preflight requests without a JWT. Actual protected requests still require `Authorization: Bearer <token>`. Cross-origin cookies are not enabled; the frontend should not use `credentials: "include"`. Successful preflight permission may be cached for up to one hour.
+
+For the S3-hosted frontend calling the EC2 API, set `FRONTEND_ORIGINS` to the frontend address users actually visit (its custom domain or CloudFront origin). For example, `FRONTEND_ORIGINS=https://app.example.com`. The frontend's API base URL must point to the public HTTPS gateway address, for example `https://api.example.com`, using the existing endpoint paths without an `/api` prefix unless your reverse proxy explicitly supplies one. These domains are examples. EC2 HTTPS and public routing require deployment setup; CORS alone does not expose the gateway.
+
+For Compose, put the setting in the backend's local `.env` and run `docker compose up -d --build --wait gateway`. For an IDE/local run, set it in the gateway process environment and restart that process. A same-origin development proxy remains an option; the `/api` prefix in the example below belongs to that frontend proxy, not the backend.
 
 Swagger is served directly by each service, not aggregated through the gateway:
 

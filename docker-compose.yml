@@ -11,6 +11,7 @@ services:
       - "127.0.0.1:8085:8085"
     environment:
       SERVER_PORT: 8085
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173,http://localhost:3000}
       IDENTITY_BASE_URL: http://identity:8081
       AVIATION_BASE_URL: http://aviation:8080
       MAINTENANCE_BASE_URL: http://maintenance:8083
