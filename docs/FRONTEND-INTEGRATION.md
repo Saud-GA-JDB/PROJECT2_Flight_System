@@ -1,6 +1,6 @@
 # Frontend integration guide
 
-Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee, flight pricing/seat and booking-detail endpoints updated for stages 1–4. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
+Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee, flight pricing/seat, booking-detail, CORS and creation-ID updates for stages 1–6. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
 
 ## Contents
 
@@ -70,7 +70,6 @@ These affect screen design and must be resolved with the backend team or explici
 | --- | --- |
 | Show the recovery question | No security-question-read endpoint. Password recovery accepts an answer but does not return the question. Basic profile reads are available through `/auth/users/me`. |
 | Browse airports, aircraft, employees and business relationships | No airport list, airplane list/detail, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
-| Continue immediately after creating an aircraft or flight | `AddAirplaneResponse` and `AddFlightResponse` contain **no numeric ID**. New airline-admin creation also returns no user/employee ID. These responses need enrichment for a complete create-and-manage flow. |
 | Profile images | Upload succeeds with a text response; no image URL is returned, and no public image-serving route is configured. Upload support alone does not provide an avatar display API. |
 | Refunds and restarting expired checkout | No refund or replacement-checkout endpoint. A paid booking cannot be cancelled through the current API. Expired payments cannot be restarted for the same booking. |
 | Other workflows | No implemented flight cancellation/rescheduling, baggage handling, check-in, notification inbox or notification read/unread API. Enum values alone do not establish an available workflow. |
@@ -253,6 +252,8 @@ All routes in this section require account role `AIRLINE_EMPLOYEE`, airline role
 | `GET /airlineAdmin/flights/{flightId}/operations` | None | `200 FlightOperationSummary` |
 | `GET /airlineAdmin/flights/{flightId}/controlEvents` | Optional query `operation`, `page`, `size` | `200 Page<ControlEvent>` |
 
+Airplane creation returns `id` for the new airplane; use it as `airplaneId` when requesting activation or adding flights. Flight creation returns `id` for the new flight; use it as `flightId` for crew assignment and activation. The `airplane-added` notification includes the same airplane ID. These IDs identify the created resources, not the caller's account.
+
 Maintenance routes under `/airlineAdmin` are listed in [Maintenance](#maintenance).
 
 Aircraft request body:
@@ -318,7 +319,7 @@ All routes require active account role `FAA_ADMIN`.
 | --- | --- | --- |
 | `POST /faaadmin/airlines` | **Query or form fields** `name`, `airlineCode`, `headquartersCountry`; no JSON | **`200 Airline`** |
 | `GET /faaadmin/airlines` | None | `200 Airline[]` |
-| `POST /faaadmin/airlines/{airlineId}/addAirlineAdmin` | `AirlineAdminInput` JSON | `201` submitted fields, with `securityQuestionAnswer: null`; no new ID |
+| `POST /faaadmin/airlines/{airlineId}/addAirlineAdmin` | `AirlineAdminInput` JSON | `201 AirlineEmployee`; includes employee `id`, account `userId` and `airlineId` |
 | `GET /faaadmin/airplaneRequests` | None | `200 AirplaneRequest[]`, pending requests across airlines |
 | `PUT /faaadmin/airplaneRequests/{requestId}` | JSON `{status, reviewReason?}` | `200 AirplaneRequest` |
 | `POST /faaadmin/airportOperators` | JSON `{name, contactEmail}` | `201 Organization` |
@@ -329,6 +330,8 @@ All routes require active account role `FAA_ADMIN`.
 | `POST /faaadmin/airNavigationProviders/{providerId}/controlFacilities` | JSON `{airportId, name}` | `201 Facility` |
 | `GET /faaadmin/airNavigationProviders/{providerId}/controlFacilities` | Optional query `page`, `size` | `200 Page<Facility>` |
 | `POST /faaadmin/controlFacilities/{facilityId}/admins` | `ATCEmployeeInput` JSON | `201 ATCEmployee` |
+
+Airline-admin creation returns the existing `AirlineEmployee` response: `id` identifies the employee, `userId` identifies the Identity account, and `airlineId` identifies the airline. The response also includes names, email, airline role, hire date and salary. It no longer echoes CPR, phone fields, the security question or a cleared security answer; the request fields remain unchanged.
 
 FAA maintenance provider/admin routes are in the next maintenance table.
 
@@ -523,6 +526,7 @@ type Airline = {
 type Organization = { id: number; name: string; contactEmail: string };
 // Organization shape is shared by airport operators, navigation and maintenance providers.
 type AddAirplane = {
+  id: number;
   registrationNumber: string; model: string; seatCapacity: number; // sum of both classes
   maxMileage: number; addedAt: LocalDateTime; addedBy: string;
   status: "ACTIVE" | "GROUNDED";
@@ -533,6 +537,7 @@ type AirplaneRequest = {
   requestedAt: LocalDateTime; reviewedAt: LocalDateTime | null;
 };
 type AddFlight = {
+  id: number;
   flightNumber: string; airplaneRegistrationNumber: string;
   originAirportIataCode: string; arrivalAirportIataCode: string;
   scheduledDeparture: LocalDateTime; scheduledArrival: LocalDateTime;

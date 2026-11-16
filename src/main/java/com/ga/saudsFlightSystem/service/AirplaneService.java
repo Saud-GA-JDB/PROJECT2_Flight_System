@@ -186,7 +186,10 @@ public class AirplaneService {
                 .filter(name -> !name.isBlank())
                 .orElse("User " + actor.userId());
 
-        AddAirplaneResponse response = new AddAirplaneResponse(registrationNumber, model, firstClassSeatCapacity+standardSeatCapacity, maxMileage, airplane.getAddedAt(), addedBy, airplane.getStatus());
+        AddAirplaneResponse response = new AddAirplaneResponse(
+                airplane.getId(), registrationNumber, model,
+                firstClassSeatCapacity+standardSeatCapacity, maxMileage,
+                airplane.getAddedAt(), addedBy, airplane.getStatus());
 
         notificationService.sendToUser(actor.userId(), "airplane-added", response);
 

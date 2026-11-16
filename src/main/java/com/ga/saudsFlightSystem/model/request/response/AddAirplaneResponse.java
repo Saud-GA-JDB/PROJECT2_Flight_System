@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 @Getter
 @AllArgsConstructor
 public class AddAirplaneResponse {
+    private Long id;
     private String registrationNumber;
     private String model;
     private int seatCapacity;

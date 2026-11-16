@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
+import com.ga.saudsFlightSystem.model.request.response.AirlineEmployeeResponse;
 import com.ga.saudsFlightSystem.model.request.response.ATCEmployeeResponse;
 import com.ga.saudsFlightSystem.model.request.response.FacilityResponse;
 import com.ga.saudsFlightSystem.model.request.response.ProviderListResponse;
@@ -63,7 +64,7 @@ public class FAAAdminController {
     }
 
     @PostMapping("/airlines/{airlineId}/addAirlineAdmin")
-    public ResponseEntity<?> addAirlineAdmin(@PathVariable(name = "airlineId") Long airlineId, @RequestBody AddAirlineAdminRequest request) {
+    public ResponseEntity<AirlineEmployeeResponse> addAirlineAdmin(@PathVariable(name = "airlineId") Long airlineId, @RequestBody AddAirlineAdminRequest request) {
         return airlineEmployeeService.addAirlineAdmin(airlineId, request);
     }
 

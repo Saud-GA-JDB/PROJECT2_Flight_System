@@ -102,11 +102,13 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes` | Adds a grounded airplane to the logged-in admin's airline, sends the admin a confirmation email, and returns an `AddAirplaneResponse` with status 201. | `registrationNumber`, `model`, `standardSeatCapacity`, `firstClassSeatCapacity`, `maxMileage` | `{"registrationNumber":"A9C-ABC","model":"Airbus A320","standardSeatCapacity":150,"firstClassSeatCapacity":12,"maxMileage":6000}` |
+| POST | `/airlineAdmin/airplanes` | Adds a grounded airplane to the logged-in admin's airline, sends the admin a confirmation email, and returns an `AddAirplaneResponse` including the new airplane `id`, with status 201. | `registrationNumber`, `model`, `standardSeatCapacity`, `firstClassSeatCapacity`, `maxMileage` | `{"registrationNumber":"A9C-ABC","model":"Airbus A320","standardSeatCapacity":150,"firstClassSeatCapacity":12,"maxMileage":6000}` |
 
 Registration number must be unique. Both seat capacities and max mileage must be greater than zero. Missing or invalid fields return 422; a duplicate registration number returns 404. Activation requires FAA approval.
 
 The confirmation email is sent to the logged-in admin's email address with subject `Airplane Added` and includes the airplane's registration number and model.
+
+Use the response's `id` as `airplaneId` when requesting activation or adding flights. The `airplane-added` notification contains the same response, including `id`.
 
 Request airplane activation endpoint
 ---
@@ -128,9 +130,11 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates a PENDING_CREW flight for the admin's airline and returns an `AddFlightResponse` with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival`, `firstClassPrice`, `standardPrice`; optional `currency` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00","firstClassPrice":30000,"standardPrice":15000,"currency":"USD"}` |
+| POST | `/airlineAdmin/airplanes/{airplaneId}/addFlight` | Creates a PENDING_CREW flight for the admin's airline and returns an `AddFlightResponse` including the new flight `id`, with status 201. | `airplaneId` (path), `originAirportIataCode`, `arrivalAirportIataCode`, `scheduledDeparture`, `scheduledArrival`, `firstClassPrice`, `standardPrice`; optional `currency` | `{"originAirportIataCode":"BAH","arrivalAirportIataCode":"DXB","scheduledDeparture":"2027-01-10T10:00:00","scheduledArrival":"2027-01-10T12:00:00","firstClassPrice":30000,"standardPrice":15000,"currency":"USD"}` |
 
 Use existing, different airport IATA codes and local date-times without an offset. Departure must be in the future and arrival must be later. The airplane must belong to the admin's airline, be active, and have at least two hours between non-cancelled flights. The flight number is generated from the airline code and flight ID, and available seat counts start at the airplane's capacities. Supply positive firstClassPrice and standardPrice values and BHD or USD currency (omitted currency defaults to BHD). After assigning a pilot, secondary pilot, and flight attendant, call PUT /airlineAdmin/flights/{flightId}/activate for a PENDING_CREW flight owned by your airline with both actual times null, including delayed flights. Activation checks crew; inspection clearance is enforced at departure request/approval/takeOff.
+
+Use the flight creation response's `id` as `flightId` when assigning crew or activating the flight. Existing flight response fields remain available.
 
 Search flights endpoint
 ---
@@ -256,9 +260,11 @@ Requires an active `FAA_ADMIN` account and `Authorization: Bearer <token>`. Send
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| POST | `/faaadmin/airlines/{airlineId}/addAirlineAdmin` | Creates an airline employee with airline role `ADMIN` and CPR as the initial password. Returns the submitted details with the security answer cleared, with status 201. | `airlineId` (path), `emailAddress`, `cpr`, `fName`, `lName`, `phoneNumberOpeningCode`, `phoneNumber`, `hireDate`, `salary`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
+| POST | `/faaadmin/airlines/{airlineId}/addAirlineAdmin` | Creates an airline employee with airline role `ADMIN` and CPR as the initial password. Returns `AirlineEmployeeResponse`, including employee `id`, account `userId` and `airlineId`, with status 201. | `airlineId` (path), `emailAddress`, `cpr`, `fName`, `lName`, `phoneNumberOpeningCode`, `phoneNumber`, `hireDate`, `salary`, `securityQuestion`, `securityQuestionAnswer` | See the complete JSON example below. |
 
 The airline must exist, and email and CPR must be available. CPR must contain exactly nine digits, the email must have a valid format, and the phone number must be valid for its country code. Salary must be greater than zero; hire date uses `yyyy-MM-dd`. Names, security question, and security answer must not be blank.
+
+The response contains employee `id`, Identity account `userId`, `airlineId`, `fName`, `lName`, `emailAddress`, `airlineRole`, `hireDate`, and `salary`. Use `userId` for account operations and `id` for employee operations. The response no longer echoes CPR, phone fields, the security question or a cleared security answer. Input fields and the `201` success status remain unchanged.
 
 All fields in this example are required:
 

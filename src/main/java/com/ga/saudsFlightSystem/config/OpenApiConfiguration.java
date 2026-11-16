@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.config;
 
 import com.ga.saudsFlightSystem.model.Airline;
-import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import io.swagger.v3.core.converter.AnnotatedType;
 import io.swagger.v3.core.converter.ModelConverters;
@@ -86,8 +85,8 @@ public class OpenApiConfiguration {
                     "200", AirlineResponse.class, true);
             document(openApi, "/faaadmin/airlines/{airlineId}/addAirlineAdmin", PathItem.HttpMethod.POST,
                     "Create airline admin",
-                    "FAA admin only. Creates an admin for the specified airline. The current response echoes the request object.",
-                    "201", AddAirlineAdminRequest.class, false);
+                    "FAA admin only. Creates an admin for the specified airline and returns employee, user and airline IDs.",
+                    "201", AirlineEmployeeResponse.class, false);
             document(openApi, "/faaadmin/airplaneRequests", PathItem.HttpMethod.GET,
                     "List pending airplane requests",
                     "FAA admin only. Lists pending activation requests across airlines.",

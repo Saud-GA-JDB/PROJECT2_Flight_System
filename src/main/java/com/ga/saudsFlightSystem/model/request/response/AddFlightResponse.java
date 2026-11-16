@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 @Getter
 @AllArgsConstructor
 public class AddFlightResponse {
+    private Long id;
     private String flightNumber;
     private String airplaneRegistrationNumber;
     private String originAirportIataCode;

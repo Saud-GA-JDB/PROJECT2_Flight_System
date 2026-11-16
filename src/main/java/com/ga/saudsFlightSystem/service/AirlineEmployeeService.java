@@ -149,10 +149,10 @@ public class AirlineEmployeeService {
      *
      * @param airlineId airline the new admin will belong to
      * @param request account and employee details
-     * @return the submitted details without the security answer
+     * @return the created employee details and account ID
      */
     @Transactional
-    public ResponseEntity<?> addAirlineAdmin(Long airlineId, AddAirlineAdminRequest request) {
+    public ResponseEntity<AirlineEmployeeResponse> addAirlineAdmin(Long airlineId, AddAirlineAdminRequest request) {
         CurrentActor actor = currentActorProvider.getCurrentActor();
         if (!"FAA_ADMIN".equals(actor.role()) )
             throw new IllegalEndpoint("You are not allowed this API Endpoint!");
@@ -221,8 +221,12 @@ public class AirlineEmployeeService {
         String description = "FAA admin created airline admin with user id " + account.userId() + " for airline with id " + airlineId;
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.AIRLINE_ADMIN_CREATED, AuditLog.EntityType.USER, account.userId(), description);
         logger.info(description + " (user id: " + actor.userId() + ")");
-        request.setSecurityQuestionAnswer(null);
-        return ResponseEntity.status(HttpStatus.CREATED).body(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                new AirlineEmployeeResponse(
+                        airlineEmployee.getId(), account.userId(), airlineEmployee.getAirline().getId(),
+                        request.getFName(), request.getLName(), account.emailAddress(),
+                        airlineEmployee.getAirlineRole(), airlineEmployee.getHireDate(), airlineEmployee.getSalary()
+                ));
     }
 
     /**
@@ -305,7 +309,7 @@ public class AirlineEmployeeService {
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(new AddFlightResponse(
-                flight.getFlightNumber(), airplane.getRegistrationNumber(),
+                flight.getId(), flight.getFlightNumber(), airplane.getRegistrationNumber(),
                 originAirport.getIataCode(), arrivalAirport.getIataCode(),
                 flight.getScheduledDeparture(), flight.getScheduledArrival(), flight.getStatus()));
 
