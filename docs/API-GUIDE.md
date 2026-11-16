@@ -186,7 +186,22 @@ Requires an active account and `Authorization: Bearer <token>`.
 | --- | --- | --- | --- | --- |
 | GET | `/bookings` | Returns the logged-in user's bookings, or all bookings for the logged-in airline admin's airline ordered by booking time descending. | None. | No body. |
 
-Airline employees must have airline role `ADMIN` to use this endpoint. Other account roles receive their own booking list. The response is a list of booking objects.
+Airline employees must have airline role `ADMIN` to use this endpoint. Other account roles receive their own booking list. The response is a list of `BookingSummary` objects. Each includes `id`, `bookedAt`, `updatedAt`, `bookingRef`, `seatNumber`, `status`, `userId`, `flightId`, `flightNumber`, `airlineCode`, `originAirport`, `destinationAirport`, `scheduledDeparture`, `scheduledArrival`, `actualDeparture`, `actualArrival`, and `flightStatus`. Airport fields are IATA codes; actual times may be `null`. `status` describes the booking and `flightStatus` describes the flight.
+
+View booking details endpoint
+---
+
+Requires an active account and `Authorization: Bearer <token>`. The booking owner can retrieve their own booking regardless of account role. Reading someone else's booking requires an airline employee with airline role `ADMIN` for that booking's airline.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| GET | `/bookings/{bookingId}` | Returns one enriched `BookingSummary`, with the same fields as the booking lists. | `bookingId` (path) | No body. |
+
+Cancelled and finished bookings remain readable, including when the flight has departed or closed. Flight fields reflect the linked flight's current stored information rather than an immutable booking-time snapshot. The list endpoint's existing restriction on non-admin airline employees remains; those employees may still retrieve their own booking by ID.
+
+Invalid IDs return `400`, missing bookings `404`, unauthorized callers `403`, and missing/invalid authentication `401`. Authenticated accounts without active-account access receive `403`.
+
+The owner retrieves payment ID, amount, currency and status separately using `GET /payments/bookings/{bookingId}`. No payment record returns `404`. Airline admins cannot retrieve another user's payment through that endpoint. Booking responses do not include payment fields, and booking status `BOOKED` does not confirm payment.
 
 Cancel booking endpoint
 ---
@@ -211,6 +226,8 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 | GET | `/bookings/search` | Returns bookings matching the supplied filters, ordered by booking time descending. | None. Optional query parameters: `userId`, `flightId`, `status`. | No body. |
 
 For example, `/bookings/search?userId=1&flightId=2&status=BOOKED`. Status must be `BOOKED`, `CANCELLED`, or `FINISHED`. Filters can be used individually or together; results must match all supplied filters. Omit all filters to retrieve every booking for the admin's airline.
+
+Results use the same enriched `BookingSummary` fields as the booking list and detail endpoints.
 
 Create airline endpoint
 ---

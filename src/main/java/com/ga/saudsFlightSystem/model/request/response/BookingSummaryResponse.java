@@ -8,5 +8,16 @@ public record BookingSummaryResponse(
         LocalDateTime updatedAt,
         String bookingRef,
         String seatNumber,
-        String status
+        String status,
+        Long userId,
+        Long flightId,
+        String flightNumber,
+        String airlineCode,
+        String originAirport,
+        String destinationAirport,
+        LocalDateTime scheduledDeparture,
+        LocalDateTime scheduledArrival,
+        LocalDateTime actualDeparture,
+        LocalDateTime actualArrival,
+        String flightStatus
 ) {}

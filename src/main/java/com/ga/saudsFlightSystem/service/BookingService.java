@@ -40,6 +40,7 @@ public class BookingService {
 
     private static final Logger logger = Logger.getLogger(BookingService.class.getName());
 
+    @Transactional(readOnly = true)
     public List<BookingSummaryResponse> getBookings() {
         CurrentActor actor = currentActorProvider.getCurrentActor();
 
@@ -61,6 +62,7 @@ public class BookingService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<BookingSummaryResponse> getUserBookings(Long userId, Long flightId, Booking.BookingStatus status) {
         CurrentActor actor = currentActorProvider.getCurrentActor();
 
@@ -78,6 +80,30 @@ public class BookingService {
                 .stream()
                 .map(this::toBookingSummary)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public BookingSummaryResponse getBooking(Long bookingId) {
+        if (bookingId == null || bookingId <= 0)
+            throw new InvalidInformationException("Please put a valid booking ID.");
+
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+
+        Booking booking = bookingRepository.findByIdWithFlight(bookingId)
+                .orElseThrow( () -> new InformationNotFoundException("No booking with that ID found."));
+
+        if (!Objects.equals(actor.userId(), booking.getUserId())) {
+            if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
+                throw new IllegalEndpoint("You are not allowed to view this booking.");
+
+            AirlineEmployee employee = requireAirlineEmployee(actor.userId());
+
+            if (employee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN
+                    || !Objects.equals(employee.getAirline().getId(), booking.getFlight().getAirline().getId()))
+                throw new IllegalEndpoint("You are not allowed to view this booking.");
+        }
+
+        return toBookingSummary(booking);
     }
 
     /**
@@ -266,13 +292,26 @@ public class BookingService {
     }
 
     private BookingSummaryResponse toBookingSummary(Booking booking) {
+        Flight flight = booking.getFlight();
+
         return new BookingSummaryResponse(
                 booking.getId(),
                 booking.getBookedAt(),
                 booking.getUpdatedAt(),
                 booking.getBookingRef(),
                 booking.getSeatNumber(),
-                booking.getStatus() == null ? null : booking.getStatus().name()
+                booking.getStatus() == null ? null : booking.getStatus().name(),
+                booking.getUserId(),
+                flight.getId(),
+                flight.getFlightNumber(),
+                flight.getAirline().getAirlineCode(),
+                flight.getOriginAirport().getIataCode(),
+                flight.getDestinationAirport().getIataCode(),
+                flight.getScheduledDeparture(),
+                flight.getScheduledArrival(),
+                flight.getActualDeparture(),
+                flight.getActualArrival(),
+                flight.getStatus() == null ? null : flight.getStatus().name()
         );
     }
 

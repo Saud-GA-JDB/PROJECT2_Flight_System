@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.config;
 
 import com.ga.saudsFlightSystem.model.Airline;
-import com.ga.saudsFlightSystem.model.Booking;
 import com.ga.saudsFlightSystem.model.request.AddAirlineAdminRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import io.swagger.v3.core.converter.AnnotatedType;
@@ -62,11 +61,17 @@ public class OpenApiConfiguration {
             document(openApi, "/bookings", PathItem.HttpMethod.GET,
                     "List bookings",
                     "Active account required. Airline admins see their airline's bookings; non-airline accounts see their own bookings. Other airline employees are rejected.",
-                    "200", Booking.class, true);
+                    "200", BookingSummaryResponse.class, true);
             document(openApi, "/bookings/search", PathItem.HttpMethod.GET,
                     "Search airline bookings",
                     "Airline admin only. Searches bookings within the current airline.",
-                    "200", Booking.class, true);
+                    "200", BookingSummaryResponse.class, true);
+            document(openApi, "/bookings/{bookingId}", PathItem.HttpMethod.GET,
+                    "Get booking details",
+                    "Active account required. Booking owner or admin of the booking's airline. "
+                            + "Includes flight information for current and historical bookings. "
+                            + "Payment information is available separately to the owner through /payments/bookings/{bookingId}.",
+                    "200", BookingSummaryResponse.class, false);
             document(openApi, "/bookings/{bookingId}", PathItem.HttpMethod.DELETE,
                     "Cancel booking",
                     "Booking owner or admin of the booking's airline. Pending or paid payments block cancellation. Customer cancellation requires at least 48 hours before departure.",

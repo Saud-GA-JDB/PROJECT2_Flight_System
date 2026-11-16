@@ -1,6 +1,6 @@
 # Frontend integration guide
 
-Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee and flight pricing/seat endpoints updated for stages 1–3. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
+Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee, flight pricing/seat and booking-detail endpoints updated for stages 1–4. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
 
 ## Contents
 
@@ -65,7 +65,6 @@ These affect screen design and must be resolved with the backend team or explici
 | Show the recovery question | No security-question-read endpoint. Password recovery accepts an answer but does not return the question. Basic profile reads are available through `/auth/users/me`. |
 | Browse airports, aircraft, employees and business relationships | No airport list, airplane list/detail, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
 | Continue immediately after creating an aircraft or flight | `AddAirplaneResponse` and `AddFlightResponse` contain **no numeric ID**. New airline-admin creation also returns no user/employee ID. These responses need enrichment for a complete create-and-manage flow. |
-| Detailed booking history | Booking lists omit `flightId`, `userId`, route, times, price and payment status. No booking-detail GET exists. A newly created booking includes `flightId` and `userId`, but that does not solve historical/reloaded views. Payment information **is available separately**: the booking owner can call `GET /payments/bookings/{bookingId}` for payment ID, amount, currency and status when a payment exists (`404` if no payment exists). The frontend can use this existing endpoint; the missing flight information remains a separate gap. |
 | Profile images | Upload succeeds with a text response; no image URL is returned, and no public image-serving route is configured. Upload support alone does not provide an avatar display API. |
 | Refunds and restarting expired checkout | No refund or replacement-checkout endpoint. A paid booking cannot be cancelled through the current API. Expired payments cannot be restarted for the same booking. |
 | Other workflows | No implemented flight cancellation/rescheduling, baggage handling, check-in, notification inbox or notification read/unread API. Enum values alone do not establish an available workflow. |
@@ -195,11 +194,20 @@ Errors: `400` invalid flight ID, inactive/closed/departed flight, inactive or mi
 | `POST /customer/{userId}/flights/{flightId}/{seatType}/{seatId}/book` | None; all four values are path parameters | Book for self; own-airline admin may book for another user. `201 Booking` |
 | `GET /bookings` | None | Own bookings; airline admins get their airline's bookings. Non-admin airline employees are denied this list. `200 BookingSummary[]` |
 | `GET /bookings/search` | Optional query `userId`, `flightId`, `status` | Airline admin only, scoped to own airline. `200 BookingSummary[]` |
+| `GET /bookings/{bookingId}` | None | Booking owner or admin of the booking's airline. `200 BookingSummary` |
 | `DELETE /bookings/{bookingId}` | None | Owner or admin of booking's airline. `200 Booking` |
 
 Use seat type `standard` or `firstClass` and an integer seat ID starting at 1, within that class's aircraft capacity. Stored `seatNumber` looks like `standard-3`. Booking requires an active flight/aircraft and departure more than five minutes away. Taken/out-of-range seats, closed booking, and sold-out classes return `400`; missing user/flight `404`; unauthorized booking for another user `403`. Refresh availability after a rejected or successful booking. A booking immediately becomes `BOOKED`; that status does **not** mean paid.
 
 Booking search accepts `BOOKED`, `CANCELLED`, `FINISHED`, combining all supplied filters. Admin lists/search sort by booking time descending; do not assume a particular ordering for a customer's own list.
+
+Booking lists, search and detail return the same enriched `BookingSummary`: booking ID, timestamps, reference, seat and status, plus `userId`, `flightId`, `flightNumber`, `airlineCode`, origin/destination airport codes, scheduled/actual departure and arrival, and `flightStatus`. `status` is the booking status; `flightStatus` is the flight status. Actual times may be `null`.
+
+Use `GET /bookings/{bookingId}` when opening or reloading a booking screen. The owner can read their own booking regardless of account role; reading someone else's booking requires an airline admin from the booking's airline. Existing list rules still deny non-admin airline employees. Cancelled/finished bookings and departed/closed flights remain readable. Flight fields reflect the linked flight's current stored information, not an immutable snapshot taken when booked.
+
+Detail errors: `400` invalid booking ID; `404` booking not found; `403` unauthorized caller or authenticated account without active-account access; `401` missing/invalid authentication.
+
+Payment information is retrieved separately through `GET /payments/bookings/{bookingId}`: the booking owner receives payment ID, amount, currency and status when a payment exists (`404` if none exists). An airline admin viewing someone else's booking cannot use that owner's payment endpoint. The booking response does not contain payment fields, and `BOOKED` does not imply paid.
 
 Cancellation requires `BOOKED` (`400` otherwise). An owner must cancel at least 48 hours before scheduled departure; own-airline admins bypass that time limit. Too-late cancellation is **`409` plain text**, not the `417` described in older documentation. Existing `PENDING` payment blocks cancellation (`409`); `PAID` requires a refund and also blocks cancellation (`409`). Refresh payment status to record checkout expiry before retrying cancellation. Successful cancellation retains the record and restores the seat.
 
@@ -492,6 +500,11 @@ type Booking = {
 type BookingSummary = {
   id: number; bookedAt: LocalDateTime; updatedAt: LocalDateTime | null;
   bookingRef: string; seatNumber: string; status: Booking["status"];
+  userId: number; flightId: number; flightNumber: string; airlineCode: string;
+  originAirport: string; destinationAirport: string;
+  scheduledDeparture: LocalDateTime; scheduledArrival: LocalDateTime;
+  actualDeparture: LocalDateTime | null; actualArrival: LocalDateTime | null;
+  flightStatus: FlightStatus;
 };
 type Checkout = { paymentId: number; checkoutUrl: string | null };
 type Payment = {
