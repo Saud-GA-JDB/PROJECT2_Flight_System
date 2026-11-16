@@ -1,6 +1,7 @@
 package com.ga.identity.controller;
 
 import com.ga.identity.model.request.response.AccountSetupResponse;
+import com.ga.identity.model.request.response.CurrentUserResponse;
 import com.ga.identity.model.request.*;
 import com.ga.identity.service.PendingRegistrationService;
 import com.ga.identity.service.UserService;
@@ -15,6 +16,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserController {
     private UserService userService;
     private PendingRegistrationService pendingRegistrationService;
+
+    @GetMapping("/me")
+    public CurrentUserResponse getCurrentUser() {
+        return userService.getCurrentUser();
+    }
 
     @PostMapping("/setup")
     public AccountSetupResponse finishSetup(@RequestBody RegistrationRequest request) {

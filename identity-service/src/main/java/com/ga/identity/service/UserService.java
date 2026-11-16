@@ -19,6 +19,7 @@ import com.ga.identity.model.request.response.PersonalProfile;
 import com.ga.identity.service.UserProfileService;
 import com.ga.identity.model.request.PersonalProfileUpdate;
 import com.ga.identity.model.request.response.AccountSetupResponse;
+import com.ga.identity.model.request.response.CurrentUserResponse;
 import com.ga.identity.model.AuditLog;
 import com.ga.identity.model.PendingRegistration;
 import com.ga.identity.model.User;
@@ -107,6 +108,24 @@ public class UserService {
         this.notificationServiceClient = notificationServiceClient;
         this.userProfileService = userProfileService;
         this.auditLogService = auditLogService;
+    }
+
+    @Transactional(readOnly = true)
+    public CurrentUserResponse getCurrentUser() {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+
+        User user = userRepository.findById(actor.userId())
+                .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
+
+        PersonalProfile profile = userProfileService.findByUserId(user.getId()).orElse(null);
+
+        return new CurrentUserResponse(
+                user.getId(), user.getEmailAddress(),
+                user.getRole().name(), user.getStatus().name(), user.isActive(),
+                profile == null ? null : profile.getFName(),
+                profile == null ? null : profile.getLName(),
+                profile == null ? null : profile.getPhoneNumberOpeningCode(),
+                profile == null ? null : profile.getPhoneNumber());
     }
 
     /**

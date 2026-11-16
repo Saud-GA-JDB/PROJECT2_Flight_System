@@ -58,6 +58,7 @@ public class SecurityConfiguration {
                                 "/auth/users/verification",
                                 "/auth/users/forgetPassword"
                         ).permitAll()
+                        .requestMatchers("/auth/users/me").authenticated()
                         .requestMatchers("/auth/users/setup").authenticated() // for completing the user account setup
                         .anyRequest().hasAuthority("ACCOUNT_ACTIVE")
                 );
