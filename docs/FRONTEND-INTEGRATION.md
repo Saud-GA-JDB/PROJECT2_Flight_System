@@ -1,6 +1,6 @@
 # Frontend integration guide
 
-Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user and current-employee endpoints updated for stages 1 and 2. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
+Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee and flight pricing/seat endpoints updated for stages 1–3. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
 
 ## Contents
 
@@ -65,7 +65,6 @@ These affect screen design and must be resolved with the backend team or explici
 | Show the recovery question | No security-question-read endpoint. Password recovery accepts an answer but does not return the question. Basic profile reads are available through `/auth/users/me`. |
 | Browse airports, aircraft, employees and business relationships | No airport list, airplane list/detail, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
 | Continue immediately after creating an aircraft or flight | `AddAirplaneResponse` and `AddFlightResponse` contain **no numeric ID**. New airline-admin creation also returns no user/employee ID. These responses need enrichment for a complete create-and-manage flow. |
-| Flight results, pricing and seat selection | Flight search returns available counts but no price, currency, capacity, occupied-seat list or seat map. No customer flight-detail endpoint exists. Available count is **not** the highest valid seat number. Do not build a seat map from it. |
 | Detailed booking history | Booking lists omit `flightId`, `userId`, route, times, price and payment status. No booking-detail GET exists. A newly created booking includes `flightId` and `userId`, but that does not solve historical/reloaded views. Payment information **is available separately**: the booking owner can call `GET /payments/bookings/{bookingId}` for payment ID, amount, currency and status when a payment exists (`404` if no payment exists). The frontend can use this existing endpoint; the missing flight information remains a separate gap. |
 | Profile images | Upload succeeds with a text response; no image URL is returned, and no public image-serving route is configured. Upload support alone does not provide an avatar display API. |
 | Refunds and restarting expired checkout | No refund or replacement-checkout endpoint. A paid booking cannot be cancelled through the current API. Expired payments cannot be restarted for the same booking. |
@@ -171,9 +170,23 @@ Images must decode as an image; they are saved as PNG. Invalid images return `40
 | `page`, `size` | One-based page; defaults 1 and 10; size max 100 |
 | `sort` | `scheduledDeparture,asc` (default), `scheduledArrival,asc`, `flightNumber,asc`; each also supports `desc` |
 
-All supplied filters must match. Codes/cities/countries match ignoring case, without substring search. Only `ACTIVE` flights with an `ACTIVE` airplane, available seats, and scheduled departure more than five minutes away qualify. Booking additionally checks that actual departure is null; a search result is not a guarantee that booking will succeed. Ties sort by flight ID ascending. Bad date, seat type, paging or sort returns `400`.
+All supplied filters must match. Codes/cities/countries match ignoring case, without substring search. Only `ACTIVE` flights with an `ACTIVE` airplane, no actual departure, available seats, and scheduled departure more than five minutes away qualify. A search result is not a guarantee that booking will succeed. Ties sort by flight ID ascending. Bad date, seat type, paging or sort returns `400`.
+
+Each result includes `firstClassPrice`, `standardPrice` and `currency`. Prices are integer minor units as described above. Remaining seat counts are not capacities or the highest valid seat IDs; use flight details for seat selection.
 
 Example: `/flights/search?originAirport=BAH&destinationAirport=DXB&date=2027-01-10&seatType=standard&page=1&size=10`.
+
+### Flight details and seat selection
+
+`GET /flights/{flightId}` — **active account required**, no body, `200 FlightDetail`.
+
+Returns `flight` (the same fields as a search result, including prices), `firstClassSeatsCapacity`, `standardSeatsCapacity`, `availableFirstClassSeats` and `availableStandardSeats`. Available seats are numeric IDs starting at 1 within each class, sorted ascending. For example, `availableStandardSeats: [2, 4, 5]` allows selecting `seatType=standard` and `seatId=4` for the existing booking endpoint. These are seat IDs, not physical row/aisle positions.
+
+Seats with a `BOOKED` booking are excluded; cancelled bookings do not block seats. A class with no remaining seats returns an empty array. A sold-out flight can still return details with empty availability arrays if the flight and airplane are active, actual departure is null, and scheduled departure is more than five minutes away.
+
+Availability is a snapshot and does not reserve seats. Booking rechecks the flight, capacity and selected seat. Refresh flight details after a booking succeeds or a seat is rejected. No passenger details or booking references are included.
+
+Errors: `400` invalid flight ID, inactive/closed/departed flight, inactive or missing airplane, or departure within five minutes; `404` flight not found; `401` missing/invalid authentication; `403` authenticated account without active-account access.
 
 ### Booking routes
 
@@ -464,6 +477,12 @@ type FlightSearchItem = {
   originCountry: string; destinationCountry: string;
   scheduledDeparture: LocalDateTime; scheduledArrival: LocalDateTime;
   firstClassSeatsCount: number; standardSeatsCount: number;
+  firstClassPrice: number; standardPrice: number; currency: "BHD" | "USD";
+};
+type FlightDetail = {
+  flight: FlightSearchItem;
+  firstClassSeatsCapacity: number; standardSeatsCapacity: number;
+  availableFirstClassSeats: number[]; availableStandardSeats: number[];
 };
 type Booking = {
   id: number; bookingRef: string; userId: number; flightId: number;

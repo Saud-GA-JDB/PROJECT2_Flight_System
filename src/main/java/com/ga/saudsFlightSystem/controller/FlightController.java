@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
 import com.ga.saudsFlightSystem.model.request.response.FlightSearchResponse;
+import com.ga.saudsFlightSystem.model.request.response.FlightDetailResponse;
 import com.ga.saudsFlightSystem.service.FlightService;
 import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +11,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/flights")
 public class FlightController {
     private FlightService flightService;
+
+    @GetMapping("/{flightId}")
+    public FlightDetailResponse getFlight(@PathVariable Long flightId) {
+        return flightService.getFlight(flightId);
+    }
 
     @GetMapping("/search")
     public FlightSearchResponse searchFlights(@RequestParam(required = false) String date, @RequestParam(required = false) String airlineCode,

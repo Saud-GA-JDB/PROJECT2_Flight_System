@@ -17,6 +17,15 @@ public interface BookingRepository extends JpaRepository <Booking, Long> {
     Optional<Booking> findByIdForPayment(@Param("bookingId") Long bookingId);
 
     boolean existsByFlightIdAndSeatNumberAndStatus(Long flightId, String seatNumber, Booking.BookingStatus status);
+
+    @Query("""
+        SELECT b.seatNumber FROM Booking b
+        WHERE b.flight.id = :flightId AND b.status = :status
+        """)
+    List<String> findSeatNumbersByFlightIdAndStatus(
+            @Param("flightId") Long flightId,
+            @Param("status") Booking.BookingStatus status);
+
     List<Booking> findByFlight_Airline_IdOrderByBookedAtDesc(Long airlineId);
     @Query("select b.flight.id from Booking b where b.id = :bookingId")
     Optional<Long> findFlightIdByBookingId(@Param("bookingId") Long bookingId);

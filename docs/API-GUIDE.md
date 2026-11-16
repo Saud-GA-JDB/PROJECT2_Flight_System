@@ -143,11 +143,26 @@ Requires an active account and `Authorization: Bearer <token>`. Supply filters a
 
 For example, `/flights/search?date=2027-01-10&originAirport=BAH&destinationAirport=DXB&seatType=standard&page=1&size=10&sort=scheduledDeparture,asc`.
 
-Only flights with status `ACTIVE`, an active airplane, available seats, and scheduled departure more than five minutes away are returned. Filters can be combined; all supplied filters must match. Airline codes, airport IATA codes, cities, and countries use exact matches ignoring case. `date` filters scheduled departure by calendar day in `yyyy-MM-dd` format and must be today or later, using the server's local time. `seatType` must be exactly `standard` or `firstClass` and requires availability in that class; omitting it allows either class.
+Only flights with status `ACTIVE`, an active airplane, no actual departure, available seats, and scheduled departure more than five minutes away are returned. Filters can be combined; all supplied filters must match. Airline codes, airport IATA codes, cities, and countries use exact matches ignoring case. `date` filters scheduled departure by calendar day in `yyyy-MM-dd` format and must be today or later, using the server's local time. `seatType` must be exactly `standard` or `firstClass` and requires availability in that class; omitting it allows either class.
 
 Pagination starts at `page=1` and defaults to `size=10`. Page must be at least 1, and size must be between 1 and 100. The default sort is `scheduledDeparture,asc`; supported fields are `scheduledDeparture`, `scheduledArrival`, and `flightNumber`, with direction `asc` or `desc`. Ties are ordered by flight ID ascending.
 
-The response contains `content` (flight details), `page`, `size`, `totalElements`, and `totalPages`. Each flight includes its ID, flight number, airline code, origin and destination airport codes, cities and countries, scheduled times, and available seat counts for both classes. A page with no results returns an empty `content` list.
+The response contains `content` (flight details), `page`, `size`, `totalElements`, and `totalPages`. Each flight includes its ID, flight number, airline code, origin and destination airport codes, cities and countries, scheduled times, available seat counts for both classes, `firstClassPrice`, `standardPrice`, and `currency` (`BHD` or `USD`). Prices are integer minor units: `15000` means BHD 15.000 or USD 150.00, depending on currency. A page with no results returns an empty `content` list.
+
+Flight details and available seats endpoint
+---
+
+Requires an active account and `Authorization: Bearer <token>`.
+
+| Method | Endpoint | What it does | Required fields | Sample JSON body |
+| --- | --- | --- | --- | --- |
+| GET | `/flights/{flightId}` | Returns flight information, fares, class capacities and available seat IDs. | `flightId` (path) | No body. |
+
+The response contains `flight` (the same fields as one search result), `firstClassSeatsCapacity`, `standardSeatsCapacity`, `availableFirstClassSeats`, and `availableStandardSeats`. Available seat IDs start at 1 within each class and are sorted ascending. Seats with a `BOOKED` booking are excluded; cancelled bookings do not block seats. A class with no remaining seats returns an empty array. Counts are not capacities or the highest valid seat IDs.
+
+For example, `availableStandardSeats: [2, 4, 5]` allows selecting seat `4` and sending `seatType=standard` and `seatId=4` to the existing booking endpoint. The response does not include passenger information or physical seat positions. Availability does not reserve a seat; booking validates it again. Refresh details after a successful booking or a rejected seat selection.
+
+The flight and airplane must be active, actual departure must be null, and scheduled departure must be more than five minutes away. Sold-out flights can still return details with empty availability arrays. Invalid IDs or unavailable flight/airplane state return `400`; a missing flight returns `404`. Missing/invalid authentication returns `401`; an authenticated account without active-account access receives `403`.
 
 Book flight endpoint
 ---

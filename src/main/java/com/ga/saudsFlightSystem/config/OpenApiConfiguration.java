@@ -49,6 +49,12 @@ public class OpenApiConfiguration {
                     "Search flights",
                     "Active account required. Filters by route, date, airline, and seat class with pagination and sorting.",
                     "200", FlightSearchResponse.class, false);
+            document(openApi, "/flights/{flightId}", PathItem.HttpMethod.GET,
+                    "Get flight details and available seats",
+                    "Active account required. Returns flight prices, class capacities and available seat IDs. "
+                            + "The flight and airplane must be active, with no actual departure and scheduled departure more than five minutes away. "
+                            + "Availability does not reserve a seat; booking checks it again.",
+                    "200", FlightDetailResponse.class, false);
             document(openApi, "/customer/{userId}/flights/{flightId}/{seatType}/{seatId}/book", PathItem.HttpMethod.POST,
                     "Book a flight seat",
                     "Active account required. Service checks the target user, flight, and seat availability before creating the booking. Actual departure blocks booking even if status is ACTIVE; the five-minute scheduled cutoff remains.",

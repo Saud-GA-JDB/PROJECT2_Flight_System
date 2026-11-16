@@ -7,9 +7,11 @@ import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.request.response.FlightResponse;
+import com.ga.saudsFlightSystem.model.request.response.FlightDetailResponse;
 import com.ga.saudsFlightSystem.model.request.response.FlightSearchResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
+import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
 import lombok.AllArgsConstructor;
@@ -21,8 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.logging.Logger;
 
 @Service
@@ -34,6 +38,7 @@ public class FlightService {
     private FlightStatusService flightStatusService;
     private CurrentActorProvider currentActorProvider;
     private AirlineEmployeeRepository airlineEmployeeRepository;
+    private BookingRepository bookingRepository;
 
     private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
@@ -111,15 +116,41 @@ public class FlightService {
 
         List<FlightResponse> content = new ArrayList<>();
         for (Flight flight : flights) {
-            content.add(new FlightResponse(flight.getId(), flight.getFlightNumber(), flight.getAirline().getAirlineCode(),
-                    flight.getOriginAirport().getIataCode(), flight.getDestinationAirport().getIataCode(),
-                    flight.getOriginAirport().getCity(), flight.getDestinationAirport().getCity(),
-                    flight.getOriginAirport().getCountry(), flight.getDestinationAirport().getCountry(),
-                    flight.getScheduledDeparture(), flight.getScheduledArrival(),
-                    flight.getFirstClassSeatsCount(), flight.getStandardSeatsCount()));
+            content.add(toFlightResponse(flight));
         }
         long totalPages = Pagination.totalPages(totalElements, pageSize);
         return new FlightSearchResponse(content, pageNumber, pageSize, totalElements, totalPages);
+    }
+
+    @Transactional(readOnly = true)
+    public FlightDetailResponse getFlight(Long flightId) {
+        if (flightId == null || flightId <= 0)
+            throw new InvalidInformationException("Please put a valid flight ID.");
+
+        Flight flight = flightRepository.findById(flightId)
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find a flight with this ID."));
+
+        if (flight.getStatus() != Flight.FlightStatus.ACTIVE || flight.getActualDeparture() != null)
+            throw new InvalidInformationException("This flight is not open for booking.");
+
+        if (!flight.getScheduledDeparture().isAfter(LocalDateTime.now().plusMinutes(5)))
+            throw new InvalidInformationException("Booking closes five minutes before departure.");
+
+        Airplane airplane = flight.getAirplane();
+        if (airplane == null || airplane.getStatus() != Airplane.Status.ACTIVE)
+            throw new InvalidInformationException("The airplane assigned to this flight is inactive.");
+
+        Set<String> bookedSeats = new HashSet<>(
+                bookingRepository.findSeatNumbersByFlightIdAndStatus(flightId, Booking.BookingStatus.BOOKED));
+
+        return new FlightDetailResponse(
+                toFlightResponse(flight),
+                airplane.getFirstClassSeatsCapacity(),
+                airplane.getStandardSeatsCapacity(),
+                getAvailableSeats("firstClass", airplane.getFirstClassSeatsCapacity(),
+                        flight.getFirstClassSeatsCount(), bookedSeats),
+                getAvailableSeats("standard", airplane.getStandardSeatsCapacity(),
+                        flight.getStandardSeatsCount(), bookedSeats));
     }
 
     @Transactional
@@ -171,5 +202,30 @@ public class FlightService {
                 logger.warning("Could not update status for flight " + flightId + ": " + ex.getClass().getSimpleName());
             }
         }
+    }
+
+    private FlightResponse toFlightResponse(Flight flight) {
+        return new FlightResponse(
+                flight.getId(), flight.getFlightNumber(), flight.getAirline().getAirlineCode(),
+                flight.getOriginAirport().getIataCode(), flight.getDestinationAirport().getIataCode(),
+                flight.getOriginAirport().getCity(), flight.getDestinationAirport().getCity(),
+                flight.getOriginAirport().getCountry(), flight.getDestinationAirport().getCountry(),
+                flight.getScheduledDeparture(), flight.getScheduledArrival(),
+                flight.getFirstClassSeatsCount(), flight.getStandardSeatsCount(),
+                flight.getFirstClassPrice(), flight.getStandardPrice(), flight.getCurrency());
+    }
+
+    private List<Long> getAvailableSeats(String seatType, int capacity, int seatsCount, Set<String> bookedSeats) {
+        List<Long> availableSeats = new ArrayList<>();
+
+        if (seatsCount <= 0)
+            return availableSeats;
+
+        for (long seatId = 1; seatId <= capacity; seatId++) {
+            if (!bookedSeats.contains(seatType + "-" + seatId))
+                availableSeats.add(seatId);
+        }
+
+        return availableSeats;
     }
 }

@@ -122,6 +122,7 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
     JOIN airports o ON o.id = f.origin_airport_id
     JOIN airports d ON d.id = f.destination_airport_id
     WHERE f.status = 'ACTIVE'
+      AND f.actual_departure IS NULL
       AND p.status = 'ACTIVE'
       AND f.scheduled_departure > :bookingCutoff
       AND (f.first_class_seats_count > 0 OR f.standard_seats_count > 0)
@@ -173,6 +174,7 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
     JOIN airports o ON o.id = f.origin_airport_id
     JOIN airports d ON d.id = f.destination_airport_id
     WHERE f.status = 'ACTIVE'
+      AND f.actual_departure IS NULL
       AND p.status = 'ACTIVE'
       AND f.scheduled_departure > :bookingCutoff
       AND (f.first_class_seats_count > 0 OR f.standard_seats_count > 0)
