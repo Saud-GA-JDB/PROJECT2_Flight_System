@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.notification.model.request.EmailRequest;
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.notification.service.EmailService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;

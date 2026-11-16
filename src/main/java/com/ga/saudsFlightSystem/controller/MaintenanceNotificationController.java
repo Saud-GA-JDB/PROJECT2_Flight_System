@@ -1,9 +1,10 @@
 package com.ga.saudsFlightSystem.controller;
 
+import com.ga.common.contract.maintenance.MaintenanceCancellationNotificationRequest;
+
 import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
-import com.ga.saudsFlightSystem.model.request.MaintenanceCancellationNotificationRequest;
 import com.ga.saudsFlightSystem.model.request.response.MaintenanceCancellationNotificationResponse;
 import com.ga.saudsFlightSystem.service.NotificationService;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;

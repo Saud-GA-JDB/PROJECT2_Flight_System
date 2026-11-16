@@ -3,7 +3,7 @@ package com.ga.identity.service;
 import com.ga.identity.model.AuditLog;
 import com.ga.identity.model.User;
 import com.ga.identity.repository.AuditLogRepository;
-import com.ga.identity.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 

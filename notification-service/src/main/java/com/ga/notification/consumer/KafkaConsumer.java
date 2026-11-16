@@ -1,6 +1,7 @@
 package com.ga.notification.consumer;
 
 import com.ga.common.events.NotificationEvent;
+import com.ga.common.events.NotificationTopics;
 import com.ga.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -23,7 +24,7 @@ public class KafkaConsumer {
     private final ObjectMapper objectMapper;
     private final Set<String> processedEventIds = new LinkedHashSet<>();
 
-    @KafkaListener(topics = "aviation-notification-topic", groupId = "notification-group")
+    @KafkaListener(topics = NotificationTopics.AVIATION_NOTIFICATIONS)
     public void consume(String message) {
         NotificationEvent event = readNotification(message);
         processNotification(event);

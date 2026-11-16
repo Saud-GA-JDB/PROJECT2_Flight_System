@@ -1,8 +1,9 @@
 package com.ga.maintenance.service;
 
+import com.ga.common.contract.maintenance.MaintenanceCancellationNotificationRequest;
+import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
+
 import com.ga.maintenance.client.AviationServiceClient;
-import com.ga.maintenance.model.request.MaintenanceCancellationNotificationRequest;
-import com.ga.maintenance.model.request.response.MaintenanceScopeResponse;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -90,15 +91,7 @@ public class MaintenanceRecordService {
 
         logger.info(description + " (user id: " + actor.userId() + ")");
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-                new MaintenanceRecordResponse(
-                        record.getId(), record.getAirplaneId(), provider.getId(), null,
-                        record.getDescription(), record.getFindings(), record.getStatus(),
-                        record.getCreatedAt(), record.getUpdatedAt(), record.getCompletedAt(),
-                        record.getCancellationReason(), record.getCancelledAt(),
-                        record.getCancelledByUserId()
-                )
-        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(toMaintenanceResponse(record));
 
     }
 
@@ -119,21 +112,7 @@ public class MaintenanceRecordService {
         List<MaintenanceRecordResponse> responses = new ArrayList<>();
 
         for (MaintenanceRecord record : records) {
-            responses.add(new MaintenanceRecordResponse(
-                    record.getId(),
-                    record.getAirplaneId(),
-                    record.getProvider().getId(),
-                    record.getTechnician() == null ? null : record.getTechnician().getId(),
-                    record.getDescription(),
-                    record.getFindings(),
-                    record.getStatus(),
-                    record.getCreatedAt(),
-                    record.getUpdatedAt(),
-                    record.getCompletedAt(),
-                    record.getCancellationReason(),
-                    record.getCancelledAt(),
-                    record.getCancelledByUserId()
-            ));
+            responses.add(toMaintenanceResponse(record));
         }
 
         return ResponseEntity.status(HttpStatus.OK).body(responses);
@@ -176,7 +155,7 @@ public class MaintenanceRecordService {
             throw new IllegalEndpoint("You arent allowed to assign employee that aren't from your company.");
 
         record.setTechnician(assignedEmployee);
-        maintenanceRecordRepository.save(record);
+        maintenanceRecordRepository.saveAndFlush(record);
 
         String description = "Maintenance admin assigned technician with id "
                 + assignedEmployee.getId()
@@ -191,21 +170,7 @@ public class MaintenanceRecordService {
 
         logger.info(description + " (user id: " + actor.userId() + ")");
 
-        return ResponseEntity.ok(new MaintenanceRecordResponse(
-                record.getId(),
-                record.getAirplaneId(),
-                record.getProvider().getId(),
-                assignedEmployee.getId(),
-                record.getDescription(),
-                record.getFindings(),
-                record.getStatus(),
-                record.getCreatedAt(),
-                record.getUpdatedAt(), // TODO: test later, could use .saveFlush() or pass LocalDateTime instead.
-                record.getCompletedAt(),
-                record.getCancellationReason(),
-                record.getCancelledAt(),
-                record.getCancelledByUserId()
-        ));
+        return ResponseEntity.ok(toMaintenanceResponse(record));
     }
 
 
@@ -218,21 +183,7 @@ public class MaintenanceRecordService {
         List<MaintenanceRecordResponse> responses = new ArrayList<>();
 
         for (MaintenanceRecord record : records) {
-            responses.add(new MaintenanceRecordResponse(
-                    record.getId(),
-                    record.getAirplaneId(),
-                    record.getProvider().getId(),
-                    technician.getId(),
-                    record.getDescription(),
-                    record.getFindings(),
-                    record.getStatus(),
-                    record.getCreatedAt(),
-                    record.getUpdatedAt(),
-                    record.getCompletedAt(),
-                    record.getCancellationReason(),
-                    record.getCancelledAt(),
-                    record.getCancelledByUserId()
-            ));
+            responses.add(toMaintenanceResponse(record));
         }
 
         return ResponseEntity.ok(responses);

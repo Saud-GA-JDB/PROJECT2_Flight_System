@@ -45,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false",
         "spring.jpa.hibernate.ddl-auto=validate",
         "stripe.secret-key=sk_test_unused",
@@ -186,8 +187,6 @@ public class ATCServiceTest {
         login(admin.getEmailAddress());
         userService.updateProfile(null, jsonMapper.readValue("{\"phoneNumber\":\"33123457\"}", UpdateProfileRequest.class), null);
         Assert.assertEquals("33123457", em.find(UserProfile.class, admin.getUserId()).getPhoneNumber());
-        Assert.assertTrue(UserService.isAllowedEndpoint("atcEmployee", User.Role.ATC_EMPLOYEE));
-        Assert.assertFalse(UserService.isAllowedEndpoint("faaadmin", User.Role.ATC_EMPLOYEE));
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.events.NotificationTopics;
+
 import com.ga.common.events.NotificationEvent;
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
 import com.ga.saudsFlightSystem.producer.KafkaProducer;
@@ -98,6 +100,6 @@ class NotificationKafkaTest {
         verifyNoInteractions(template);
 
         assertDoesNotThrow(this::commit);
-        verify(template).send(eq(KafkaProducer.AVIATION_NOTIFICATION_TOPIC), eq("role:FAA_ADMIN"), anyString());
+        verify(template).send(eq(NotificationTopics.AVIATION_NOTIFICATIONS), eq("role:FAA_ADMIN"), anyString());
     }
 }

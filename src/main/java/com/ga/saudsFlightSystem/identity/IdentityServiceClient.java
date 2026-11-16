@@ -1,12 +1,15 @@
 package com.ga.saudsFlightSystem.identity;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.security.client.IdentityClientConfiguration;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(name = "identity", url = "${identity.base-url}", configuration = IdentityClientConfiguration.class)
+@FeignClient(name = "identity", url = "${identity.base-url}", configuration = IdentityClientConfiguration.class, primary = false)
 public interface IdentityServiceClient extends com.ga.common.security.client.IdentityServiceClient {
     @GetMapping("/internal/identity/accounts/{id}")
     AccountSnapshot account(@PathVariable("id") Long id);

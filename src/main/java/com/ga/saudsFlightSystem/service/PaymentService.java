@@ -45,11 +45,7 @@ public class PaymentService {
                 .orElseThrow(() ->
                         new InformationNotFoundException("No payment found for this booking"));
 
-        return new PaymentResponse(
-                payment.getId(),
-                payment.getAmount(),
-                payment.getCurrency(),
-                payment.getStatus());
+        return toPaymentResponse(payment);
     }
 
     @Transactional
@@ -191,11 +187,7 @@ public class PaymentService {
                                     .isAfter(LocalDateTime.now().minusHours(23))))
                 throw new InformationExistException(
                         "This payment needs verification before checkout can be retried");
-            return new PaymentResponse(
-                    existingPayment.getId(),
-                    existingPayment.getAmount(),
-                    existingPayment.getCurrency(),
-                    existingPayment.getStatus());
+            return toPaymentResponse(existingPayment);
         }
 
         String seatNumber = booking.getSeatNumber();
@@ -219,10 +211,10 @@ public class PaymentService {
 
         Payment savedPayment = paymentRepository.save(payment);
 
-        return new PaymentResponse(
-                savedPayment.getId(),
-                savedPayment.getAmount(),
-                savedPayment.getCurrency(),
-                savedPayment.getStatus());
+        return toPaymentResponse(savedPayment);
+    }
+
+    private PaymentResponse toPaymentResponse(Payment payment) {
+        return new PaymentResponse(payment.getId(), payment.getAmount(), payment.getCurrency(), payment.getStatus());
     }
 }

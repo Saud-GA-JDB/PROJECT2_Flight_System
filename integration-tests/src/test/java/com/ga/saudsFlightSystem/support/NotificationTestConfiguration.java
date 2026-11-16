@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.support;
 
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
 import com.ga.common.events.NotificationEvent;
 import com.ga.saudsFlightSystem.producer.KafkaProducer;
@@ -47,10 +49,10 @@ public class NotificationTestConfiguration {
     public NotificationServiceClient fixtureNotificationClient() {
         return new NotificationServiceClient() {
             @Override
-            public void sendEmail(String key, com.ga.saudsFlightSystem.model.request.EmailRequest request) {}
+            public void sendEmail(String key, EmailRequest request) {}
 
             @Override
-            public void sendAsyncEmail(String key, com.ga.saudsFlightSystem.model.request.EmailRequest request) {}
+            public void sendAsyncEmail(String key, EmailRequest request) {}
         };
     }
 

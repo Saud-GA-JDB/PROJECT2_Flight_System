@@ -19,8 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfiguration {
 
     @Bean
-    public JwtRequestFilter authenticationJwtTokenFilter() {
-        return new JwtRequestFilter();
+    public JwtRequestFilter authenticationJwtTokenFilter(MyUserDetailsService userDetailsService, JWTUtils jwtUtils) {
+        return new JwtRequestFilter(userDetailsService, jwtUtils);
     }
 
     @Bean
@@ -35,7 +35,7 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, @org.springframework.beans.factory.annotation.Value("${identity.service-key}") String serviceKey) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtRequestFilter jwtFilter, @org.springframework.beans.factory.annotation.Value("${identity.service-key}") String serviceKey) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
@@ -62,7 +62,7 @@ public class SecurityConfiguration {
                         .anyRequest().hasAuthority("ACCOUNT_ACTIVE")
                 );
         http.addFilterBefore(new InternalServiceFilter(serviceKey), UsernamePasswordAuthenticationFilter.class);
-        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

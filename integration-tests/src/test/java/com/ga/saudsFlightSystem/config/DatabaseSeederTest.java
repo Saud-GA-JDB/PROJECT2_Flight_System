@@ -8,6 +8,8 @@ import com.ga.maintenance.model.MaintenanceRecord;
 import com.ga.maintenance.config.MaintenanceSeeder;
 import jakarta.persistence.EntityManager;
 import org.junit.Test;
+import org.junit.Before;
+import org.junit.After;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Locale;
 
 import static org.junit.Assert.*;
 
@@ -24,6 +27,7 @@ import static org.junit.Assert.*;
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.MaintenanceTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false",
         "spring.jpa.hibernate.ddl-auto=${seed.test.ddl-auto:validate}",
         "stripe.secret-key=sk_test_unused",
@@ -32,6 +36,19 @@ import static org.junit.Assert.*;
 })
 @Transactional
 public class DatabaseSeederTest {
+    private Locale originalLocale;
+
+    @Before
+    public void useTurkishLocale() {
+        originalLocale = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+    }
+
+    @After
+    public void restoreLocale() {
+        Locale.setDefault(originalLocale);
+    }
+
     @Autowired com.ga.saudsFlightSystem.identity.IdentityServiceClient identity;
     @Autowired EntityManager em;
     @Autowired com.ga.maintenance.client.IdentityServiceClient maintenanceIdentity;

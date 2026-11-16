@@ -39,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false", "spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.show-sql=false",
         "stripe.secret-key=sk_test_unused", "stripe.success-url=http://localhost/payments/success",
         "stripe.cancel-url=http://localhost/payments/cancel"

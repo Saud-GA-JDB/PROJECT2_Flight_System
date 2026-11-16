@@ -5,10 +5,7 @@ import com.ga.identity.model.UserProfile;
 import com.ga.identity.repository.UserRepository;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
-import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.BusinessConflictException;
-import com.ga.common.web.exception.InformationNotFoundException;
-import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;
@@ -18,8 +15,6 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.MediaType;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,7 +35,6 @@ import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import static org.mockito.Mockito.*;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -50,6 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false", "spring.jpa.hibernate.ddl-auto=validate", "spring.jpa.show-sql=false",
         "stripe.secret-key=sk_test_unused", "stripe.success-url=http://localhost/payments/success",
         "stripe.cancel-url=http://localhost/payments/cancel"
@@ -239,7 +234,7 @@ public class FlightClearanceTransactionTest {
     public void auditFailureRollsBackFlightEventAndNotifications() throws Exception {
         commitFixtures();
         AtomicInteger sent = subscribe(pilot);
-        doThrow(new IllegalStateException("Injected audit failure")).when(audits).addAuditLog(any(), any(), any(), any(), any());
+        doThrow(new IllegalStateException("Injected audit failure")).when(audits).addAuditLogForActor(any(), any(), any(), any(), any());
         Assert.assertThrows(IllegalStateException.class, () -> runAs(pilot, () -> service.requestClearance(flight.getId(), FlightOperation.DEPARTURE, 0L)));
         reset(audits);
         TestTransaction.start();
@@ -368,7 +363,7 @@ public class FlightClearanceTransactionTest {
         approve(FlightOperation.DEPARTURE, origin, Instant.now());
         commitFixtures();
         AtomicInteger sent = subscribe(pilot);
-        doThrow(new IllegalStateException("Injected audit failure")).when(audits).addAuditLog(any(), any(), any(), any(), any());
+        doThrow(new IllegalStateException("Injected audit failure")).when(audits).addAuditLogForActor(any(), any(), any(), any(), any());
         try {
             Assert.assertThrows(IllegalStateException.class, () -> runAs(pilot, () -> service.takeOff(flight.getId(), 2L)));
         } finally {

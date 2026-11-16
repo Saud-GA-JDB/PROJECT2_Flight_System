@@ -118,7 +118,7 @@ public class OpenApiConfiguration {
             document(openApi, "/airlineAdmin/flights/{flightId}/crewAssignments", PathItem.HttpMethod.GET,
                     "List flight crew",
                     "Admin of the flight's airline.",
-                    "200", getCrewAssignmentsResponse.class, true);
+                    "200", GetCrewAssignmentsResponse.class, true);
             document(openApi, "/airlineAdmin/flights/{flightId}/crewAssignments/{employeeId}", PathItem.HttpMethod.DELETE,
                     "Remove crew assignment",
                     "Admin of the flight's airline. Requires PENDING_CREW or ACTIVE with both actual times null; delayed flights are allowed and active flights must retain required crew.",

@@ -1,7 +1,8 @@
 package com.ga.maintenance.client;
 
-import com.ga.maintenance.model.request.response.MaintenanceScopeResponse;
-import com.ga.maintenance.model.request.MaintenanceCancellationNotificationRequest;
+import com.ga.common.contract.maintenance.MaintenanceCancellationNotificationRequest;
+import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
+
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

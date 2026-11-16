@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.web.Pagination;
+
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.saudsFlightSystem.model.*;
@@ -116,9 +118,7 @@ public class FlightService {
                     flight.getScheduledDeparture(), flight.getScheduledArrival(),
                     flight.getFirstClassSeatsCount(), flight.getStandardSeatsCount()));
         }
-        long totalPages = totalElements / pageSize;
-        if (totalElements % pageSize != 0)
-            totalPages++;
+        long totalPages = Pagination.totalPages(totalElements, pageSize);
         return new FlightSearchResponse(content, pageNumber, pageSize, totalElements, totalPages);
     }
 

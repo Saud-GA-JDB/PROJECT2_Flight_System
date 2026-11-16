@@ -30,7 +30,6 @@ public class AirlineService {
     private static final Logger logger = Logger.getLogger(AirlineService.class.getName());
 
     // this function is used by FAAAdminService only
-    // TODO: for future check that the country is correct. maybe use file based csv
     /**
      * Lets an FAA admin add an airline if its name and code are not already used.
      *

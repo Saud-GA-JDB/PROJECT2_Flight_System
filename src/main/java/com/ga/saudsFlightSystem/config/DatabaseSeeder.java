@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
 
@@ -226,7 +227,7 @@ public class DatabaseSeeder implements CommandLineRunner {
                 });
         require(Objects.equals(facility.getProvider().getId(), provider.getId()), "tower provider for " + code);
         for (ATCEmployee.ATCRole role : ATCEmployee.ATCRole.values()) {
-            ATCEmployee seededEmployee = staff("atc." + code.toLowerCase() + "." + role.name().toLowerCase() + "@example.com",
+            ATCEmployee seededEmployee = staff("atc." + code.toLowerCase(Locale.ROOT) + "." + role.name().toLowerCase(Locale.ROOT) + "@example.com",
                     "9900000" + (cprSuffix + (role == ATCEmployee.ATCRole.ADMIN ? 0 : 1)), "ATC_EMPLOYEE", () -> {
                         ATCEmployee employee = new ATCEmployee();
                         employee.setFacility(facility);
@@ -242,7 +243,7 @@ public class DatabaseSeeder implements CommandLineRunner {
 
     private void seedCrew(Flight flight) {
         Duty[] duties = {Duty.PILOT, Duty.SECONDARY_PILOT, Duty.FLIGHT_ATTENDANT};
-        String code = flight.getAirline().getAirlineCode().toLowerCase();
+        String code = flight.getAirline().getAirlineCode().toLowerCase(Locale.ROOT);
         for (int i = 0; i < duties.length; i++) {
             Duty duty = duties[i];
             AirlineEmployee seededEmployee = staff(code + ".crew" + (i + 1) + "@mailsac.com",
@@ -293,7 +294,7 @@ public class DatabaseSeeder implements CommandLineRunner {
         AirportOperator assignedOperator = operator;
         for (AirportEmployee.AirportRole role : new AirportEmployee.AirportRole[]{
                 AirportEmployee.AirportRole.ADMIN, AirportEmployee.AirportRole.INSPECTOR}) {
-            staff("airport." + role.name().toLowerCase() + "@mailsac.com",
+            staff("airport." + role.name().toLowerCase(Locale.ROOT) + "@mailsac.com",
                     role == AirportEmployee.AirportRole.ADMIN ? "990000040" : "990000041",
                     "AIRPORT_EMPLOYEE", () -> {
                         AirportEmployee employee = new AirportEmployee();

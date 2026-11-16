@@ -1,12 +1,15 @@
 package com.ga.identity.controller;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.service.AccountService;
 import com.ga.identity.service.EmployeeAccountService;
 import com.ga.identity.service.UserProfileService;
 import com.ga.identity.model.request.*;
 import com.ga.identity.model.request.response.*;
-import com.ga.identity.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

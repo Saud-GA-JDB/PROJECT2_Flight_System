@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.identity;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.web.exception.InformationNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

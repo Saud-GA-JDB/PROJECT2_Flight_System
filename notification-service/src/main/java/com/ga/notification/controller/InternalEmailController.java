@@ -1,7 +1,8 @@
 package com.ga.notification.controller;
 
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.common.web.exception.InvalidInformationException;
-import com.ga.notification.model.request.EmailRequest;
 import com.ga.notification.service.EmailService;
 import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.ga.saudsFlightSystem.service;
+package com.ga.common.validation;
 
 import org.passay.*;
 import org.springframework.stereotype.Service;
@@ -13,6 +13,7 @@ public class PasswordService {
     );
 
     public boolean isValidPassword(String password) {
+        if (password == null) return false;
         RuleResult result = passwordValidator.validate(new PasswordData(password));
         return result.isValid();
     }

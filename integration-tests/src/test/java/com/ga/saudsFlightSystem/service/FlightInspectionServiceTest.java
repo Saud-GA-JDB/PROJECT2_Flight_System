@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false",
         "spring.jpa.hibernate.ddl-auto=validate",
         "stripe.secret-key=sk_test_unused",

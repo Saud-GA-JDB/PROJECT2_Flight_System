@@ -1,9 +1,13 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+
+import com.ga.common.validation.PhoneValidationService;
+import com.ga.common.validation.PasswordService;
+
 import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
-import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.common.web.exception.InvalidInformationException;
@@ -16,7 +20,7 @@ import com.ga.saudsFlightSystem.model.request.response.AddFlightResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
-import com.ga.saudsFlightSystem.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -206,7 +210,7 @@ public class AirlineEmployeeService {
                         request.getEmailAddress(),
                         request.getCpr(),
                         request.getSecurityQuestion(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT),
                         request.getFName(),
                         request.getLName(),
                         request.getCpr(),

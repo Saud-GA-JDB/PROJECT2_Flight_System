@@ -9,19 +9,18 @@ import com.stripe.model.checkout.Session;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.checkout.SessionCreateParams;
 import com.stripe.param.checkout.SessionRetrieveParams;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 
 @Service
+@RequiredArgsConstructor
 public class StripeCheckoutService {
-    @Autowired
-    private StripeClient stripeClient;
+    private final StripeClient stripeClient;
 
-    @Autowired
-    private PaymentService paymentService;
+    private final PaymentService paymentService;
 
     @Value("${stripe.success-url}")
     private String successUrl;

@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.support;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.identity.config.IdentitySeeder;
@@ -20,8 +23,9 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.TestPropertySource;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -36,6 +40,11 @@ import java.util.stream.Collectors;
 @EnableJpaRepositories(basePackages = {"com.ga.identity.repository", "com.ga.saudsFlightSystem.repository", "com.ga.maintenance.repository"}, nameGenerator = FullyQualifiedAnnotationBeanNameGenerator.class)
 @Import({IdentitySeeder.class, NotificationTestConfiguration.class})
 public class IdentityTestConfiguration {
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService applicationExecutor() {
+        return Executors.newFixedThreadPool(5);
+    }
+
     @Bean
     @org.springframework.core.annotation.Order(0)
     public org.springframework.security.web.SecurityFilterChain fixtureIdentityRoutes(org.springframework.security.config.annotation.web.builders.HttpSecurity http, com.ga.identity.security.JwtRequestFilter filter) throws Exception {
@@ -50,7 +59,9 @@ public class IdentityTestConfiguration {
     }
 
     @Bean
-    public com.ga.identity.security.JwtRequestFilter fixtureJwtFilter() { return new com.ga.identity.security.JwtRequestFilter(); }
+    public com.ga.identity.security.JwtRequestFilter fixtureJwtFilter(MyUserDetailsService userDetailsService, com.ga.identity.security.JWTUtils jwtUtils) {
+        return new com.ga.identity.security.JwtRequestFilter(userDetailsService, jwtUtils);
+    }
 
     @Bean
     public org.springframework.boot.web.servlet.FilterRegistrationBean<com.ga.identity.security.JwtRequestFilter> fixtureFilterRegistration(com.ga.identity.security.JwtRequestFilter filter) {
@@ -97,11 +108,11 @@ public class IdentityTestConfiguration {
     @Primary
     public IdentityServiceClient fixtureIdentityClient(InternalIdentityController controller, EmployeeAccountService provisioner) {
         return new IdentityServiceClient() {
-            public AccountSnapshot account(Long id) { return call(() -> snapshot(controller.account(id))); }
+            public AccountSnapshot account(Long id) { return call(() -> controller.account(id)); }
             public Map<Long, AccountSnapshot> accounts(List<Long> ids) {
-                return controller.accounts(ids).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> snapshot(e.getValue())));
+                return controller.accounts(ids);
             }
-            public AccountSnapshot accountByEmail(String email) { return call(() -> snapshot(controller.accountByEmail(email))); }
+            public AccountSnapshot accountByEmail(String email) { return call(() -> controller.accountByEmail(email)); }
             public Map<Long, PersonalProfile> profiles(List<Long> ids) {
                 return controller.profiles(ids).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
                     var p = e.getValue();
@@ -119,20 +130,15 @@ public class IdentityTestConfiguration {
                             r.fName(), r.lName(), r.cpr(), r.phoneNumberOpeningCode(), r.phoneNumber()));
                     // These legacy fixtures share one rollback transaction; they do not exercise HTTP provisioning recovery.
                     provisioner.activate(r.accountType().name() + ":" + r.employeeId(), result.userId());
-                    return new ProvisionedAccount(result.userId(), result.emailAddress());
+                    return result;
                 });
             }
             public void activate(String key, Long userId) { provisioner.activate(key, userId); }
             public void cancel(String key) { provisioner.cancel(key); }
             public CurrentActor authenticate(String authorization) {
-                var actor = controller.authenticate(authorization);
-                return new CurrentActor(actor.userId(), actor.role(), actor.status(), actor.active());
+                return controller.authenticate(authorization);
             }
         };
-    }
-
-    private static AccountSnapshot snapshot(com.ga.identity.model.request.response.AccountSnapshot account) {
-        return new AccountSnapshot(account.userId(), account.role(), account.status(), account.active(), account.emailAddress());
     }
 
     private static <T> T call(Supplier<T> operation) {

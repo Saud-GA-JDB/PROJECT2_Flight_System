@@ -50,7 +50,7 @@ cleanup. Keep this suite sequential and let it finish so its cleanup hook can ru
 These are HTTP API tests against a combined test context. They reuse the existing Identity
 and Maintenance adapters: role accounts log in through the real login endpoint and send
 bearer tokens, but cross-service calls stay in process. Email delivery and Kafka publishing
-use the existing test substitutes. Application seeders and scheduled jobs are disabled in
+use the existing test substitutes. Application seeders and scheduled jobs (`app.scheduling.enabled=false`) are disabled in
 the Cucumber context so they do not update unrelated database records. Separate application
 processes, real Feign transport, SMTP and Kafka delivery are outside this suite's coverage.
 

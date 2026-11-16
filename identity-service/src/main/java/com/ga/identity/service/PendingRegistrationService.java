@@ -1,7 +1,8 @@
 package com.ga.identity.service;
 
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.identity.client.NotificationServiceClient;
-import com.ga.identity.model.request.EmailRequest;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.ga.identity.service.UserProfileService;
@@ -15,7 +16,7 @@ import com.ga.identity.model.User;
 import com.ga.identity.model.UserProfile;
 import com.ga.identity.model.request.response.RegistrationResponse;
 import com.ga.identity.repository.*;
-import com.ga.identity.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;

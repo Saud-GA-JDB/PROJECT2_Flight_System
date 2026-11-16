@@ -1,11 +1,12 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
+
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.AirlineEmployee;
 import com.ga.saudsFlightSystem.model.Airplane;
-import com.ga.saudsFlightSystem.model.request.response.MaintenanceScopeResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.common.security.CurrentActor;

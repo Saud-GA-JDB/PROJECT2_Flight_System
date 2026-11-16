@@ -1,5 +1,7 @@
 package com.ga.identity.service;
 
+import com.ga.common.validation.PasswordService;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,6 +24,7 @@ public class PasswordServiceTest {
     @Test
     @DisplayName("when weak password is used then return false")
     public final void whenWeakPasswordIsUsedThenReturnFalse() {
+        Assert.assertFalse(passwordService.isValidPassword(null));
         Assert.assertFalse(passwordService.isValidPassword("short"));
         Assert.assertFalse(passwordService.isValidPassword("testpassword1"));
         Assert.assertFalse(passwordService.isValidPassword("TestPassword"));

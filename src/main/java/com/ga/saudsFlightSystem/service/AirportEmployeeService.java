@@ -1,9 +1,13 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+
+import com.ga.common.validation.PhoneValidationService;
+import com.ga.common.validation.PasswordService;
+
 import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
-import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -16,13 +20,14 @@ import com.ga.saudsFlightSystem.model.request.AddAirportEmployeeRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirportEmployeeResponse;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
-import com.ga.saudsFlightSystem.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
 import java.util.logging.Logger;
 
 @Service
@@ -108,7 +113,7 @@ public class AirportEmployeeService {
                         request.getEmailAddress().trim(),
                         request.getPassword(),
                         request.getSecurityQuestion().trim(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT),
                         request.getFName().trim(),
                         request.getLName().trim(),
                         request.getCpr(),

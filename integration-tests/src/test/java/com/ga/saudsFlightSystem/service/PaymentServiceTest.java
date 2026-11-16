@@ -1,7 +1,5 @@
 package com.ga.saudsFlightSystem.service;
 
-import com.ga.identity.model.User;
-import com.ga.identity.service.UserService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -46,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "stripe.secret-key=sk_test_unused",
         "stripe.success-url=http://localhost:8080/payments/success",
         "stripe.cancel-url=http://localhost:8080/payments/cancel"
@@ -103,7 +102,7 @@ public class PaymentServiceTest {
         flightId = flightRepository.save(flight).getId();
 
         Booking booking = new Booking();
-        booking.setUserId(UserService.getCurrentLoggedInUser().getId());
+        booking.setUserId(getCurrentLoggedInUser().getId());
         booking.setFlight(flight);
         booking.setBookingRef(UUID.randomUUID().toString());
         booking.setSeatNumber("standard-1");

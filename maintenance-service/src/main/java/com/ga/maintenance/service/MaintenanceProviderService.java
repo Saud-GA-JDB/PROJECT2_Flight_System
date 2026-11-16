@@ -12,7 +12,7 @@ import com.ga.maintenance.repository.MaintenanceContractRepository;
 import com.ga.maintenance.repository.MaintenanceProviderRepository;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
-import com.ga.maintenance.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -92,8 +92,6 @@ public class MaintenanceProviderService {
         contract.setProviderId(providerId);
         contract.setAirlineId(airlineId);
         maintenanceContractRepository.save(contract);
-
-        //TODO: send emails to maintenance provider and airline.
 
         String description = "Airline admin contracted maintenance provider with id " + maintenanceProvider.getId()
                         + " to airline with id " + airlineId;

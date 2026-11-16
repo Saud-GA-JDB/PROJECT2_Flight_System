@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @AllArgsConstructor
-public class getCrewAssignmentsResponse {
+public class GetCrewAssignmentsResponse {
     private Long employeeId;
     private Duty duty;
     private LocalDateTime assignedAt;

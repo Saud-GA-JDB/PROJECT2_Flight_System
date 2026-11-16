@@ -1,13 +1,18 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.web.Pagination;
+import com.ga.common.contract.identity.ProvisionedAccount;
+import com.ga.common.contract.identity.AccountSnapshot;
+
+import com.ga.common.validation.PhoneValidationService;
+import com.ga.common.validation.PasswordService;
+
 import com.ga.saudsFlightSystem.identity.EmployeeAccountProvisioner;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest;
 import com.ga.saudsFlightSystem.identity.EmployeeAccountRequest.AccountType;
-import com.ga.saudsFlightSystem.identity.ProvisionedAccount;
 import com.ga.saudsFlightSystem.identity.PersonalProfile;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
-import com.ga.saudsFlightSystem.identity.AccountSnapshot;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -20,7 +25,7 @@ import com.ga.saudsFlightSystem.model.request.AddAirNavigationProviderRequest;
 import com.ga.saudsFlightSystem.model.request.AddControlFacilityRequest;
 import com.ga.saudsFlightSystem.model.request.response.*;
 import com.ga.saudsFlightSystem.repository.*;
-import com.ga.saudsFlightSystem.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -86,7 +91,7 @@ public class ATCService {
     @Transactional
     public ResponseEntity<ProviderListResponse> getProviders(int page, int size) {
         requireFAAAdmin();
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
 
         return ResponseEntity.ok(atcCacheService.getProviders(page, size));
     }
@@ -135,7 +140,7 @@ public class ATCService {
             Long providerId, int page, int size) {
         requireFAAAdmin();
         checkId(providerId);
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
 
         if (!providerRepository.existsById(providerId))
             throw new InformationNotFoundException(
@@ -177,7 +182,7 @@ public class ATCService {
     public ResponseEntity<ATCEmployeeListResponse> getControllers(int page, int size) {
         CurrentActor actor = requireActiveActor();
         ATCEmployee currentEmployee = requireATCEmployee(actor, true);
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
         Long facilityId = currentEmployee.getFacility().getId();
         List<ATCEmployee> employees = employeeRepository.findControllersByFacilityId(facilityId);
         Map<Long, AccountSnapshot> accounts = accountLookup.findAccountsByIds(
@@ -201,7 +206,7 @@ public class ATCService {
         for (ATCEmployee employee : pageEmployees) {
             content.add(employeeResponse(employee, accounts.get(employee.getUserId()), profiles.get(employee.getUserId())));
         }
-        return ResponseEntity.ok(new ATCEmployeeListResponse(content, page, size, totalElements, totalPages(totalElements, size)));
+        return ResponseEntity.ok(new ATCEmployeeListResponse(content, page, size, totalElements, Pagination.totalPages(totalElements, size)));
     }
 
     @Transactional
@@ -317,17 +322,7 @@ public class ATCService {
             throw new InvalidInformationException("IDs must be positive.");
     }
 
-    private void validatePagination(int page, int size) {
-        if (page < 0 || size < 1 || size > 100)
-            throw new InvalidInformationException("Page must be nonnegative and size must be between 1 and 100.");
-    }
 
-    private long totalPages(long totalElements, int size) {
-        long totalPages = totalElements / size;
-        if (totalElements % size != 0)
-            totalPages++;
-        return totalPages;
-    }
 
     private ProviderResponse providerResponse(AirNavigationServiceProvider provider) {
         return new ProviderResponse(provider.getId(), provider.getName(), provider.getContactEmail());

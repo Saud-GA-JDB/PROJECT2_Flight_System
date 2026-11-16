@@ -1,6 +1,8 @@
 package com.ga.saudsFlightSystem.support;
 
 import com.ga.identity.model.User;
+import com.ga.identity.security.MyUserDetails;
+import org.springframework.security.core.context.SecurityContextHolder;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.maintenance.model.MaintenanceEmployee;
 import com.ga.common.security.CurrentActor;
@@ -16,6 +18,11 @@ public class IdentityFixtures {
 
     public static CurrentActor actor(User user) {
         return new CurrentActor(user.getId(), user.getRole().name(), user.getStatus().name(), user.isActive());
+    }
+
+    public static User getCurrentLoggedInUser() {
+        MyUserDetails details = (MyUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return details.getUser();
     }
 
     public static void linkEmployee(User user, Object employee) {

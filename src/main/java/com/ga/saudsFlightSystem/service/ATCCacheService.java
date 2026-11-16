@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.web.Pagination;
+
 import com.ga.saudsFlightSystem.model.AirNavigationServiceProvider;
 import com.ga.saudsFlightSystem.model.ControlFacility;
 import com.ga.saudsFlightSystem.model.request.response.FacilityListResponse;
@@ -39,7 +41,7 @@ public class ATCCacheService {
 
         long totalElements = providerRepository.count();
         return new ProviderListResponse(
-                content, page, size, totalElements, totalPages(totalElements, size)
+                content, page, size, totalElements, Pagination.totalPages(totalElements, size)
         );
     }
 
@@ -63,7 +65,7 @@ public class ATCCacheService {
 
         long totalElements = facilityRepository.countByProvider_Id(providerId);
         return new FacilityListResponse(
-                content, page, size, totalElements, totalPages(totalElements, size)
+                content, page, size, totalElements, Pagination.totalPages(totalElements, size)
         );
     }
 
@@ -79,10 +81,4 @@ public class ATCCacheService {
         // Spring removes all cached facility pages.
     }
 
-    private long totalPages(long totalElements, int size) {
-        long totalPages = totalElements / size;
-        if (totalElements % size != 0)
-            totalPages++;
-        return totalPages;
-    }
 }

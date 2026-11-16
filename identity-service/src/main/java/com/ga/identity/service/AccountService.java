@@ -1,10 +1,11 @@
 package com.ga.identity.service;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.model.User;
-import com.ga.identity.model.request.response.AccountSnapshot;
 import com.ga.identity.repository.UserRepository;
-import com.ga.identity.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import com.ga.identity.security.JWTUtils;
 import com.ga.identity.security.MyUserDetails;
 import lombok.RequiredArgsConstructor;

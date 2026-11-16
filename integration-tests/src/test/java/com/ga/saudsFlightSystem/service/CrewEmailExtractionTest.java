@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
@@ -7,7 +9,6 @@ import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
-import com.ga.saudsFlightSystem.model.request.EmailRequest;
 import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;

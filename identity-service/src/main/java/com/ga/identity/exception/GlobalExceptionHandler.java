@@ -12,7 +12,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.sql.SQLException;
+import com.ga.common.web.exception.DatabaseConflicts;
 import java.util.logging.Logger;
 
 @RestControllerAdvice(basePackages = "com.ga.identity")
@@ -28,16 +28,9 @@ public class GlobalExceptionHandler extends com.ga.common.web.exception.GlobalEx
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrity(
             DataIntegrityViolationException ex, HttpServletRequest request) {
-        Throwable cause = ex;
-
-        while (cause != null) {
-            if (cause instanceof SQLException sqlException &&
-                    "23505".equals(sqlException.getSQLState())) {
-                logger.warning("Request rejected because the information already exists");
-                return build("This information already exists. Please check your details.",
-                        HttpStatus.CONFLICT, request);
-            }
-            cause = cause.getCause();
+        if (DatabaseConflicts.isUniqueViolation(ex)) {
+            logger.warning("Request rejected because the information already exists");
+            return build("This information already exists. Please check your details.", HttpStatus.CONFLICT, request);
         }
 
         return handleGeneric(ex, request);

@@ -1,4 +1,4 @@
-package com.ga.identity.validation;
+package com.ga.common.validation;
 
 import org.apache.commons.validator.routines.EmailValidator;
 

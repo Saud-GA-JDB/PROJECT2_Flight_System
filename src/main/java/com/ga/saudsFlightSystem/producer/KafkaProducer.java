@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.producer;
 
 import com.ga.common.events.NotificationEvent;
+import com.ga.common.events.NotificationTopics;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,8 +14,6 @@ import tools.jackson.databind.ObjectMapper;
 public class KafkaProducer {
     private static final Logger logger = LoggerFactory.getLogger(KafkaProducer.class);
 
-    public static final String AVIATION_NOTIFICATION_TOPIC = "aviation-notification-topic";
-
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
@@ -25,7 +24,7 @@ public class KafkaProducer {
                     ? "user:" + event.userId()
                     : "role:" + event.role();
 
-            kafkaTemplate.send(AVIATION_NOTIFICATION_TOPIC, key, message)
+            kafkaTemplate.send(NotificationTopics.AVIATION_NOTIFICATIONS, key, message)
                     .whenComplete((result, exception) -> {
                         if (exception == null) {
                             logger.info("Notification published: eventId={}, eventName={}",

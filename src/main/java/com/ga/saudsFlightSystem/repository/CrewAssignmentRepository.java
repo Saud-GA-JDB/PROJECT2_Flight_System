@@ -1,11 +1,8 @@
 package com.ga.saudsFlightSystem.repository;
 
-import com.ga.saudsFlightSystem.model.AirlineEmployee;
 import com.ga.saudsFlightSystem.model.CrewAssignment;
 import com.ga.saudsFlightSystem.model.Flight;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,8 +30,6 @@ public interface CrewAssignmentRepository extends JpaRepository<CrewAssignment, 
           AND ((f.actual_departure IS NOT NULL AND f.actual_arrival IS NULL) OR f.status = 'IN_AIR')
         """, nativeQuery = true)
     boolean hasOccupiedCrew(@Param("flightId") Long flightId, @Param("employeeIds") List<Long> employeeIds);
-
-    List<CrewAssignment> findByAirlineEmployeeId(Long employeeId);
 
     boolean existsByFlightIdAndAirlineEmployeeId(Long flightId, Long employeeId);
     @Query("""

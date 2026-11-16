@@ -1,8 +1,11 @@
 package com.ga.identity.security;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
+import com.ga.common.security.CurrentActor;
+
 import com.ga.identity.model.User;
 import com.ga.identity.service.AccountService;
-import com.ga.identity.model.request.response.AccountSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;

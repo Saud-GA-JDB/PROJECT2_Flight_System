@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.identity.model.User;
-import com.ga.identity.service.UserService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -30,7 +29,7 @@ import java.time.LocalDateTime;
 
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@SpringBootTest(properties = "app.scheduling.enabled=false")
 @Transactional
 public class AirlineEmployeeServiceTest {
     @Autowired
@@ -51,9 +50,9 @@ public class AirlineEmployeeServiceTest {
         SecurityContextHolder.clearContext();
         SecurityContextHolder.getContext().setAuthentication(authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken("flighttest.airline@mailsac.com", "TestPassword1")));
-        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE, UserService.getCurrentLoggedInUser().getRole());
+        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE, getCurrentLoggedInUser().getRole());
         Assert.assertEquals(AirlineEmployee.AirlineRole.ADMIN,
-                airlineEmployee(UserService.getCurrentLoggedInUser()).getAirlineRole());
+                airlineEmployee(getCurrentLoggedInUser()).getAirlineRole());
     }
 
     @After
@@ -79,7 +78,7 @@ public class AirlineEmployeeServiceTest {
         Airplane airplane = airplaneRepository.findById(900003L).orElse(null);
         Assert.assertNotNull("Add the free airplane from TESTING-NOTES-TEMP.md", airplane);
         Assert.assertEquals(Airplane.Status.ACTIVE, airplane.getStatus());
-        Assert.assertEquals(airlineEmployee(UserService.getCurrentLoggedInUser()).getAirline().getId(),
+        Assert.assertEquals(airlineEmployee(getCurrentLoggedInUser()).getAirline().getId(),
                 airplane.getAirline().getId());
         Assert.assertTrue(airplane.getFlightsList().isEmpty());
         LocalDateTime departure = LocalDateTime.now().plusDays(7).withNano(0);
@@ -99,7 +98,7 @@ public class AirlineEmployeeServiceTest {
         Assert.assertEquals(HttpStatus.CREATED, response.getStatusCode());
         Assert.assertEquals(flightCount + 1, flightRepository.count());
         Assert.assertNotNull(flight);
-        Assert.assertEquals(Flight.FlightStatus.ACTIVE, flight.getStatus());
+        Assert.assertEquals(Flight.FlightStatus.PENDING_CREW, flight.getStatus());
         Assert.assertEquals(airplane.getRegistrationNumber(), flight.getAirplaneRegistrationNumber());
         Assert.assertEquals("BAH", flight.getOriginAirportIataCode());
         Assert.assertEquals("DXB", flight.getArrivalAirportIataCode());
@@ -112,7 +111,7 @@ public class AirlineEmployeeServiceTest {
     public final void whenCustomerAddsFlightThenAccessIsDenied() {
         SecurityContextHolder.getContext().setAuthentication(authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken("flighttest.customer@mailsac.com", "TestPassword1")));
-        Assert.assertEquals(User.Role.CUSTOMER, UserService.getCurrentLoggedInUser().getRole());
+        Assert.assertEquals(User.Role.CUSTOMER, getCurrentLoggedInUser().getRole());
 
         airlineEmployeeService.addFlight(900003L, new AddFlightRequest());
     }

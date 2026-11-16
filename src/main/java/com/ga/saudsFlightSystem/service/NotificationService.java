@@ -1,8 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
 import com.ga.common.events.NotificationEvent;
-import com.ga.saudsFlightSystem.model.request.EmailRequest;
 import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

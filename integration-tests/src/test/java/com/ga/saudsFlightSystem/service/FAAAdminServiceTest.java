@@ -2,7 +2,6 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.identity.model.User;
 import com.ga.identity.repository.UserRepository;
-import com.ga.identity.service.UserService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -26,10 +25,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
+import java.util.UUID;
 
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@SpringBootTest(properties = "app.scheduling.enabled=false")
 @Transactional
 public class FAAAdminServiceTest {
     @Autowired
@@ -40,6 +40,8 @@ public class FAAAdminServiceTest {
     AirlineRepository airlineRepository;
     @Autowired
     AirplaneRequestRepository airplaneRequestRepository;
+    @Autowired
+    AirplaneRepository airplaneRepository;
     @Autowired
     UserRepository userRepository;
     @Autowired
@@ -52,7 +54,7 @@ public class FAAAdminServiceTest {
         SecurityContextHolder.clearContext();
         SecurityContextHolder.getContext().setAuthentication(authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken("flighttest.faa@mailsac.com", "TestPassword1")));
-        Assert.assertEquals(User.Role.FAA_ADMIN, UserService.getCurrentLoggedInUser().getRole());
+        Assert.assertEquals(User.Role.FAA_ADMIN, getCurrentLoggedInUser().getRole());
     }
 
     @After
@@ -73,8 +75,21 @@ public class FAAAdminServiceTest {
     @Test
     @DisplayName("when FAA admin approves request then airplane is active")
     public final void whenFAAAdminApprovesRequestThenAirplaneIsActive() {
-        AirplaneRequest request = airplaneRequestRepository.findById(900002L).orElse(null);
-        Assert.assertNotNull("Add the activation request from TESTING-NOTES-TEMP.md", request);
+        User requester = userRepository.findUserByEmailAddress("flighttest.airline@mailsac.com");
+        Assert.assertNotNull("Add the airline admin account from TESTING-NOTES-TEMP.md", requester);
+        Airplane airplane = new Airplane();
+        airplane.setAirline(airlineEmployee(requester).getAirline());
+        airplane.setRegistrationNumber("FAA-" + UUID.randomUUID());
+        airplane.setModel("Approval test airplane");
+        airplane.setStandardSeatsCapacity(100);
+        airplane.setFirstClassSeatsCapacity(10);
+        airplane.setMaxMileage(5000L);
+        airplane.setStatus(Airplane.Status.GROUNDED);
+        airplaneRepository.save(airplane);
+        AirplaneRequest request = new AirplaneRequest();
+        request.setAirplane(airplane);
+        request.setRequestedByUserId(requester.getId());
+        airplaneRequestRepository.saveAndFlush(request);
         Assert.assertEquals(AirplaneRequest.ApprovalStatus.PENDING, request.getStatus());
         Assert.assertEquals(Airplane.Status.GROUNDED, request.getAirplane().getStatus());
         Assert.assertEquals("flighttest.airline@mailsac.com",
@@ -87,7 +102,7 @@ public class FAAAdminServiceTest {
         Assert.assertEquals(HttpStatus.OK, response.getStatusCode());
         Assert.assertEquals(AirplaneRequest.ApprovalStatus.ACCEPTED, request.getStatus());
         Assert.assertEquals(Airplane.Status.ACTIVE, request.getAirplane().getStatus());
-        Assert.assertEquals(UserService.getCurrentLoggedInUser().getId(), request.getReviewedByUserId());
+        Assert.assertEquals(getCurrentLoggedInUser().getId(), request.getReviewedByUserId());
         Assert.assertNotNull(request.getReviewedAt());
     }
 
@@ -96,9 +111,9 @@ public class FAAAdminServiceTest {
     public final void whenAirlineAdminApprovesActivationThenAccessIsDenied() {
         SecurityContextHolder.getContext().setAuthentication(authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken("flighttest.airline@mailsac.com", "TestPassword1")));
-        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE, UserService.getCurrentLoggedInUser().getRole());
+        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE, getCurrentLoggedInUser().getRole());
         Assert.assertEquals(AirlineEmployee.AirlineRole.ADMIN,
-                airlineEmployee(UserService.getCurrentLoggedInUser()).getAirlineRole());
+                airlineEmployee(getCurrentLoggedInUser()).getAirlineRole());
         ReviewAirplaneRequest review = jsonMapper.readValue(
                 "{\"status\":\"ACCEPTED\",\"reviewReason\":\"Test approval\"}", ReviewAirplaneRequest.class);
 

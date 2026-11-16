@@ -1,7 +1,8 @@
 package com.ga.identity.service;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+
 import com.ga.identity.model.request.EmployeeAccountRequest;
-import com.ga.identity.model.request.response.ProvisionedAccount;
 
 import com.ga.common.web.exception.InformationExistException;
 import com.ga.common.web.exception.InformationNotFoundException;
@@ -9,7 +10,7 @@ import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.identity.model.User;
 import com.ga.identity.model.UserProfile;
 import com.ga.identity.repository.UserRepository;
-import com.ga.identity.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

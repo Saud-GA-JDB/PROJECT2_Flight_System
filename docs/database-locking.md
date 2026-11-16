@@ -27,7 +27,7 @@ Pessimistic locks stay held until the transaction commits or rolls back. Write l
 
 Unique constraints also reject duplicate values when no existing row can be locked. `GlobalExceptionHandler` translates unique-constraint violations into **409 Conflict**; the handler itself does not acquire a lock.
 
-Concurrency tests are grouped in [ConcurrencyTest.java](../src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java).
+Concurrency tests are grouped in [ConcurrencyTest.java](../integration-tests/src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java).
 
 ATC list/facility reads take no write locks and create no business audits. Setup lock timeout/deadlock failures return 409 with a refresh/retry message; failed writes roll back. `ATCServiceTest` covers the two-provider tower race using independent PostgreSQL transactions and the existing application executor.
 

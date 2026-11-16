@@ -1,11 +1,15 @@
 package com.ga.identity.service;
 
+import com.ga.common.contract.notification.EmailRequest;
+
+import com.ga.common.validation.PhoneValidationService;
+import com.ga.common.validation.PasswordService;
+
 import com.ga.identity.client.NotificationServiceClient;
-import com.ga.identity.model.request.EmailRequest;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.ga.identity.security.CurrentActorProvider;
-import com.ga.identity.security.CurrentActor;
+import com.ga.common.security.CurrentActor;
 import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.identity.exception.LoginLimitExceededException;
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -26,7 +30,7 @@ import com.ga.identity.model.request.response.LoginResponse;
 import com.ga.identity.repository.*;
 import com.ga.identity.security.JWTUtils;
 import com.ga.identity.security.MyUserDetails;
-import com.ga.identity.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -60,6 +64,9 @@ import java.util.logging.Logger;
 public class UserService {
     private static final Logger logger = Logger.getLogger(UserService.class.getName());
     private static final int MAX_DAILY_LOGIN_FAILURES = 3;
+    private static final String INVALID_PASSWORD_MESSAGE =
+            "Invalid password. Password must contain 8 to 30 characters, at least one uppercase letter, "
+                    + "at least one digit, and no whitespace.";
     private static final int MAX_DAILY_PASSWORD_RESET_FAILURES = 3;
     private static final ZoneId LOGIN_TIME_ZONE = ZoneId.of("Asia/Bahrain");
 
@@ -117,7 +124,7 @@ public class UserService {
         if (request.getPassword() == null || request.getPassword().isBlank())
             throw new InvalidInformationException("Password is required.");
         if (!passwordService.isValidPassword(request.getPassword()))
-            throw new InvalidInformationException("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
+            throw new InvalidInformationException(INVALID_PASSWORD_MESSAGE);
         if (request.getFName() == null || request.getFName().isBlank()
                 || request.getLName() == null || request.getLName().isBlank()) {
             throw new InvalidInformationException("First name and last name are required.");
@@ -319,7 +326,7 @@ public class UserService {
         if (!passwordService.isValidPassword(newPassword)) {
             logger.warning("Password change rejected because the new password did not meet the requirements");
             return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
-                    .body("Invalid Password. Password must be at least 8 chars and max 20, at least one uppercase, at least one digit, and must not contain white space,");
+                    .body(INVALID_PASSWORD_MESSAGE);
         }
 
         CurrentActor actor = currentActorProvider.getCurrentActor();
@@ -484,7 +491,7 @@ public class UserService {
 
         if (request.getSecurityQuestion() != null) {
             profileOwner.setSecurityQuestion(request.getSecurityQuestion());
-            profileOwner.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase()));
+            profileOwner.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT)));
         }
 
         if (request.getActive() != null) {
@@ -559,37 +566,4 @@ public class UserService {
         }
     }
 
-    public static boolean isAllowedEndpoint(String endpoint, User.Role role) {
-        switch (role) {
-            case CUSTOMER:
-                if (endpoint.trim().equalsIgnoreCase("customer")) return true;
-                break;
-            case FAA_ADMIN:
-                if (endpoint.trim().equalsIgnoreCase("faaadmin")) return true;
-                break;
-            case AIRPORT_EMPLOYEE:
-                if (endpoint.trim().equalsIgnoreCase("airportEmployee")) return true;
-                break;
-            case ATC_EMPLOYEE:
-                if (endpoint.trim().equalsIgnoreCase("atcEmployee")) return true;
-                break;
-            case AIRLINE_EMPLOYEE:
-                if (endpoint.trim().equalsIgnoreCase("airlineEmployee")) return true;
-                break;
-            case MAINTENANCE_EMPLOYEE:
-                if (endpoint.trim().equalsIgnoreCase("maintenanceEmployee"))
-                    return true;
-                break;
-            default:
-                throw new InvalidInformationException("Role doesn't exits");
-        }
-        return false;
-    }
-
-    /** Legacy adapter for existing test fixtures; application callers use CurrentActorProvider. */
-    @Deprecated
-    public static User getCurrentLoggedInUser() {
-        MyUserDetails userDetails = (MyUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return userDetails.getUser();
-    }
 }

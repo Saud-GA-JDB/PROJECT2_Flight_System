@@ -3,7 +3,6 @@ package com.ga.saudsFlightSystem.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDate;
 
@@ -16,7 +15,7 @@ public class AirlineEmployee extends BaseEntity{
     @JsonIgnore
     private Long userId;
 
-    public enum AirlineRole{PILOT, FLIGHT_ATTENDANT, GATE_RECEPTION, ADMIN} //ill start with just pilot first
+    public enum AirlineRole{PILOT, FLIGHT_ATTENDANT, GATE_RECEPTION, ADMIN}
     @Column
     @Enumerated(EnumType.STRING)
     private AirlineRole airlineRole;

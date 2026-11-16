@@ -1,7 +1,8 @@
 package com.ga.maintenance.service;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.maintenance.client.IdentityServiceClient;
-import com.ga.maintenance.model.request.response.AccountSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;

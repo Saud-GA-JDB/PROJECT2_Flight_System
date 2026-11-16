@@ -13,7 +13,6 @@ import java.util.List;
 @Repository
 public interface PendingRegistrationRepository extends JpaRepository<PendingRegistration, Long> {
     PendingRegistration findByEmailAddress(String emailAddress);
-    PendingRegistration findByCpr(String cpr);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PendingRegistration p where p.emailAddress = :email")
     PendingRegistration findByEmailAddressForUpdate(@Param("email") String email);

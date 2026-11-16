@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.identity;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;

@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.identity.model.User;
-import com.ga.identity.service.UserService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -32,7 +31,7 @@ import java.time.LocalDateTime;
 
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@SpringBootTest(properties = "app.scheduling.enabled=false")
 @Transactional
 public class BookingServiceTest {
     @Autowired
@@ -57,7 +56,7 @@ public class BookingServiceTest {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken("flighttest.customer@mailsac.com", "TestPassword1"));
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        user = UserService.getCurrentLoggedInUser();
+        user = getCurrentLoggedInUser();
         Assert.assertEquals(User.Role.CUSTOMER, user.getRole());
 
         booking = bookingRepository.findById(900001L).orElse(null);

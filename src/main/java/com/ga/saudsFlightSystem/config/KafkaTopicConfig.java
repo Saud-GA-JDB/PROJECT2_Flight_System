@@ -1,6 +1,6 @@
 package com.ga.saudsFlightSystem.config;
 
-import com.ga.saudsFlightSystem.producer.KafkaProducer;
+import com.ga.common.events.NotificationTopics;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.context.annotation.Bean;
@@ -12,7 +12,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic notificationTopic() {
-        return TopicBuilder.name(KafkaProducer.AVIATION_NOTIFICATION_TOPIC)
+        return TopicBuilder.name(NotificationTopics.AVIATION_NOTIFICATIONS)
                 .partitions(1)
                 .replicas(1)
                 .config(TopicConfig.CLEANUP_POLICY_CONFIG, "delete")

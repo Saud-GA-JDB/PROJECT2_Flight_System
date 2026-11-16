@@ -1,6 +1,7 @@
 package com.ga.notification.service;
 
-import com.ga.notification.model.request.EmailRequest;
+import com.ga.common.contract.notification.EmailRequest;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;

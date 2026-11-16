@@ -1,12 +1,12 @@
 # Planning and progress
 
-This document was created retrospectively on 8 October 2026 from local Git history and the author's explanation of the project, and updated through 28 October 2026. Project 3 has a [Trello board](https://trello.com/b/b63eU4qX/project-3-concurrency). Dates below record observed development activity, not an original schedule or promised deadline.
+This document was created retrospectively on 8 October 2026 from local Git history and the author's explanation of the project, with the historical timeline recorded through 28 October 2026. Current status was reconciled with the code on 15 November 2026. Project 3 has a [Trello board](https://trello.com/b/b63eU4qX/project-3-concurrency). Dates below record observed development activity, not an original schedule or promised deadline.
 
 ## Purpose and scope
 
 Build a flight-system backend inspired by earlier frontend work with the Amadeus API. The original ERD covered booking plus a broader aviation operation. To finish within the available time, delivery focused on customers, airline administrators, FAA administrators, booking, flight scheduling, and airplane activation approvals.
 
-The current project uses its own database and does not call Amadeus. The README and implemented ERD now include the maintenance and inspection models; broader planned ATC entities remain outside the implemented scope.
+The project uses its own database and does not call Amadeus. Maintenance, inspections, ATC provider/tower/staff setup, clearance commands, pilot take-off/landing, and maintenance cancellation/history are implemented. Baggage handling remains deferred. See the [implemented ERD](ERD-IMPLEMENTED.md) and [API guide](API-GUIDE.md).
 
 ## Deliverables, timeline, and progress
 
@@ -27,7 +27,7 @@ The current project uses its own database and does not call Amadeus. The README 
 | October 26–27 | Maintenance workflow | Added providers, contracts, staff accounts, requests, technician assignment, completion, and tests |
 | October 27–28 | Airport accounts and flight inspections | Added operators, staff, inspection assignment, completion, reinspection, scoped lists, and concurrency tests |
 | October 28 | Notifications and database locking | Expanded SSE notifications and database locks; added concurrency tests and locking documentation |
-| No dates scheduled | Pilot departure enforcement, baggage services, ATC | Deferred or outside the current scope |
+| As of the October planning record | Pilot departure enforcement, baggage services, ATC | Originally deferred; pilot and ATC workflows have since been implemented. Baggage remains deferred. |
 
 See the [repository history](https://github.com/Saud-GA-JDB/PROJECT2_Flight_System/commits/) for development details.
 
@@ -42,11 +42,12 @@ See the [repository history](https://github.com/Saud-GA-JDB/PROJECT2_Flight_Syst
 
 ## Remaining work
 
-1. Design the pilot take-off workflow and coordinate departure with the assigned pilot, latest inspection, crew coverage, and independent FAA airplane status under consistent locks.
-2. Keep baggage handling deferred and ATC/navigation outside scope unless explicitly selected. Maintenance cancellation and airline maintenance history also remain deferred.
-3. Improve notification reliability, time-zone handling, password recovery, response consistency, and test isolation.
-4. Add a frontend and connect the wider workflows when time permits.
+1. Keep baggage handling deferred unless separately selected.
+2. Improve notification reliability, time-zone handling, password recovery, response consistency, and test isolation.
+3. Add a frontend and connect the wider workflows when time permits.
+4. Optionally validate airline headquarters countries against a maintained country list. This was previously a TODO in `AirlineService`; no validation rule has been added.
+5. Optionally email the airline and provider when a maintenance contract is created. This was previously a TODO in `MaintenanceProviderService`; no new email is sent.
 
 Future work has no committed timeline. See [User stories](USER-STORIES.md) for role-based requirements and the [README](../README.md#unsolved-problems-and-current-limitations) for current limitations.
 
-Inspection results currently do not gate the existing actualDeparture-based scheduler. Departure enforcement and its race tests were explicitly postponed until the pilot workflow. The passing inspection tests cover services, not HTTP routing or all account setup operations. Database audit checks and the pending-inspection index were updated manually; a versioned migration is still future work.
+Pilot take-off now checks inspection/readiness, crew coverage, occupancy, FAA airplane status, and departure clearance. The scheduler reconciles status from actual departure/arrival times; it does not authorize departure. Service tests and the Cucumber API suite cover different boundaries; see the [integration-test guide](../integration-tests/README.md). Database audit checks and the pending-inspection index were updated manually; versioned migrations remain future work.

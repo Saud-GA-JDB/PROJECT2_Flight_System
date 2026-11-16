@@ -9,6 +9,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 @Component
@@ -50,7 +51,7 @@ public class MaintenanceSeeder implements CommandLineRunner {
             em.persist(contract);
         }
         for (MaintenanceEmployee.MaintenanceRole role : MaintenanceEmployee.MaintenanceRole.values()) {
-            var account = identity.accountByEmail("maintenance." + role.name().toLowerCase() + "@mailsac.com");
+            var account = identity.accountByEmail("maintenance." + role.name().toLowerCase(Locale.ROOT) + "@mailsac.com");
             if (!"MAINTENANCE_EMPLOYEE".equals(account.role()))
                 throw new IllegalStateException("The seed account must be a Maintenance employee.");
             findOrCreate(MaintenanceEmployee.class, "userId", account.userId(), () -> {

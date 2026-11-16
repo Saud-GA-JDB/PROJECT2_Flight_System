@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.identity;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;

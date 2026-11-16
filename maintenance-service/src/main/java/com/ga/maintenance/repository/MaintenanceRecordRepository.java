@@ -31,7 +31,6 @@ public interface MaintenanceRecordRepository extends JpaRepository<MaintenanceRe
     long countAirlineHistory(@Param("airplaneId") Long airplaneId,
                             @Param("status") String status);
 
-    List<MaintenanceRecord> findByAirplaneIdOrderByCreatedAtDesc(Long airplaneId);
     List<MaintenanceRecord> findByTechnicianIdOrderByCreatedAtDesc(Long technicianId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM MaintenanceRecord r WHERE r.id = :recordId")

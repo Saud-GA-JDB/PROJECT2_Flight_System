@@ -1,9 +1,10 @@
 package com.ga.saudsFlightSystem.security;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.saudsFlightSystem.identity.AccountLookup;
-import com.ga.saudsFlightSystem.identity.AccountSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Component;

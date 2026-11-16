@@ -1,9 +1,13 @@
 package com.ga.maintenance.service;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+
+import com.ga.common.validation.PhoneValidationService;
+import com.ga.common.validation.PasswordService;
+
 import com.ga.maintenance.service.EmployeeAccountService;
 import com.ga.maintenance.model.request.EmployeeAccountRequest;
 import com.ga.maintenance.model.request.EmployeeAccountRequest.AccountType;
-import com.ga.maintenance.model.request.response.ProvisionedAccount;
 import com.ga.maintenance.repository.MaintenanceEmployeeRepository;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.common.security.CurrentActor;
@@ -16,13 +20,14 @@ import com.ga.maintenance.model.MaintenanceProvider;
 import com.ga.maintenance.model.request.AddMaintenanceEmployeeRequest;
 import com.ga.maintenance.model.request.response.MaintenanceEmployeeResponse;
 import com.ga.maintenance.repository.MaintenanceProviderRepository;
-import com.ga.maintenance.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.Locale;
 import java.util.logging.Logger;
 
 @Service
@@ -88,7 +93,7 @@ public class MaintenanceEmployeeService {
                         request.getEmailAddress().trim(),
                         request.getPassword(),
                         request.getSecurityQuestion().trim(),
-                        request.getSecurityQuestionAnswer().trim().toLowerCase(),
+                        request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT),
                         request.getFName().trim(),
                         request.getLName().trim(),
                         request.getCpr(),

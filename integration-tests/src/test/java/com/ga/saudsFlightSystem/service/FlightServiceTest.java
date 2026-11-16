@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@SpringBootTest(properties = "app.scheduling.enabled=false")
 @Transactional
 public class FlightServiceTest {
     @Autowired

@@ -1,4 +1,4 @@
-package com.ga.saudsFlightSystem.model.request;
+package com.ga.common.contract.maintenance;
 
 import java.time.Instant;
 import java.util.List;

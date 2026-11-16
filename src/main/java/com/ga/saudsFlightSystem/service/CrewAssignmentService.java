@@ -8,7 +8,7 @@ import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.response.CrewAssignmentResponse;
-import com.ga.saudsFlightSystem.model.request.response.getCrewAssignmentsResponse;
+import com.ga.saudsFlightSystem.model.request.response.GetCrewAssignmentsResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.CrewAssignmentRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -138,13 +138,13 @@ public class CrewAssignmentService {
         if (!Objects.equals(airlineAdmin.getAirline().getId(), flight.getAirline().getId()))
             throw new InvalidInformationException("You arent allowed to view other airlines assignments!");
 
-        List<getCrewAssignmentsResponse> assignmentsResponseList = new ArrayList<>();
+        List<GetCrewAssignmentsResponse> assignmentsResponseList = new ArrayList<>();
 
         List<CrewAssignment> crewAssignmentList = crewAssignmentRepository.findByFlightId(flightId);
 
         for (CrewAssignment assignment: crewAssignmentList) {
             assignmentsResponseList.add(
-                    new getCrewAssignmentsResponse(assignment.getAirlineEmployee().getId(), assignment.getDuty(), assignment.getAssignedAt())
+                    new GetCrewAssignmentsResponse(assignment.getAirlineEmployee().getId(), assignment.getDuty(), assignment.getAssignedAt())
             );
         }
 

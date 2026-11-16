@@ -1,10 +1,11 @@
 package com.ga.maintenance.security;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
 import com.ga.maintenance.client.IdentityServiceClient;
 import com.ga.common.web.exception.InformationNotFoundException;
-import com.ga.maintenance.model.request.response.AccountSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Component;

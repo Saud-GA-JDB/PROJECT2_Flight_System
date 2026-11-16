@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
-import com.ga.saudsFlightSystem.model.request.response.MaintenanceScopeResponse;
+import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
+
 import com.ga.saudsFlightSystem.service.MaintenanceScopeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;

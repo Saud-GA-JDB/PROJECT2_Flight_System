@@ -1,6 +1,5 @@
 package com.ga.maintenance.controller;
 
-import com.ga.maintenance.model.MaintenanceRecord;
 import com.ga.maintenance.model.request.*;
 import com.ga.maintenance.model.request.response.*;
 import com.ga.maintenance.service.*;

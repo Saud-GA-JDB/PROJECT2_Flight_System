@@ -1,4 +1,4 @@
-package com.ga.saudsFlightSystem.identity;
+package com.ga.common.contract.identity;
 
 public record AccountSnapshot(
         Long userId,

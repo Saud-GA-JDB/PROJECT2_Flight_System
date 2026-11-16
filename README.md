@@ -14,7 +14,7 @@ After that initial setup, use `docker compose up -d --build --wait`. Clients use
 
 ## Shared library
 
-The four backend services depend on the [common library](common/README.md), organized into `security`, `web`, and `events` packages. The gateway is independent. The library replaces `common-security` and `common-web` while preserving their existing Java package names.
+The four backend services depend on the [common library](common/README.md), organized into `security`, `web`, `events`, and `validation` packages. The gateway is independent. The library replaces `common-security` and `common-web` while preserving their existing Java package names.
 
 Build it from the repository root before building a backend service:
 
@@ -160,7 +160,7 @@ These are local development links, not hosted documentation. `localhost` means t
 - [OpenAPI JSON](http://localhost:8080/v3/api-docs)
 - [OpenAPI YAML](http://localhost:8080/v3/api-docs.yaml)
 - [Detailed endpoint guide](docs/API-GUIDE.md), including request examples, business rules, SSE usage, audit logging, and test setup.
-- [Postman presentation guide](postman/PRESENTATION.md) and [sample database reference](SAMPLE-DATABASE.md).
+- [Sample database reference](SAMPLE-DATABASE.md).
 
 Swagger UI is a browser interface for exploring the API. OpenAPI is the structured specification that powers it. The documentation routes are public; business endpoints retain their authentication and role checks. The integration uses [springdoc-openapi](https://springdoc.org/).
 
@@ -533,7 +533,7 @@ Cross-application service fixtures are now in [integration-tests](integration-te
 
 The separate [Docker Cucumber notification test](integration-tests/README.md#docker-cucumber-notification-test) verifies an actual airplane activation request through Identity, Aviation, Kafka and Notification's SSE stream. It passed against the local Docker stack on 15 November 2026 and cleans up its temporary database records.
 
-Some older service tests depend on seeded PostgreSQL fixtures, and some send real email. Use a dedicated seeded test database and working SMTP settings. Follow the [test setup and fixture notes](docs/API-GUIDE.md#database-seeding) before running the service suite. Manual changes to fixtures can affect results.
+Some service tests depend on seeded PostgreSQL fixtures. Use a dedicated seeded test database and follow the [test setup and fixture notes](docs/API-GUIDE.md#database-seeding). The combined in-process fixtures substitute email clients and Kafka delivery; the separate Docker notification test uses running services and can reach SMTP. See the [integration-test guide](integration-tests/README.md) for each suite’s boundaries. Manual changes to fixtures can affect results.
 
 
 FlightInspectionServiceTest passed against local PostgreSQL on 28 October 2026: **16 tests, 0 failures, 0 errors, 0 skipped**. It covers failure/reinspection/pass history, unchanged FAA airplane status, audit counts, role/airport/airline/assigned-inspector permissions, scoped lists, rejected reinspection after pending/passed results, competing assignments/completions/reinspection requests, and direct duplicate-pending rejection by the database index.
@@ -958,11 +958,11 @@ Examples include:
 
 Relevant test classes:
 
-- [ConcurrencyTest](src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java)
-- [PaymentServiceTest](src/test/java/com/ga/saudsFlightSystem/service/PaymentServiceTest.java)
-- [CrewAssignmentServiceTest](src/test/java/com/ga/saudsFlightSystem/service/CrewAssignmentServiceTest.java)
-- [MaintenanceRecordServiceTest](src/test/java/com/ga/saudsFlightSystem/service/MaintenanceRecordServiceTest.java)
-- [FlightInspectionServiceTest](src/test/java/com/ga/saudsFlightSystem/service/FlightInspectionServiceTest.java)
+- [ConcurrencyTest](integration-tests/src/test/java/com/ga/saudsFlightSystem/service/ConcurrencyTest.java)
+- [PaymentServiceTest](integration-tests/src/test/java/com/ga/saudsFlightSystem/service/PaymentServiceTest.java)
+- [CrewAssignmentServiceTest](integration-tests/src/test/java/com/ga/saudsFlightSystem/service/CrewAssignmentServiceTest.java)
+- [MaintenanceRecordServiceTest](integration-tests/src/test/java/com/ga/saudsFlightSystem/service/MaintenanceRecordServiceTest.java)
+- [FlightInspectionServiceTest](integration-tests/src/test/java/com/ga/saudsFlightSystem/service/FlightInspectionServiceTest.java)
 
 I also performed manual testing alongside the automated tests.
 

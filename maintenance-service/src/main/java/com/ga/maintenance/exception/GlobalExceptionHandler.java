@@ -12,7 +12,7 @@ import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.AuthenticationException;
-import java.sql.SQLException;
+import com.ga.common.web.exception.DatabaseConflicts;
 
 @RestControllerAdvice(basePackages = "com.ga.maintenance")
 public class GlobalExceptionHandler extends com.ga.common.web.exception.GlobalExceptionHandler {
@@ -43,12 +43,10 @@ public class GlobalExceptionHandler extends com.ga.common.web.exception.GlobalEx
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> dataConflict(DataIntegrityViolationException ex, HttpServletRequest request) {
-        Throwable cause = ex;
-        while (cause != null) {
-            if (cause instanceof SQLException sql && "23505".equals(sql.getSQLState()))
-                return build("This information already exists. Please check your details.", HttpStatus.CONFLICT, request);
-            cause = cause.getCause();
+        if (DatabaseConflicts.isUniqueViolation(ex)) {
+            return build("This information already exists. Please check your details.", HttpStatus.CONFLICT, request);
         }
+
         return handleGeneric(ex, request);
     }
 }

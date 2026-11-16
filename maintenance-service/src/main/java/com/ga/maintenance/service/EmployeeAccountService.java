@@ -1,8 +1,9 @@
 package com.ga.maintenance.service;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+
 import com.ga.maintenance.client.IdentityServiceClient;
 import com.ga.maintenance.model.request.EmployeeAccountRequest;
-import com.ga.maintenance.model.request.response.ProvisionedAccount;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;

@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.web.Pagination;
+
 import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.repository.ATCEmployeeRepository;
 import com.ga.common.security.CurrentActorProvider;
@@ -51,7 +53,7 @@ public class FlightOperationService {
                                                                               LocalDate toDate, int page, int size) {
         CurrentActor actor = activeActor();
         AirlineEmployee pilot = requirePilot(actor);
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
         validateDates(fromDate, toDate);
         List<Flight> flights = flightRepository.findPilotOperations(pilot.getId(),
                 status == null ? null : status.name(), startDate(fromDate), endDate(toDate), size, (long) page * size);
@@ -65,7 +67,7 @@ public class FlightOperationService {
                                                                               LocalDate fromDate, LocalDate toDate, int page, int size) {
         CurrentActor actor = activeActor();
         ATCEmployee towerEmployee = requireTower(actor);
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
         validateDates(fromDate, toDate);
         List<Flight> flights = flightRepository.findTowerOperations(towerEmployee.getFacility().getAirport().getId(),
                 operation == null ? null : operation.name(), status == null ? null : status.name(),
@@ -79,7 +81,7 @@ public class FlightOperationService {
     public ResponseEntity<FlightOperationListResponse> getTowerRequests(FlightOperation operation, int page, int size) {
         CurrentActor actor = activeActor();
         ATCEmployee towerEmployee = requireTower(actor);
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
         Long facilityId = towerEmployee.getFacility().getId();
         List<Flight> flights = flightRepository.findPendingClearances(facilityId,
                 operation == null ? null : operation.name(), size, (long) page * size);
@@ -475,17 +477,7 @@ public class FlightOperationService {
         return flightRepository.findById(id).orElseThrow(() -> new InformationNotFoundException("Couldn't find a flight with this ID."));
     }
 
-    private void validatePagination(int page, int size) {
-        if (page < 0 || size < 1 || size > 100)
-            throw new InvalidInformationException("Page must be nonnegative and size must be between 1 and 100.");
-    }
 
-    private long totalPages(long totalElements, int size) {
-        long totalPages = totalElements / size;
-        if (totalElements % size != 0)
-            totalPages++;
-        return totalPages;
-    }
 
     private void validateDates(LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to))
@@ -508,7 +500,7 @@ public class FlightOperationService {
         Instant now = Instant.now();
         List<FlightOperationSummary> content = new ArrayList<>();
         for (Flight flight : flights) content.add(summary(flight, now));
-        return new FlightOperationListResponse(content, page, size, totalElements, totalPages(totalElements, size));
+        return new FlightOperationListResponse(content, page, size, totalElements, Pagination.totalPages(totalElements, size));
     }
 
     private FlightOperationSummary summary(Flight flight, Instant now) {
@@ -528,13 +520,13 @@ public class FlightOperationService {
     }
 
     private ControlEventListResponse events(Long flightId, Long facilityId, FlightOperation operation, int page, int size) {
-        validatePagination(page, size);
+        Pagination.validateZeroBased(page, size);
         List<FlightControlEvent> events = eventRepository.findHistory(flightId, facilityId, operation == null ? null : operation.name(), size, (long) page * size);
         long totalElements = eventRepository.countHistory(flightId, facilityId, operation == null ? null : operation.name());
         List<ControlEventResponse> content = new ArrayList<>();
         for (FlightControlEvent event : events)
             content.add(new ControlEventResponse(event.getId(), flightId, event.getFacility().getId(), event.getActorUserId(),
                     event.getOperation(), event.getEventType(), event.getCycle(), event.getRevision(), event.getOccurredAt(), event.getReason()));
-        return new ControlEventListResponse(content, page, size, totalElements, totalPages(totalElements, size));
+        return new ControlEventListResponse(content, page, size, totalElements, Pagination.totalPages(totalElements, size));
     }
 }

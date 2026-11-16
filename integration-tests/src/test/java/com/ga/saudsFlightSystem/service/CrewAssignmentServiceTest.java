@@ -1,7 +1,6 @@
 package com.ga.saudsFlightSystem.service;
 
 import com.ga.identity.model.User;
-import com.ga.identity.service.UserService;
 import static com.ga.saudsFlightSystem.support.IdentityFixtures.*;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -9,7 +8,7 @@ import com.ga.common.web.exception.InvalidInformationException;
 import com.ga.saudsFlightSystem.model.*;
 import com.ga.saudsFlightSystem.model.request.AddCrewAssignmentRequest;
 import com.ga.saudsFlightSystem.model.request.response.CrewAssignmentResponse;
-import com.ga.saudsFlightSystem.model.request.response.getCrewAssignmentsResponse;
+import com.ga.saudsFlightSystem.model.request.response.GetCrewAssignmentsResponse;
 import com.ga.saudsFlightSystem.repository.*;
 import org.junit.After;
 import org.junit.Assert;
@@ -33,7 +32,7 @@ import java.util.List;
 
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
-@SpringBootTest
+@SpringBootTest(properties = "app.scheduling.enabled=false")
 @Transactional
 public class CrewAssignmentServiceTest {
     @Autowired
@@ -63,7 +62,7 @@ public class CrewAssignmentServiceTest {
                         new UsernamePasswordAuthenticationToken(
                                 "flighttest.airline@mailsac.com", "TestPassword1")));
 
-        AirlineEmployee admin = airlineEmployee(UserService.getCurrentLoggedInUser());
+        AirlineEmployee admin = airlineEmployee(getCurrentLoggedInUser());
         Assert.assertEquals(AirlineEmployee.AirlineRole.ADMIN, admin.getAirlineRole());
 
         pilot = new AirlineEmployee();
@@ -92,6 +91,7 @@ public class CrewAssignmentServiceTest {
     @Test
     @DisplayName("when admin manages crew then assignment is added listed and removed")
     public final void whenAdminManagesCrewThenAssignmentIsAddedListedAndRemoved() {
+        flight.setStatus(Flight.FlightStatus.PENDING_CREW);
         ResponseEntity<?> added = crewAssignmentService.addCrewAssignment(
                 flight.getId(), request);
         CrewAssignmentResponse assignment = (CrewAssignmentResponse) added.getBody();
@@ -109,7 +109,7 @@ public class CrewAssignmentServiceTest {
         Assert.assertEquals(HttpStatus.OK, listed.getStatusCode());
         Assert.assertNotNull(assignments);
         Assert.assertEquals(1, assignments.size());
-        getCrewAssignmentsResponse crew = (getCrewAssignmentsResponse) assignments.get(0);
+        GetCrewAssignmentsResponse crew = (GetCrewAssignmentsResponse) assignments.get(0);
         Assert.assertEquals(pilot.getId(), crew.getEmployeeId());
         Assert.assertEquals(Duty.PILOT, crew.getDuty());
         assertAuditLogged(AuditLog.Action.CREW_ASSIGNMENTS_VIEWED,
@@ -124,6 +124,16 @@ public class CrewAssignmentServiceTest {
                 AuditLog.EntityType.CREW_ASSIGNMENT, assignment.getId());
     }
 
+    @Test
+    @DisplayName("when removing required crew from an active flight then removal is rejected")
+    public void whenRemovingRequiredCrewFromActiveFlightThenRemovalIsRejected() {
+        crewAssignmentService.addCrewAssignment(flight.getId(), request);
+
+        InvalidInformationException exception = Assert.assertThrows(InvalidInformationException.class,
+                () -> crewAssignmentService.removeCrewAssignment(flight.getId(), pilot.getId()));
+        Assert.assertTrue(exception.getMessage().contains("add an alternative employee"));
+    }
+
     private void assertAuditLogged(AuditLog.Action action, AuditLog.EntityType entityType, Long entityId) {
         List<AuditLog> logs = auditLogRepository.findAll().stream()
                 .filter(log -> log.getAction() == action && log.getEntityType() == entityType
@@ -131,8 +141,8 @@ public class CrewAssignmentServiceTest {
                 .toList();
 
         Assert.assertEquals(1, logs.size());
-        Assert.assertEquals(UserService.getCurrentLoggedInUser().getId(), logs.get(0).getUserId());
-        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE, logs.get(0).getUserRole());
+        Assert.assertEquals(getCurrentLoggedInUser().getId(), logs.get(0).getUserId());
+        Assert.assertEquals(User.Role.AIRLINE_EMPLOYEE.name(), logs.get(0).getUserRole());
         Assert.assertNotNull(logs.get(0).getCreatedAt());
         Assert.assertFalse(logs.get(0).getDescription().isBlank());
     }

@@ -13,7 +13,7 @@ import com.ga.saudsFlightSystem.repository.AirportOperatorRepository;
 import com.ga.saudsFlightSystem.repository.AirportRepository;
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
-import com.ga.saudsFlightSystem.validation.EmailValidation;
+import com.ga.common.validation.EmailValidation;
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;

@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.time.Instant;
 import java.util.Map;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -59,6 +58,7 @@ import java.util.concurrent.*;
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.MaintenanceTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false",
         "maintenance.notification-service-key=fixture",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -229,6 +229,26 @@ public class MaintenanceRecordServiceTest {
         Assert.assertThrows(IllegalEndpoint.class,
                 () -> service.assignService(recordId, technicianId));
         Assert.assertNull(entityManager.find(MaintenanceRecord.class, recordId).getTechnician());
+    }
+
+    @Test
+    public void assignmentResponseContainsPersistedUpdateTimestamp() {
+        java.time.LocalDateTime previousUpdate = java.time.LocalDateTime.of(2000, 1, 1, 0, 0);
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE maintenance_records SET updated_at = :updatedAt WHERE id = :id")
+                .setParameter("updatedAt", previousUpdate).setParameter("id", recordId).executeUpdate();
+        entityManager.clear();
+        login(adminEmail);
+
+        MaintenanceRecordResponse response = (MaintenanceRecordResponse) service.assignService(recordId, technicianId).getBody();
+        Assert.assertNotNull(response);
+        Assert.assertNotNull(response.getUpdatedAt());
+        Assert.assertTrue(response.getUpdatedAt().isAfter(previousUpdate));
+        Assert.assertEquals(technicianId, response.getTechnicianId());
+
+        entityManager.flush();
+        entityManager.clear();
+        Assert.assertEquals(entityManager.find(MaintenanceRecord.class, recordId).getUpdatedAt(), response.getUpdatedAt());
     }
 
     @Test

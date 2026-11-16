@@ -1,7 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.notification.EmailRequest;
+
 import com.ga.saudsFlightSystem.client.NotificationServiceClient;
-import com.ga.saudsFlightSystem.model.request.EmailRequest;
 import com.ga.saudsFlightSystem.producer.KafkaProducer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

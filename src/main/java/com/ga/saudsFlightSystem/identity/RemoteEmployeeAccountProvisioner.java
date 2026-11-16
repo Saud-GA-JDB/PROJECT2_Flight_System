@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.identity;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;

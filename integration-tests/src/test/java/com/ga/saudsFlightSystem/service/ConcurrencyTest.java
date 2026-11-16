@@ -41,6 +41,7 @@ import java.util.concurrent.*;
 @org.springframework.context.annotation.Import(com.ga.saudsFlightSystem.support.IdentityTestConfiguration.class)
 @RunWith(SpringRunner.class)
 @SpringBootTest(properties = {
+        "app.scheduling.enabled=false",
         "app.seed.enabled=false",
         "stripe.secret-key=sk_test_unused",
         "stripe.success-url=http://localhost:8080/payments/success",

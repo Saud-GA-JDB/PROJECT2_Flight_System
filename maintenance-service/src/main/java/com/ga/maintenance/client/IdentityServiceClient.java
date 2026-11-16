@@ -1,9 +1,10 @@
 package com.ga.maintenance.client;
 
+import com.ga.common.contract.identity.ProvisionedAccount;
+import com.ga.common.contract.identity.AccountSnapshot;
+
 import com.ga.common.security.client.IdentityClientConfiguration;
 import com.ga.maintenance.model.request.EmployeeAccountRequest;
-import com.ga.maintenance.model.request.response.AccountSnapshot;
-import com.ga.maintenance.model.request.response.ProvisionedAccount;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
