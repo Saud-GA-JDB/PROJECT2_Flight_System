@@ -43,6 +43,10 @@ public class OpenApiConfiguration {
     @Bean
     public OpenApiCustomizer flightSystemDocumentation() {
         return openApi -> {
+            document(openApi, "/airports", PathItem.HttpMethod.GET,
+                    "List airports",
+                    "Active account required. Returns airport reference data ordered by IATA code.",
+                    "200", AirportResponse.class, true);
             document(openApi, "/flights/search", PathItem.HttpMethod.GET,
                     "Search flights",
                     "Active account required. Filters by route, date, airline, and seat class with pagination and sorting.",
@@ -109,6 +113,11 @@ public class OpenApiConfiguration {
                     "Create airport admin",
                     "FAA admin only. Creates an admin for this airport, which must have an operator.",
                     "201", AirportEmployeeResponse.class, false);
+            document(openApi, "/airlineAdmin/airplanes", PathItem.HttpMethod.GET,
+                    "List airline airplanes",
+                    "Airline admin only. Returns the current airline's airplanes ordered by registration number. "
+                            + "Includes active and grounded airplanes. Flight creation checks availability separately.",
+                    "200", AirplaneResponse.class, true);
             document(openApi, "/airlineAdmin/airplanes", PathItem.HttpMethod.POST,
                     "Register airplane",
                     "Airline admin only. Creates a grounded airplane for the current airline and sends a notification after commit.",

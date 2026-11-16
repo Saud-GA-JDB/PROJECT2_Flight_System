@@ -1,6 +1,6 @@
 # Frontend integration guide
 
-Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee, flight pricing/seat, booking-detail, CORS and creation-ID updates for stages 1–6. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
+Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee, flight pricing/seat, booking-detail, CORS, creation-ID and airport/airplane-list updates for stages 1–7. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
 
 ## Contents
 
@@ -40,7 +40,7 @@ Every paged response has `{content: T[], page, size, totalElements, totalPages}`
 | --- | --- | --- | --- |
 | `/flights/search` | **1** | `page=1&size=10` | `page >= 1`, size 1–100; configurable sort below |
 | Pilot/ATC flight lists, control events, navigation providers, facilities, controllers, airline maintenance history | **0** | `page=0&size=20` | `page >= 0`, size 1–100; no configurable sort |
-| Bookings, airlines, airplane requests, crew, inspections, provider maintenance requests, technician assignments | Unpaged | — | Returns a raw array |
+| Bookings, airlines, airports, airline airplanes, airplane requests, crew, inspections, provider maintenance requests, technician assignments | Unpaged | — | Returns a raw array |
 
 ### Browser access and interactive API docs
 
@@ -69,7 +69,7 @@ These affect screen design and must be resolved with the backend team or explici
 | Needed by a frontend | Current limitation |
 | --- | --- |
 | Show the recovery question | No security-question-read endpoint. Password recovery accepts an answer but does not return the question. Basic profile reads are available through `/auth/users/me`. |
-| Browse airports, aircraft, employees and business relationships | No airport list, airplane list/detail, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
+| Browse employees and business relationships; manage existing flights | No airplane-detail endpoint, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. Airport, airline airplane and ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
 | Profile images | Upload succeeds with a text response; no image URL is returned, and no public image-serving route is configured. Upload support alone does not provide an avatar display API. |
 | Refunds and restarting expired checkout | No refund or replacement-checkout endpoint. A paid booking cannot be cancelled through the current API. Expired payments cannot be restarted for the same booking. |
 | Other workflows | No implemented flight cancellation/rescheduling, baggage handling, check-in, notification inbox or notification read/unread API. Enum values alone do not establish an available workflow. |
@@ -160,6 +160,12 @@ Images must decode as an image; they are saved as PNG. Invalid images return `40
 
 ## Flight search, booking and payment
 
+### Airport reference data
+
+`GET /airports` — **active account required**, no input, `200 Airport[]`.
+
+Returns all airports ordered by IATA code, without pagination. An empty list is `[]`. Use `iataCode` for flight search and flight creation, and `id` for administrative operations that require an airport ID. The list provides airport reference data; it does not imply flights are available for every route.
+
 ### Flight search
 
 `GET /flights/search` — **active account required**, no body, `200 Page<FlightSearchItem>`.
@@ -240,6 +246,7 @@ All routes in this section require account role `AIRLINE_EMPLOYEE`, airline role
 | Method and path | Input | Success |
 | --- | --- | --- |
 | `POST /airlineAdmin/employees` | Query `role=PILOT` or `FLIGHT_ATTENDANT`; `AirlineEmployeeInput` JSON | `201 AirlineEmployee` |
+| `GET /airlineAdmin/airplanes` | None | `200 Airplane[]`, restricted to the caller's airline and ordered by registration number |
 | `POST /airlineAdmin/airplanes` | Aircraft JSON below | `201 AddAirplane` |
 | `POST /airlineAdmin/airplanes/{airplaneId}/requestActivation` | None | `201 AirplaneRequest` |
 | `POST /airlineAdmin/airplanes/{airplaneId}/addFlight` | Flight JSON below | `201 AddFlight` |
@@ -251,6 +258,8 @@ All routes in this section require account role `AIRLINE_EMPLOYEE`, airline role
 | `GET /airlineAdmin/flights/{flightId}/inspections` | None | `200 Inspection[]` |
 | `GET /airlineAdmin/flights/{flightId}/operations` | None | `200 FlightOperationSummary` |
 | `GET /airlineAdmin/flights/{flightId}/controlEvents` | Optional query `operation`, `page`, `size` | `200 Page<ControlEvent>` |
+
+The airplane list is unpaged and returns `[]` when empty. The airline is determined from the authenticated admin; no airline ID is supplied. It includes both `ACTIVE` and `GROUNDED` airplanes. The frontend can filter by status, but an active airplane is not necessarily available for the requested flight times; flight creation performs the existing availability checks.
 
 Airplane creation returns `id` for the new airplane; use it as `airplaneId` when requesting activation or adding flights. Flight creation returns `id` for the new flight; use it as `flightId` for crew assignment and activation. The `airplane-added` notification includes the same airplane ID. These IDs identify the created resources, not the caller's account.
 
@@ -522,6 +531,24 @@ type Payment = {
 };
 type Airline = {
   id: number; name: string; airlineCode: string; headquartersCountry: string;
+};
+type Airport = {
+  id: number;
+  iataCode: string;
+  name: string;
+  city: string;
+  country: string;
+  timeZone: string;
+};
+type Airplane = {
+  id: number;
+  registrationNumber: string;
+  model: string;
+  firstClassSeatsCapacity: number;
+  standardSeatsCapacity: number;
+  maxMileage: number;
+  addedAt: LocalDateTime;
+  status: "ACTIVE" | "GROUNDED";
 };
 type Organization = { id: number; name: string; contactEmail: string };
 // Organization shape is shared by airport operators, navigation and maintenance providers.

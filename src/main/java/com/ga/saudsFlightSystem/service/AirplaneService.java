@@ -15,6 +15,7 @@ import com.ga.saudsFlightSystem.model.Flight;
 import com.ga.saudsFlightSystem.model.request.AirplaneRequest;
 import com.ga.saudsFlightSystem.model.request.response.AirplaneRequestResponse;
 import com.ga.saudsFlightSystem.model.request.response.AddAirplaneResponse;
+import com.ga.saudsFlightSystem.model.request.response.AirplaneResponse;
 import com.ga.saudsFlightSystem.repository.AirplaneRepository;
 import com.ga.saudsFlightSystem.repository.AirplaneRequestRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -25,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.logging.Logger;
 
@@ -42,6 +45,25 @@ public class AirplaneService {
     private FlightRepository flightRepository;
 
     private static final Logger logger = Logger.getLogger(AirplaneService.class.getName());
+
+    public List<AirplaneResponse> getAirplanes() {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!"AIRLINE_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("You are not allowed this API Endpoint!");
+
+        AirlineEmployee airlineEmployee = airlineEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (airlineEmployee == null || airlineEmployee.getAirline() == null || airlineEmployee.getAirlineRole() != AirlineEmployee.AirlineRole.ADMIN)
+            throw new IllegalEndpoint("Only airline admins can list airplanes!");
+
+        List<AirplaneResponse> response = new ArrayList<>();
+        for (Airplane airplane : airplaneRepository.findByAirline_IdOrderByRegistrationNumberAsc(airlineEmployee.getAirline().getId())) {
+            response.add(new AirplaneResponse(
+                    airplane.getId(), airplane.getRegistrationNumber(), airplane.getModel(),
+                    airplane.getFirstClassSeatsCapacity(), airplane.getStandardSeatsCapacity(),
+                    airplane.getMaxMileage(), airplane.getAddedAt(), airplane.getStatus()));
+        }
+        return response;
+    }
 
     /**
      * Sends an airplane activation request for FAA review after checking ownership

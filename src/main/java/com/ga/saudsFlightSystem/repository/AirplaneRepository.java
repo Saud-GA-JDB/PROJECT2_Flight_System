@@ -8,8 +8,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface AirplaneRepository extends JpaRepository<Airplane, Long> {
+    List<Airplane> findByAirline_IdOrderByRegistrationNumberAsc(Long airlineId);
     boolean existsByRegistrationNumber(String registrationNumber);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Airplane a WHERE a.id = :airplaneId")

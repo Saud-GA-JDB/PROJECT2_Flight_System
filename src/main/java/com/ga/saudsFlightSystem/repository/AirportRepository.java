@@ -8,8 +8,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface AirportRepository extends JpaRepository<Airport, Long> {
+    List<Airport> findAllByOrderByIataCodeAsc();
     boolean existsByIataCode(String iataId);
     Airport findByIataCode(String iataCode);
     @Lock(LockModeType.PESSIMISTIC_WRITE)

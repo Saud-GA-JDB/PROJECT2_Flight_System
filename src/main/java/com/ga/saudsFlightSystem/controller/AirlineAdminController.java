@@ -12,6 +12,8 @@ import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @AllArgsConstructor
 @RequestMapping(path = "/airlineAdmin")
@@ -26,6 +28,11 @@ public class AirlineAdminController {
     @PostMapping("/employees")
     public ResponseEntity<AirlineEmployeeResponse> addAirlineEmployee(@RequestParam("role") AirlineEmployee.AirlineRole role, @RequestBody AddAirlineEmployeeRequest request) {
         return airlineEmployeeService.addAirlineEmployee(role, request);
+    }
+
+    @GetMapping("/airplanes")
+    public ResponseEntity<List<AirplaneResponse>> getAirplanes() {
+        return ResponseEntity.ok(airplaneService.getAirplanes());
     }
 
     @PostMapping("/airplanes")

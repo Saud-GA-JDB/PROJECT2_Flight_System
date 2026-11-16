@@ -95,6 +95,20 @@ curl.exe -X PUT "http://localhost:8081/auth/users/updateProfile" -H "Authorizati
 
 Omit the `image` part to keep the current image. A nonempty uploaded file is saved under `uploads/` with a generated filename, and its path is stored in the profile's `imageUrl`.
 
+Airport and airline airplane lists
+---
+
+Send `Authorization: Bearer <token>`. Both endpoints return unpaged arrays, with `[]` for empty results. Neither takes input.
+
+| Method | Endpoint | Access | Success |
+| --- | --- | --- | --- |
+| GET | `/airports` | Any active account | `200 AirportResponse[]`, ordered by IATA code |
+| GET | `/airlineAdmin/airplanes` | Active airline admin | `200 AirplaneResponse[]`, restricted to the caller's airline and ordered by registration number |
+
+Airport fields: `id`, `iataCode`, `name`, `city`, `country`, `timeZone`. Use `iataCode` for flight search and flight creation, and `id` for administrative operations that require an airport ID. Airport reference data does not guarantee flights exist for every route.
+
+Airplane fields: `id`, `registrationNumber`, `model`, `firstClassSeatsCapacity`, `standardSeatsCapacity`, `maxMileage`, `addedAt`, `status`. The airline is determined from the authenticated admin; no airline ID is supplied. Both `ACTIVE` and `GROUNDED` airplanes are returned. An active airplane is not necessarily available for the requested flight times; flight creation still checks availability.
+
 Add airplane endpoint
 ---
 
