@@ -19,6 +19,7 @@ import com.ga.maintenance.model.MaintenanceEmployee;
 import com.ga.maintenance.model.MaintenanceProvider;
 import com.ga.maintenance.model.request.AddMaintenanceEmployeeRequest;
 import com.ga.maintenance.model.request.response.MaintenanceEmployeeResponse;
+import com.ga.maintenance.model.request.response.CurrentEmployeeResponse;
 import com.ga.maintenance.repository.MaintenanceProviderRepository;
 import com.ga.common.validation.EmailValidation;
 import jakarta.transaction.Transactional;
@@ -41,6 +42,23 @@ public class MaintenanceEmployeeService {
     private PasswordService passwordService;
     private AuditLogService auditLogService;
     private static final Logger logger = Logger.getLogger(MaintenanceEmployeeService.class.getName());
+
+    @Transactional
+    public CurrentEmployeeResponse getCurrentEmployee() {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+
+        if (!"MAINTENANCE_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("You are not allowed this endpoint.");
+
+        MaintenanceEmployee employee = maintenanceEmployeeRepository.findByUserId(actor.userId())
+                .orElseThrow( () -> new InformationNotFoundException("Couldn't find the maintenance employee."));
+
+        if (employee.getMaintenanceRole() == null || employee.getProvider() == null)
+            throw new IllegalEndpoint("The employee must have a maintenance role and belong to a provider.");
+
+        return new CurrentEmployeeResponse(
+                employee.getId(), employee.getMaintenanceRole().name(), employee.getProvider().getId());
+    }
 
     @Transactional
     public ResponseEntity<?> addMaintenanceAdmin(Long providerId, AddMaintenanceEmployeeRequest request) {

@@ -1,6 +1,6 @@
 # Frontend integration guide
 
-Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with the current-user endpoint updated for stage 1. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
+Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user and current-employee endpoints updated for stages 1 and 2. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
 
 ## Contents
 
@@ -62,7 +62,6 @@ These affect screen design and must be resolved with the backend team or explici
 
 | Needed by a frontend | Current limitation |
 | --- | --- |
-| Choose an employee dashboard and identify the organization | `GET /auth/users/me` returns user ID, account role, setup status and basic profile information. Employee roles such as `ADMIN` or `PILOT`, employee IDs and organization IDs are not included yet. Login still returns only `{message: JWT}`; use `/me` for account information. |
 | Show the recovery question | No security-question-read endpoint. Password recovery accepts an answer but does not return the question. Basic profile reads are available through `/auth/users/me`. |
 | Browse airports, aircraft, employees and business relationships | No airport list, airplane list/detail, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
 | Continue immediately after creating an aircraft or flight | `AddAirplaneResponse` and `AddFlightResponse` contain **no numeric ID**. New airline-admin creation also returns no user/employee ID. These responses need enrichment for a complete create-and-manage flow. |
@@ -87,9 +86,32 @@ These affect screen design and must be resolved with the backend team or explici
 
 ### Current user
 
-After login or page reload, call `GET /auth/users/me` with the JWT to retrieve the current account and profile. Authenticated setup-required accounts may call this endpoint; use `status === "SETUP_REQUIRED"` to show account setup. Employee roles and organization IDs are not included yet.
+After login or page reload, call `GET /auth/users/me` with the JWT to retrieve the current account and profile. Authenticated setup-required accounts may call this endpoint; use `status === "SETUP_REQUIRED"` to show account setup. Active employees then use the corresponding current-employee endpoint below for employee roles and organization IDs.
 
 The endpoint takes no user ID: it reads the authenticated account. It returns `userId`, `emailAddress`, account `role`, `status`, `active`, `fName`, `lName`, `phoneNumberOpeningCode` and `phoneNumber`. Unfilled or missing profile fields are `null`. Passwords, security answers and CPR are not returned. Missing or invalid authentication returns `401`.
+
+### Current employee
+
+Use the account role from `/auth/users/me` to select the next request. Both employee endpoints require an active account and the same Bearer token. They take no body or user ID and return only the authenticated employee's information.
+
+| Account role | Method and path | Success |
+| --- | --- | --- |
+| `AIRLINE_EMPLOYEE`, `AIRPORT_EMPLOYEE`, `ATC_EMPLOYEE` | `GET /employees/me` | `200 CurrentAviationEmployee` |
+| `MAINTENANCE_EMPLOYEE` | `GET /maintenanceEmployees/me` | `200 CurrentMaintenanceEmployee` |
+| `CUSTOMER`, `FAA_ADMIN` | No employee request needed | Use the account role from `/auth/users/me` |
+
+Use account `role` and `employeeRole` together to select a dashboard: `ADMIN` alone does not identify an organization type. `employeeId` is distinct from `userId`. Employee information does not replace backend authorization checks on subsequent operations.
+
+| Account role | `employeeRole` values | Organization fields |
+| --- | --- | --- |
+| `AIRLINE_EMPLOYEE` | `ADMIN`, `PILOT`, `FLIGHT_ATTENDANT`, `GATE_RECEPTION` | `airlineId` |
+| `AIRPORT_EMPLOYEE` | `ADMIN`, `INSPECTOR`, `BAGGAGE_HANDLER` | `airportId`, `operatorId` |
+| `ATC_EMPLOYEE` | `ADMIN`, `CONTROLLER` | `airportId`, `facilityId`, `providerId` (air navigation provider) |
+| `MAINTENANCE_EMPLOYEE` | `ADMIN`, `TECHNICIAN` | `providerId` (maintenance provider) |
+
+The Aviation response includes all organization fields above; fields that do not apply to that employee are `null`. Maintenance returns only `employeeId`, `employeeRole` and `providerId`.
+
+Errors: `401` missing or invalid authentication; `403` authenticated inactive/setup-required account, incorrect account role, or incomplete employee assignment; `404` no employee record linked to the authenticated account. An account rejected during authentication returns `401` instead of reaching the active-account check.
 
 ### Customer registration sequence
 
@@ -424,6 +446,16 @@ type CurrentUser = {
   status: "SETUP_REQUIRED" | "ACTIVE" | "DEACTIVATED" | "PENDING_EMPLOYEE";
   active: boolean; fName: string | null; lName: string | null;
   phoneNumberOpeningCode: string | null; phoneNumber: string | null;
+};
+type CurrentAviationEmployee = {
+  employeeId: number;
+  employeeRole: "ADMIN" | "PILOT" | "FLIGHT_ATTENDANT" | "GATE_RECEPTION"
+    | "INSPECTOR" | "BAGGAGE_HANDLER" | "CONTROLLER";
+  airlineId: number | null; airportId: number | null; operatorId: number | null;
+  facilityId: number | null; providerId: number | null;
+};
+type CurrentMaintenanceEmployee = {
+  employeeId: number; employeeRole: "ADMIN" | "TECHNICIAN"; providerId: number;
 };
 type FlightSearchItem = {
   id: number; flightNumber: string; airlineCode: string;
