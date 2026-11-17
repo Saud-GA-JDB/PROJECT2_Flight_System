@@ -25,6 +25,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -56,6 +57,65 @@ class AirlineAdminRepositoryTest {
     @Autowired UserRepository users;
     @Autowired AirplaneRepository airplanes;
     @Autowired AirplaneRequestRepository requests;
+
+    @Test
+    void airportFlightsIncludeAllAirlinesButOnlyOwnedDepartures() {
+        AirportOperator operator = new AirportOperator();
+        operator.setName("Airport test operator");
+        operator.setContactEmail("airport-operator@example.test");
+        em.persist(operator);
+
+        Airport airport = new Airport();
+        airport.setOperator(operator);
+        em.persist(airport);
+        Airport otherAirport = new Airport();
+        otherAirport.setOperator(operator);
+        em.persist(otherAirport);
+
+        LocalDate date = LocalDate.of(2026, 11, 17);
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.plusDays(1).atStartOfDay();
+
+        Flight first = flight(airline(), start, Flight.FlightStatus.ACTIVE, 10);
+        first.setOriginAirport(airport);
+        Flight second = flight(airline(), start, Flight.FlightStatus.ACTIVE, 10);
+        second.setOriginAirport(airport);
+
+        Flight arrival = flight(airline(), start, Flight.FlightStatus.ACTIVE, 10);
+        arrival.setOriginAirport(otherAirport);
+        arrival.setDestinationAirport(airport);
+
+        Flight outsideRange = flight(airline(), end, Flight.FlightStatus.ACTIVE, 10);
+        outsideRange.setOriginAirport(airport);
+        Flight cancelled = flight(airline(), start, Flight.FlightStatus.CANCELLED, 10);
+        cancelled.setOriginAirport(airport);
+        em.flush();
+        em.clear();
+
+        assertEquals(2L, flights.countAirportFlights(
+                airport.getId(), operator.getId(), "ACTIVE", start, end));
+        assertEquals(List.of(second.getId()), flights.findAirportFlightIds(
+                airport.getId(), operator.getId(), "ACTIVE", start, end, 1, 0L));
+        assertEquals(List.of(first.getId()), flights.findAirportFlightIds(
+                airport.getId(), operator.getId(), "ACTIVE", start, end, 1, 1L));
+        assertEquals(3L, flights.countAirportFlights(
+                airport.getId(), operator.getId(), null, start, end));
+
+        var details = flights.findAirportFlightsWithDetails(
+                airport.getId(), operator.getId(), List.of(first.getId(), arrival.getId()));
+        assertEquals(1, details.size());
+        assertEquals(first.getId(), details.get(0).getId());
+        assertEquals(first.getAirline().getId(), details.get(0).getAirlineId());
+        assertEquals(airport.getId(), details.get(0).getOriginAirportId());
+        assertNull(details.get(0).getAirplaneId());
+        assertNull(details.get(0).getDestinationAirportId());
+
+        assertEquals(0L, flights.countAirportFlights(airport.getId(), -1L, null, null, null));
+        assertTrue(flights.findAirportFlightIds(
+                airport.getId(), -1L, null, null, null, 20, 0L).isEmpty());
+        assertTrue(flights.findAirportFlightsWithDetails(
+                airport.getId(), -1L, List.of(first.getId())).isEmpty());
+    }
 
     @Test
     void dailyCountsAndPaymentsKeepAirlinesDatesAndCurrenciesSeparate() {

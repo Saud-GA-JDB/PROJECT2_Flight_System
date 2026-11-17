@@ -9,6 +9,7 @@ import com.ga.saudsFlightSystem.identity.AccountLookup;
 import com.ga.saudsFlightSystem.identity.PersonalProfile;
 import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
 import com.ga.saudsFlightSystem.model.*;
+import com.ga.saudsFlightSystem.model.request.response.AirlineFlightResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
@@ -32,7 +33,9 @@ class FrontendListsTest {
     private final AccountLookup accounts = mock(AccountLookup.class);
     private final PersonalProfileStore profiles = mock(PersonalProfileStore.class);
     private final AirlineEmployee admin = new AirlineEmployee();
-    private final FlightService flightService = new FlightService(flights, null, null, null, actors, employees, null);
+    private final AirportEmployeeRepository airportEmployees = mock(AirportEmployeeRepository.class);
+    private final FlightService flightService = new FlightService(
+            flights, null, null, null, actors, employees, null, airportEmployees);
     private final AirlineEmployeeService employeeService = new AirlineEmployeeService(
             null, null, employees, null, null, null, null, null, null, null, null, actors, accounts, profiles);
 
@@ -64,6 +67,106 @@ class FrontendListsTest {
         assertEquals(6L, response.getContent().get(0).getAirlineId());
         assertEquals(Flight.FlightStatus.CLOSED, response.getContent().get(0).getStatus());
         assertNull(response.getContent().get(0).getAirplaneId());
+    }
+
+    @Test
+    void airportFlightsUseCurrentOperatorAndInclusiveDepartureDates() {
+        airportAdmin();
+        LocalDate from = LocalDate.of(2026, 11, 1);
+        LocalDate to = LocalDate.of(2026, 11, 30);
+        when(flights.findAirportFlightIds(5L, 10L, "CLOSED",
+                from.atStartOfDay(), to.plusDays(1).atStartOfDay(), 20, 20L))
+                .thenReturn(List.of(8L));
+        when(flights.countAirportFlights(5L, 10L, "CLOSED",
+                from.atStartOfDay(), to.plusDays(1).atStartOfDay())).thenReturn(21L);
+
+        AirlineFlightResponse flight = new AirlineFlightResponse(
+                8L, "TEST-8", 6L,
+                null, null,
+                5L, "BAH",
+                null, null,
+                null, null, null, null,
+                Flight.FlightStatus.CLOSED, 0, 0,
+                null, null, Currency.BHD);
+        when(flights.findAirportFlightsWithDetails(5L, 10L, List.of(8L))).thenReturn(List.of(flight));
+
+        var response = flightService.getAirportFlights(Flight.FlightStatus.CLOSED, from, to, 1, 20);
+        assertEquals(21L, response.getTotalElements());
+        assertEquals(2L, response.getTotalPages());
+        assertEquals(6L, response.getContent().get(0).getAirlineId());
+        assertEquals(Flight.FlightStatus.CLOSED, response.getContent().get(0).getStatus());
+    }
+
+    @Test
+    void airportFlightsRejectWrongRolesInactiveAccountsAndOldOperators() {
+        AirportEmployee airportAdmin = airportAdmin();
+        for (CurrentActor actor : List.of(
+                new CurrentActor(17L, "CUSTOMER", "ACTIVE", true),
+                new CurrentActor(17L, "AIRLINE_EMPLOYEE", "ACTIVE", true),
+                new CurrentActor(17L, "AIRPORT_EMPLOYEE", "DEACTIVATED", true),
+                new CurrentActor(17L, "AIRPORT_EMPLOYEE", "ACTIVE", false))) {
+            when(actors.getCurrentActor()).thenReturn(actor);
+            assertThrows(IllegalEndpoint.class, () -> flightService.getAirportFlights(null, null, null, 0, 20));
+        }
+
+        when(actors.getCurrentActor()).thenReturn(new CurrentActor(17L, "AIRPORT_EMPLOYEE", "ACTIVE", true));
+        airportAdmin.setAirportRole(AirportEmployee.AirportRole.INSPECTOR);
+        assertThrows(IllegalEndpoint.class, () -> flightService.getAirportFlights(null, null, null, 0, 20));
+
+        airportAdmin.setAirportRole(AirportEmployee.AirportRole.ADMIN);
+        AirportOperator currentOperator = new AirportOperator();
+        currentOperator.setId(11L);
+        airportAdmin.getAirport().setOperator(currentOperator);
+        assertThrows(IllegalEndpoint.class, () -> flightService.getAirportFlights(null, null, null, 0, 20));
+
+        airportAdmin.getAirport().setOperator(null);
+        assertThrows(IllegalEndpoint.class, () -> flightService.getAirportFlights(null, null, null, 0, 20));
+        when(airportEmployees.findByUserId(17L)).thenReturn(Optional.empty());
+        assertThrows(IllegalEndpoint.class, () -> flightService.getAirportFlights(null, null, null, 0, 20));
+        verifyNoInteractions(flights);
+    }
+
+    @Test
+    void airportFlightsValidateDatesAndPaginationBeforeQueries() {
+        airportAdmin();
+        LocalDate date = LocalDate.of(2026, 11, 17);
+        assertThrows(InvalidInformationException.class,
+                () -> flightService.getAirportFlights(null, date, date.minusDays(1), 0, 20));
+        assertThrows(InvalidInformationException.class,
+                () -> flightService.getAirportFlights(null, null, LocalDate.MAX, 0, 20));
+        assertThrows(InvalidInformationException.class,
+                () -> flightService.getAirportFlights(null, null, null, -1, 20));
+        assertThrows(InvalidInformationException.class,
+                () -> flightService.getAirportFlights(null, null, null, 0, 101));
+        verifyNoInteractions(flights);
+    }
+
+    @Test
+    void emptyAirportFlightPageKeepsTotalAndSkipsDetailQuery() {
+        airportAdmin();
+        when(flights.findAirportFlightIds(5L, 10L, null, null, null, 20, 40L)).thenReturn(List.of());
+        when(flights.countAirportFlights(5L, 10L, null, null, null)).thenReturn(21L);
+
+        var response = flightService.getAirportFlights(null, null, null, 2, 20);
+        assertTrue(response.getContent().isEmpty());
+        assertEquals(21L, response.getTotalElements());
+        assertEquals(2L, response.getTotalPages());
+        verify(flights, never()).findAirportFlightsWithDetails(anyLong(), anyLong(), anyList());
+    }
+
+    private AirportEmployee airportAdmin() {
+        AirportOperator operator = new AirportOperator();
+        operator.setId(10L);
+        Airport airport = new Airport();
+        airport.setId(5L);
+        airport.setOperator(operator);
+        AirportEmployee airportAdmin = new AirportEmployee();
+        airportAdmin.setAirport(airport);
+        airportAdmin.setOperator(operator);
+        airportAdmin.setAirportRole(AirportEmployee.AirportRole.ADMIN);
+        when(actors.getCurrentActor()).thenReturn(new CurrentActor(17L, "AIRPORT_EMPLOYEE", "ACTIVE", true));
+        when(airportEmployees.findByUserId(17L)).thenReturn(Optional.of(airportAdmin));
+        return airportAdmin;
     }
 
     @Test

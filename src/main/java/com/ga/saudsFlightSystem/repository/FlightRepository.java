@@ -1,6 +1,7 @@
 package com.ga.saudsFlightSystem.repository;
 
 import com.ga.saudsFlightSystem.model.Flight;
+import com.ga.saudsFlightSystem.model.request.response.AirlineFlightResponse;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -14,6 +15,52 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FlightRepository extends JpaRepository<Flight, Long> {
+    @Query(value = """
+        SELECT f.id FROM flights f
+        JOIN airports a ON a.id = f.origin_airport_id
+        WHERE f.origin_airport_id = :airportId AND a.operator_id = :operatorId
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        ORDER BY f.scheduled_departure DESC, f.id DESC
+        LIMIT :size OFFSET :offset
+        """, nativeQuery = true)
+    List<Long> findAirportFlightIds(@Param("airportId") Long airportId, @Param("operatorId") Long operatorId,
+            @Param("status") String status, @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate, @Param("size") int size, @Param("offset") long offset);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM flights f
+        JOIN airports a ON a.id = f.origin_airport_id
+        WHERE f.origin_airport_id = :airportId AND a.operator_id = :operatorId
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        """, nativeQuery = true)
+    long countAirportFlights(@Param("airportId") Long airportId, @Param("operatorId") Long operatorId,
+            @Param("status") String status, @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate);
+
+    @Query("""
+        SELECT new com.ga.saudsFlightSystem.model.request.response.AirlineFlightResponse(
+            f.id, f.flightNumber, airline.id,
+            airplane.id, airplane.registrationNumber,
+            origin.id, origin.iataCode,
+            destination.id, destination.iataCode,
+            f.scheduledDeparture, f.scheduledArrival, f.actualDeparture, f.actualArrival,
+            f.status, f.firstClassSeatsCount, f.standardSeatsCount,
+            f.firstClassPrice, f.standardPrice, f.currency)
+        FROM Flight f
+        LEFT JOIN f.airline airline
+        LEFT JOIN f.airplane airplane
+        JOIN f.originAirport origin
+        LEFT JOIN f.destinationAirport destination
+        WHERE origin.id = :airportId AND origin.operator.id = :operatorId AND f.id IN :ids
+        ORDER BY f.scheduledDeparture DESC, f.id DESC
+        """)
+    List<AirlineFlightResponse> findAirportFlightsWithDetails(@Param("airportId") Long airportId,
+            @Param("operatorId") Long operatorId, @Param("ids") List<Long> ids);
+
     interface AirlineDashboardDay {
         LocalDate getDate();
         long getFlightCount();

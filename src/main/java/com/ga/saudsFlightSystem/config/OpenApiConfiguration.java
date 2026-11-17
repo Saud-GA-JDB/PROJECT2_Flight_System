@@ -43,6 +43,10 @@ public class OpenApiConfiguration {
     @Bean
     public OpenApiCustomizer flightSystemDocumentation() {
         return openApi -> {
+            document(openApi, "/airportAdmin/flights", PathItem.HttpMethod.GET,
+                    "List airport departures",
+                    "Active airport admin of the current operator only. Lists flights departing from the caller's airport across all airlines. Optional status, fromDate and toDate (inclusive Bahrain scheduled-departure dates). Includes historical and pending flights. Zero-based page=0, size=20 (1-100). Scheduled departure descending, then ID descending.",
+                    "200", AirlineFlightListResponse.class, false);
             document(openApi, "/airlineAdmin/flights", PathItem.HttpMethod.GET,
                     "List airline flights",
                     "Active airline admin only; organization comes from the caller. Optional status, fromDate and toDate (inclusive scheduled-departure dates). Includes historical and pending flights. Zero-based page=0, size=20 (1-100). Scheduled departure descending, then ID descending.",

@@ -13,6 +13,7 @@ import com.ga.saudsFlightSystem.model.request.response.FlightResponse;
 import com.ga.saudsFlightSystem.model.request.response.FlightDetailResponse;
 import com.ga.saudsFlightSystem.model.request.response.FlightSearchResponse;
 import com.ga.saudsFlightSystem.repository.AirlineEmployeeRepository;
+import com.ga.saudsFlightSystem.repository.AirportEmployeeRepository;
 import com.ga.saudsFlightSystem.repository.FlightRepository;
 import com.ga.saudsFlightSystem.repository.BookingRepository;
 import com.ga.common.security.CurrentActor;
@@ -42,6 +43,7 @@ public class FlightService {
     private CurrentActorProvider currentActorProvider;
     private AirlineEmployeeRepository airlineEmployeeRepository;
     private BookingRepository bookingRepository;
+    private AirportEmployeeRepository airportEmployeeRepository;
 
     private static final Logger logger = Logger.getLogger(FlightService.class.getName());
 
@@ -168,6 +170,46 @@ public class FlightService {
                         flight.getStatus(), flight.getFirstClassSeatsCount(), flight.getStandardSeatsCount(),
                         flight.getFirstClassPrice(), flight.getStandardPrice(), flight.getCurrency()));
             }
+        }
+        return new AirlineFlightListResponse(content, page, size, totalElements, Pagination.totalPages(totalElements, size));
+    }
+
+    @Transactional(readOnly = true)
+    public AirlineFlightListResponse getAirportFlights(Flight.FlightStatus status, LocalDate fromDate,
+                                                       LocalDate toDate, int page, int size) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()) || !"AIRPORT_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("Only active airport admins can list flights.");
+
+        AirportEmployee admin = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (admin == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN || admin.getAirport() == null
+                || admin.getOperator() == null || admin.getAirport().getOperator() == null
+                || !admin.getOperator().getId().equals(admin.getAirport().getOperator().getId()))
+            throw new IllegalEndpoint("Only an admin of the airport's current operator can list its flights.");
+
+        Pagination.validateZeroBased(page, size);
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate))
+            throw new InvalidInformationException("fromDate must not be after toDate.");
+
+        LocalDateTime startDate = fromDate == null ? null : fromDate.atStartOfDay();
+        LocalDateTime endDate;
+        try {
+            endDate = toDate == null ? null : toDate.plusDays(1).atStartOfDay();
+        } catch (java.time.DateTimeException ex) {
+            throw new InvalidInformationException("toDate is outside the supported range.");
+        }
+
+        Long airportId = admin.getAirport().getId();
+        Long operatorId = admin.getOperator().getId();
+        String flightStatus = status == null ? null : status.name();
+        List<Long> ids = flightRepository.findAirportFlightIds(
+                airportId, operatorId, flightStatus, startDate, endDate, size, (long) page * size);
+        long totalElements = flightRepository.countAirportFlights(
+                airportId, operatorId, flightStatus, startDate, endDate);
+
+        List<AirlineFlightResponse> content = new ArrayList<>();
+        if (!ids.isEmpty()) {
+            content = flightRepository.findAirportFlightsWithDetails(airportId, operatorId, ids);
         }
         return new AirlineFlightListResponse(content, page, size, totalElements, Pagination.totalPages(totalElements, size));
     }

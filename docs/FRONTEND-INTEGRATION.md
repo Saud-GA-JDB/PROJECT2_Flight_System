@@ -946,3 +946,28 @@ request time plus seven days, or null when there is no previous request.
 Use canRequestActivation to distinguish immediate eligibility from a blocked
 request. Eligibility is rechecked by the existing activation POST endpoint.
 Request timestamps retain the existing Bahrain local date-time format.
+
+
+### Airport admin flight list
+
+GET /airportAdmin/flights?status=ACTIVE&fromDate=2026-11-01&toDate=2026-11-30&page=0&size=20
+
+Requires an active AIRPORT_EMPLOYEE account with airport ADMIN role.
+The employee must belong to the airport's current operator.
+
+Returns flights departing from the admin's airport across all airlines.
+Flights arriving from another airport are excluded. Airport and operator scope
+come from the authenticated employee, not request parameters.
+
+status, fromDate, and toDate are optional. Dates use inclusive Bahrain
+scheduled-departure boundaries. Omitting status includes all flight statuses.
+
+Uses the same response as GET /airlineAdmin/flights:
+content (AirlineFlight items), page, size, totalElements, and totalPages.
+Defaults are page=0 and size=20; page must be nonnegative and size must be 1–100.
+Results are ordered by scheduledDeparture descending, then id descending.
+
+Invalid filters or pagination return 400. Missing or invalid authentication
+returns 401. Inactive accounts, non-admins, and employees of a previous operator
+are denied access. An authorized search without matches returns 200 with
+empty content and zero totals.
