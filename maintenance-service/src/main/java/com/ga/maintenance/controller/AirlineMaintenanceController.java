@@ -1,5 +1,7 @@
 package com.ga.maintenance.controller;
 
+import java.util.List;
+
 import com.ga.maintenance.model.MaintenanceRecord;
 import com.ga.maintenance.model.request.*;
 import com.ga.maintenance.model.request.response.*;
@@ -14,6 +16,17 @@ import org.springframework.web.bind.annotation.*;
 public class AirlineMaintenanceController {
     private final MaintenanceProviderService maintenanceProviderService;
     private final MaintenanceRecordService maintenanceRecordService;
+
+    @GetMapping("/maintenanceProviders")
+    public ResponseEntity<List<MaintenanceProviderResponse>> getMaintenanceProviders(@RequestParam(defaultValue = "false") boolean contractedOnly,
+                                                                                    @RequestHeader("Authorization") String authorization) {
+        return ResponseEntity.ok(maintenanceProviderService.getAirlineProviders(contractedOnly, authorization));
+    }
+
+    @GetMapping("/contracts")
+    public ResponseEntity<List<MaintenanceContractResponse>> getContracts(@RequestHeader("Authorization") String authorization) {
+        return ResponseEntity.ok(maintenanceProviderService.getAirlineContracts(authorization));
+    }
 
     @PostMapping("/maintenanceProviders/{providerId}/contract")
     public ResponseEntity<?> contractMaintenanceProvider(@PathVariable(name = "providerId") Long providerId, @RequestHeader("Authorization") String authorization) {

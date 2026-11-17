@@ -2,6 +2,7 @@ package com.ga.saudsFlightSystem.support;
 
 import com.ga.common.contract.identity.ProvisionedAccount;
 import com.ga.common.contract.identity.AccountSnapshot;
+import com.ga.common.contract.identity.CustomerListResponse;
 
 import com.ga.common.security.CurrentActor;
 import com.ga.common.security.CurrentActorProvider;
@@ -51,8 +52,9 @@ public class IdentityTestConfiguration {
         http.securityMatcher("/auth/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/users/login", "/auth/users/register/email", "/auth/users/verification", "/auth/users/forgetPassword").permitAll()
-                        .requestMatchers("/auth/users/setup").authenticated()
+                        .requestMatchers("/auth/users/login", "/auth/users/register/email", "/auth/users/verification", "/auth/users/forgetPassword",
+                                "/auth/users/recoveryQuestion/email", "/auth/users/recoveryQuestion").permitAll()
+                        .requestMatchers("/auth/users/setup", "/auth/users/me").authenticated()
                         .anyRequest().hasAuthority("ACCOUNT_ACTIVE"));
         http.addFilterBefore(filter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -108,6 +110,9 @@ public class IdentityTestConfiguration {
     @Primary
     public IdentityServiceClient fixtureIdentityClient(InternalIdentityController controller, EmployeeAccountService provisioner) {
         return new IdentityServiceClient() {
+            public CustomerListResponse customers(String query, int page, int size) {
+                return controller.customers(query, page, size);
+            }
             public AccountSnapshot account(Long id) { return call(() -> controller.account(id)); }
             public Map<Long, AccountSnapshot> accounts(List<Long> ids) {
                 return controller.accounts(ids);

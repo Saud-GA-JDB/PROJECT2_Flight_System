@@ -1,5 +1,8 @@
 package com.ga.maintenance.client;
 
+import com.ga.common.contract.maintenance.MaintenanceAirlineResponse;
+import java.util.List;
+
 import com.ga.common.contract.maintenance.MaintenanceCancellationNotificationRequest;
 import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
 
@@ -18,6 +21,9 @@ public interface AviationServiceClient {
 
     @GetMapping("/internal/v1/maintenance-scope/airplanes/{airplaneId}")
     MaintenanceScopeResponse getAirplaneScope(@RequestHeader("Authorization") String authorization, @PathVariable("airplaneId") Long airplaneId);
+
+    @PostMapping("/internal/v1/maintenance-scope/airlines")
+    List<MaintenanceAirlineResponse> getAirlines(@RequestHeader("X-Service-Key") String serviceKey, @RequestBody List<Long> ids);
 
     @PostMapping("/internal/v1/maintenance-notifications/cancellations")
     void sendCancellation(@RequestHeader("X-Service-Key") String serviceKey, @RequestBody MaintenanceCancellationNotificationRequest request);

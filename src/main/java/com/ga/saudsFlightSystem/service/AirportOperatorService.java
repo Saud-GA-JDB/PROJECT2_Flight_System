@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import java.util.List;
+import java.util.ArrayList;
+
 import com.ga.common.web.exception.IllegalEndpoint;
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.common.web.exception.InvalidInformationException;
@@ -31,6 +34,19 @@ public class AirportOperatorService {
     private AirportEmployeeRepository airportEmployeeRepository;
     private CurrentActorProvider currentActorProvider;
     private static final Logger logger = Logger.getLogger(AirportOperatorService.class.getName());
+
+    @Transactional
+    public List<AirportOperatorResponse> getAirportOperators() {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()) || !"FAA_ADMIN".equals(actor.role()))
+            throw new IllegalEndpoint("Only active FAA admins can list airport operators.");
+
+        List<AirportOperatorResponse> response = new ArrayList<>();
+        for (AirportOperator operator : airportOperatorRepository.findAllByOrderByNameAscIdAsc()) {
+            response.add(new AirportOperatorResponse(operator.getId(), operator.getName(), operator.getContactEmail()));
+        }
+        return response;
+    }
 
     @Transactional
     public ResponseEntity<?> addAirportOperator(AddAirportOperatorRequest request) {

@@ -1,5 +1,7 @@
 package com.ga.maintenance.controller;
 
+import java.util.List;
+
 import com.ga.maintenance.model.request.*;
 import com.ga.maintenance.model.request.response.*;
 import com.ga.maintenance.service.*;
@@ -13,6 +15,11 @@ import org.springframework.web.bind.annotation.*;
 public class FAAMaintenanceController {
     private final MaintenanceProviderService maintenanceProviderService;
     private final MaintenanceEmployeeService maintenanceEmployeeService;
+
+    @GetMapping("/maintenanceProviders")
+    public ResponseEntity<List<MaintenanceProviderResponse>> getMaintenanceProviders() {
+        return ResponseEntity.ok(maintenanceProviderService.getFAAProviders());
+    }
 
     @PostMapping("/maintenanceProviders")
     public ResponseEntity<?> addMaintenanceProvider(@RequestBody AddMaintenanceProviderRequest request) {

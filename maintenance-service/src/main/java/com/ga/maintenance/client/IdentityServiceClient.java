@@ -1,5 +1,7 @@
 package com.ga.maintenance.client;
 
+import com.ga.maintenance.model.request.response.EmployeeProfileResponse;
+
 import com.ga.common.contract.identity.ProvisionedAccount;
 import com.ga.common.contract.identity.AccountSnapshot;
 
@@ -17,6 +19,9 @@ public interface IdentityServiceClient extends com.ga.common.security.client.Ide
 
     @PostMapping("/internal/identity/accounts/batch")
     Map<Long, AccountSnapshot> accounts(@RequestBody List<Long> ids);
+
+    @PostMapping("/internal/identity/profiles/batch")
+    Map<Long, EmployeeProfileResponse> profiles(@RequestBody List<Long> ids);
 
     @GetMapping("/internal/identity/accounts/by-email")
     AccountSnapshot accountByEmail(@RequestParam("email") String email);

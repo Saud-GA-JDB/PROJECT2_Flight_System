@@ -8,11 +8,57 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface FlightRepository extends JpaRepository<Flight, Long> {
+    interface AirlineDashboardDay {
+        LocalDate getDate();
+        long getFlightCount();
+        long getBookingCount();
+        long getBookedBookings();
+        long getCancelledBookings();
+        long getFinishedBookings();
+        long getOccupiedSeats();
+        long getSeatCapacity();
+    }
+
+    @Query(value = """
+        WITH flight_bookings AS (
+            SELECT f.id, CAST(f.scheduled_departure AS date) AS departure_date,
+                   f.status, f.standard_seats_count, f.first_class_seats_count,
+                   COUNT(b.id) AS booking_count,
+                   COUNT(b.id) FILTER (WHERE b.status = 'BOOKED') AS booked_bookings,
+                   COUNT(b.id) FILTER (WHERE b.status = 'CANCELLED') AS cancelled_bookings,
+                   COUNT(b.id) FILTER (WHERE b.status = 'FINISHED') AS finished_bookings
+            FROM flights f
+            LEFT JOIN bookings b ON b.flight_id = f.id
+            WHERE f.airline_id = :airlineId
+              AND f.scheduled_departure >= :fromDate
+              AND f.scheduled_departure < :toDate
+            GROUP BY f.id
+        )
+        SELECT departure_date AS "date",
+               COUNT(*) AS "flightCount",
+               SUM(booking_count) AS "bookingCount",
+               SUM(booked_bookings) AS "bookedBookings",
+               SUM(cancelled_bookings) AS "cancelledBookings",
+               SUM(finished_bookings) AS "finishedBookings",
+               SUM(CASE WHEN status <> 'CANCELLED'
+                   THEN booked_bookings + finished_bookings ELSE 0 END) AS "occupiedSeats",
+               SUM(CASE WHEN status <> 'CANCELLED'
+                   THEN standard_seats_count::bigint + first_class_seats_count
+                        + booked_bookings + finished_bookings
+                   ELSE 0 END) AS "seatCapacity"
+        FROM flight_bookings
+        GROUP BY departure_date
+        ORDER BY departure_date
+        """, nativeQuery = true)
+    List<AirlineDashboardDay> findAirlineDashboardDays(@Param("airlineId") Long airlineId,
+            @Param("fromDate") LocalDateTime fromDate, @Param("toDate") LocalDateTime toDate);
+
     @Query(value = "SELECT airplane_id FROM flights WHERE id = :flightId", nativeQuery = true)
     Long findAirplaneIdForOperation(@Param("flightId") Long flightId);
 
@@ -204,4 +250,37 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
             @Param("destinationCountry") String destinationCountry,
             @Param("seatType") String seatType
     );
+
+    @Query(value = """
+        SELECT f.id FROM flights f
+        WHERE f.airline_id = :airlineId
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        ORDER BY f.scheduled_departure DESC, f.id DESC
+        LIMIT :size OFFSET :offset
+        """, nativeQuery = true)
+    List<Long> findAirlineFlightIds(@Param("airlineId") Long airlineId, @Param("status") String status,
+            @Param("fromDate") LocalDateTime fromDate, @Param("toDate") LocalDateTime toDate,
+            @Param("size") int size, @Param("offset") long offset);
+
+    @Query(value = """
+        SELECT COUNT(*) FROM flights f
+        WHERE f.airline_id = :airlineId
+          AND (CAST(:status AS text) IS NULL OR f.status = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR f.scheduled_departure >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR f.scheduled_departure < :toDate)
+        """, nativeQuery = true)
+    long countAirlineFlights(@Param("airlineId") Long airlineId, @Param("status") String status,
+            @Param("fromDate") LocalDateTime fromDate, @Param("toDate") LocalDateTime toDate);
+
+    @Query("""
+        SELECT f FROM Flight f
+        LEFT JOIN FETCH f.airplane
+        LEFT JOIN FETCH f.originAirport
+        LEFT JOIN FETCH f.destinationAirport
+        WHERE f.airline.id = :airlineId AND f.id IN :ids
+        ORDER BY f.scheduledDeparture DESC, f.id DESC
+        """)
+    List<Flight> findAirlineFlightsWithDetails(@Param("airlineId") Long airlineId, @Param("ids") List<Long> ids);
 }

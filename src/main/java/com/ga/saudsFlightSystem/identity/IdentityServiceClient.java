@@ -2,6 +2,7 @@ package com.ga.saudsFlightSystem.identity;
 
 import com.ga.common.contract.identity.ProvisionedAccount;
 import com.ga.common.contract.identity.AccountSnapshot;
+import com.ga.common.contract.identity.CustomerListResponse;
 
 import com.ga.common.security.client.IdentityClientConfiguration;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -11,6 +12,10 @@ import java.util.Map;
 
 @FeignClient(name = "identity", url = "${identity.base-url}", configuration = IdentityClientConfiguration.class, primary = false)
 public interface IdentityServiceClient extends com.ga.common.security.client.IdentityServiceClient {
+    @GetMapping("/internal/identity/customers")
+    CustomerListResponse customers(@RequestParam("query") String query,
+            @RequestParam("page") int page, @RequestParam("size") int size);
+
     @GetMapping("/internal/identity/accounts/{id}")
     AccountSnapshot account(@PathVariable("id") Long id);
 

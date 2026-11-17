@@ -1,5 +1,10 @@
 package com.ga.saudsFlightSystem.support;
 
+import com.ga.common.contract.maintenance.MaintenanceAirlineResponse;
+import com.ga.maintenance.model.request.response.EmployeeProfileResponse;
+import com.ga.saudsFlightSystem.controller.MaintenanceScopeController;
+import java.util.stream.Collectors;
+
 import com.ga.common.contract.maintenance.MaintenanceCancellationNotificationRequest;
 import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
 import com.ga.common.contract.identity.ProvisionedAccount;
@@ -33,7 +38,7 @@ import java.util.Map;
 public class MaintenanceTestConfiguration {
     @Bean
     public AviationServiceClient fixtureAviationClient(MaintenanceScopeService scope, MaintenanceNotificationController notifications,
-                                                       PlatformTransactionManager transactionManager) {
+                                                       MaintenanceScopeController airlineScope, PlatformTransactionManager transactionManager) {
         TransactionTemplate aviationRequest = new TransactionTemplate(transactionManager);
         aviationRequest.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
         return new AviationServiceClient() {
@@ -42,6 +47,9 @@ public class MaintenanceTestConfiguration {
             }
             public MaintenanceScopeResponse getAirplaneScope(String authorization, Long airplaneId) {
                 return scope.getAirplaneScope(airplaneId);
+            }
+            public List<MaintenanceAirlineResponse> getAirlines(String serviceKey, List<Long> ids) {
+                return airlineScope.getAirlines(serviceKey, ids);
             }
             public void sendCancellation(String serviceKey, MaintenanceCancellationNotificationRequest request) {
                 // An HTTP call to Aviation cannot inherit Maintenance's committing transaction.
@@ -58,6 +66,10 @@ public class MaintenanceTestConfiguration {
             public AccountSnapshot accountByEmail(String email) { return identity.accountByEmail(email); }
             public Map<Long, AccountSnapshot> accounts(List<Long> ids) {
                 return identity.accounts(ids);
+            }
+            public Map<Long, EmployeeProfileResponse> profiles(List<Long> ids) {
+                return identity.profiles(ids).entrySet().stream().collect(Collectors.toMap(
+                        Map.Entry::getKey, entry -> new EmployeeProfileResponse(entry.getValue().getFName(), entry.getValue().getLName())));
             }
             public void checkDetails(ExistingDetails request) {
                 identity.checkDetails(new com.ga.saudsFlightSystem.identity.IdentityServiceClient.ExistingDetails(request.emailAddress(), request.cpr()));

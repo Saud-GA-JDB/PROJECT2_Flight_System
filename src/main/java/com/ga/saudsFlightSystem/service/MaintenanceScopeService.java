@@ -1,5 +1,9 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.maintenance.MaintenanceAirlineResponse;
+import com.ga.saudsFlightSystem.repository.AirlineRepository;
+import java.util.List;
+
 import com.ga.common.contract.maintenance.MaintenanceScopeResponse;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -24,6 +28,17 @@ public class MaintenanceScopeService {
     private final CurrentActorProvider currentActorProvider;
     private final AirlineEmployeeRepository airlineEmployeeRepository;
     private final AirplaneRepository airplaneRepository;
+
+    private final AirlineRepository airlineRepository;
+
+    public List<MaintenanceAirlineResponse> getAirlines(List<Long> ids) {
+        if (ids == null || ids.stream().anyMatch(id -> id == null || id <= 0))
+            throw new InvalidInformationException("Valid airline IDs are required.");
+
+        return airlineRepository.findAllById(ids).stream()
+                .map(airline -> new MaintenanceAirlineResponse(airline.getId(), airline.getName(), airline.getAirlineCode()))
+                .toList();
+    }
 
     public MaintenanceScopeResponse getAirlineScope() {
         CurrentActor actor = currentActorProvider.getCurrentActor();

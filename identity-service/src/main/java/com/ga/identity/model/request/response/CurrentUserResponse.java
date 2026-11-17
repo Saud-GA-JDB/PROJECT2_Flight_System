@@ -9,5 +9,6 @@ public record CurrentUserResponse(
         String fName,
         String lName,
         String phoneNumberOpeningCode,
-        String phoneNumber
+        String phoneNumber,
+        String imageUrl
 ) {}

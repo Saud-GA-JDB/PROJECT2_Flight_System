@@ -1,5 +1,10 @@
 package com.ga.maintenance.controller;
 
+import com.ga.maintenance.model.request.response.MaintenanceEmployeeResponse;
+import com.ga.maintenance.model.request.response.MaintenanceContractResponse;
+import com.ga.maintenance.service.MaintenanceProviderService;
+import java.util.List;
+
 import com.ga.maintenance.model.request.AddMaintenanceEmployeeRequest;
 import com.ga.maintenance.model.request.CancelMaintenanceRequest;
 import com.ga.maintenance.model.request.response.MaintenanceRecordResponse;
@@ -15,6 +20,18 @@ import org.springframework.web.bind.annotation.*;
 public class MaintenanceAdminController {
     private MaintenanceEmployeeService maintenanceEmployeeService;
     private MaintenanceRecordService maintenanceRecordService;
+
+    private MaintenanceProviderService maintenanceProviderService;
+
+    @GetMapping("/technicians")
+    public ResponseEntity<List<MaintenanceEmployeeResponse>> getTechnicians() {
+        return ResponseEntity.ok(maintenanceEmployeeService.getTechnicians());
+    }
+
+    @GetMapping("/contracts")
+    public ResponseEntity<List<MaintenanceContractResponse>> getContracts() {
+        return ResponseEntity.ok(maintenanceProviderService.getProviderContracts());
+    }
 
     @PostMapping("/technicians")
     public ResponseEntity<?> addMaintenanceTechnician(@RequestBody AddMaintenanceEmployeeRequest request) {

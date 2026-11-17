@@ -22,6 +22,7 @@ public class SecurityConfiguration extends com.ga.common.security.SecurityConfig
                 .requestMatchers(HttpMethod.GET, "/payments/success", "/payments/cancel").permitAll()
                 // This endpoint checks the Maintenance service key in its controller.
                 .requestMatchers(HttpMethod.POST, "/internal/v1/maintenance-notifications/cancellations").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/v1/maintenance-scope/airlines").permitAll()
                 .anyRequest().hasAuthority("ACCOUNT_ACTIVE"));
 
         return http.build();

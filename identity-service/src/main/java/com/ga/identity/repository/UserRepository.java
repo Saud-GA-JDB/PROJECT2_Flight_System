@@ -1,6 +1,9 @@
 package com.ga.identity.repository;
 
 import com.ga.identity.model.User;
+import com.ga.common.contract.identity.CustomerResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import jakarta.persistence.LockModeType;
@@ -15,6 +18,33 @@ import java.util.List;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
+    @Query(value = """
+        SELECT new com.ga.common.contract.identity.CustomerResponse(
+            u.id,
+            TRIM(CONCAT(COALESCE(p.fName, ''), ' ', COALESCE(p.lName, ''))),
+            u.emailAddress)
+        FROM User u
+        LEFT JOIN u.personalProfile p
+        WHERE u.role = :role AND u.status = :status AND u.isActive = true
+          AND (CAST(u.id AS string) = :query
+            OR LOCATE(:query, LOWER(u.emailAddress)) > 0
+            OR LOCATE(:query, LOWER(TRIM(CONCAT(
+                COALESCE(p.fName, ''), ' ', COALESCE(p.lName, ''))))) > 0)
+        ORDER BY u.id
+        """,
+        countQuery = """
+        SELECT COUNT(u.id)
+        FROM User u
+        LEFT JOIN u.personalProfile p
+        WHERE u.role = :role AND u.status = :status AND u.isActive = true
+          AND (CAST(u.id AS string) = :query
+            OR LOCATE(:query, LOWER(u.emailAddress)) > 0
+            OR LOCATE(:query, LOWER(TRIM(CONCAT(
+                COALESCE(p.fName, ''), ' ', COALESCE(p.lName, ''))))) > 0)
+        """)
+    Page<CustomerResponse> findCustomers(@Param("query") String query,
+            @Param("role") User.Role role, @Param("status") User.Status status, Pageable pageable);
+
     interface AccountState {
         Long getId();
         User.Role getRole();

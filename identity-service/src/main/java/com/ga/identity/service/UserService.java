@@ -1,5 +1,15 @@
 package com.ga.identity.service;
 
+import com.ga.identity.model.request.response.SecurityQuestionResponse;
+import com.ga.identity.model.request.response.ProfileUpdateResponse;
+import java.time.Instant;
+import java.security.SecureRandom;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.FileSystemResource;
+import java.nio.file.LinkOption;
+
 import com.ga.common.contract.notification.EmailRequest;
 
 import com.ga.common.validation.PhoneValidationService;
@@ -64,6 +74,7 @@ import java.util.logging.Logger;
 @Service
 public class UserService {
     private static final Logger logger = Logger.getLogger(UserService.class.getName());
+    private static final SecureRandom recoveryRandom = new SecureRandom();
     private static final int MAX_DAILY_LOGIN_FAILURES = 3;
     private static final String INVALID_PASSWORD_MESSAGE =
             "Invalid password. Password must contain 8 to 30 characters, at least one uppercase letter, "
@@ -125,7 +136,8 @@ public class UserService {
                 profile == null ? null : profile.getFName(),
                 profile == null ? null : profile.getLName(),
                 profile == null ? null : profile.getPhoneNumberOpeningCode(),
-                profile == null ? null : profile.getPhoneNumber());
+                profile == null ? null : profile.getPhoneNumber(),
+                getImageUrl(user.getId()));
     }
 
     /**
@@ -316,6 +328,7 @@ public class UserService {
         }
 
         user.setPassword(passwordEncoder.encode(person.getCpr()));
+        user.setRecoveryQuestionCodeHash(null);
         user.setFailedPasswordResetAttempts(0);
         notificationServiceClient.sendEmail(notificationServiceKey, new EmailRequest(user.getEmailAddress(), "Reset Password", String.format(
                 """
@@ -335,6 +348,58 @@ public class UserService {
                 .body(new ForgetPasswordResponse("Your password has been reset. Please check your email."));
     }
 
+    @Transactional
+    public ResponseEntity<ForgetPasswordResponse> sendRecoveryQuestionCode(String email) {
+        if (email == null || !EmailValidation.isValid(email.trim()))
+            throw new InvalidInformationException("Please enter a valid email address.");
+
+        User user = userRepository.findByEmailAddressForUpdate(email.trim());
+        Instant now = Instant.now();
+        if (user != null && user.isActive() && user.getStatus() == User.Status.ACTIVE
+                && user.getSecurityQuestion() != null && !user.getSecurityQuestion().isBlank()
+                && (user.getRecoveryQuestionExpiresAt() == null || !user.getRecoveryQuestionExpiresAt().isAfter(now))) {
+            String code = String.format(Locale.ROOT, "%06d", recoveryRandom.nextInt(1000000));
+            user.setRecoveryQuestionCodeHash(passwordEncoder.encode(code));
+            user.setRecoveryQuestionExpiresAt(now.plusSeconds(600));
+            user.setFailedRecoveryQuestionAttempts(0);
+            userRepository.save(user);
+
+            notificationServiceClient.sendEmail(notificationServiceKey, new EmailRequest(user.getEmailAddress(), "Password recovery question",
+                    "Your verification code is " + code + ". It expires in 10 minutes. Enter it to view your recovery question."));
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(new ForgetPasswordResponse("If an eligible account exists, a verification code has been requested. Check your email or wait 10 minutes before trying again."));
+    }
+
+    @Transactional
+    public ResponseEntity<?> getRecoveryQuestion(String email, String code) {
+        if (email == null || !EmailValidation.isValid(email.trim()) || code == null || !code.matches("[0-9]{6}"))
+            throw new InvalidInformationException("A valid email and six-digit code are required.");
+
+        User user = userRepository.findByEmailAddressForUpdate(email.trim());
+        if (user == null || !user.isActive() || user.getStatus() != User.Status.ACTIVE
+                || user.getSecurityQuestion() == null || user.getSecurityQuestion().isBlank()
+                || user.getRecoveryQuestionCodeHash() == null || user.getRecoveryQuestionExpiresAt() == null
+                || !user.getRecoveryQuestionExpiresAt().isAfter(Instant.now()) || user.getFailedRecoveryQuestionAttempts() >= 3)
+            return recoveryQuestionRejected();
+
+        if (!passwordEncoder.matches(code, user.getRecoveryQuestionCodeHash())) {
+            user.setFailedRecoveryQuestionAttempts(user.getFailedRecoveryQuestionAttempts() + 1);
+            userRepository.save(user);
+            // Return normally so the failed attempt commits.
+            return recoveryQuestionRejected();
+        }
+
+        user.setRecoveryQuestionCodeHash(null);
+        userRepository.save(user);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new SecurityQuestionResponse(user.getSecurityQuestion()));
+    }
+
+    private ResponseEntity<ForgetPasswordResponse> recoveryQuestionRejected() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore())
+                .body(new ForgetPasswordResponse("The recovery code is invalid, expired or unavailable. Request a new code after 10 minutes."));
+    }
+
     private ResponseEntity<ForgetPasswordResponse> passwordResetRejected() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ForgetPasswordResponse("Email or security question answer is incorrect, or the daily reset limit has been reached."));
@@ -352,6 +417,7 @@ public class UserService {
         User user = userRepository.findByIdForUpdate(actor.userId())
                 .orElseThrow( () -> new InformationNotFoundException("No user with that ID exists."));
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setRecoveryQuestionCodeHash(null);
         userRepository.save(user);
         String description = "User changed their own password";
         auditLogService.addAuditLogForActor(actor, AuditLog.Action.PASSWORD_CHANGED, AuditLog.EntityType.USER, user.getId(), description);
@@ -369,7 +435,7 @@ public class UserService {
      * @return a message confirming the update
      */
     @Transactional
-    public ResponseEntity<?> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
+    public ResponseEntity<ProfileUpdateResponse> updateProfile(Long userId, UpdateProfileRequest request, MultipartFile image) {
         CurrentActor actor = currentActorProvider.getCurrentActor();
 
         if (userId != null) {
@@ -505,11 +571,14 @@ public class UserService {
             ));
         }
 
-        if (request.getEmailAddress() != null)
+        if (request.getEmailAddress() != null) {
             profileOwner.setEmailAddress(request.getEmailAddress());
+            profileOwner.setRecoveryQuestionCodeHash(null);
+        }
 
         if (request.getSecurityQuestion() != null) {
             profileOwner.setSecurityQuestion(request.getSecurityQuestion());
+            profileOwner.setRecoveryQuestionCodeHash(null);
             profileOwner.setSecurityQuestionAnswer(passwordEncoder.encode(request.getSecurityQuestionAnswer().trim().toLowerCase(Locale.ROOT)));
         }
 
@@ -540,7 +609,7 @@ public class UserService {
         }
 
         return ResponseEntity.status(HttpStatus.OK)
-                .body("Profile updated successfully");
+                .body(new ProfileUpdateResponse("Profile updated successfully", getImageUrl(profileOwner.getId())));
     }
 
     /*
@@ -551,6 +620,34 @@ public class UserService {
         if (userProfileService.existsByCpr(cpr)) {
             throw new InformationExistException("A person with this CPR already exists.");
         }
+    }
+
+    private String getImageUrl(Long userId) {
+        String storedPath = userProfileService.findImageUrlByUserId(userId).orElse(null);
+        return storedPath == null || storedPath.isBlank() ? null : "/auth/users/" + userId + "/image";
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> getProfileImage(Long userId) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status())
+                || (!actor.userId().equals(userId) && !"FAA_ADMIN".equals(actor.role())))
+            throw new IllegalEndpoint("Only the profile owner or an FAA admin can read this image.");
+        if (userId == null || userId <= 0)
+            throw new InvalidInformationException("Please put a valid user ID.");
+
+        String storedPath = userProfileService.findImageUrlByUserId(userId)
+                .orElseThrow( () -> new InformationNotFoundException("No profile image was found."));
+        if (!storedPath.matches("uploads/[0-9a-fA-F-]{36}\\.png"))
+            throw new InformationNotFoundException("No profile image was found.");
+
+        Path uploadPath = Paths.get(UPLOAD_DIR).toAbsolutePath().normalize();
+        Path imagePath = uploadPath.resolve(storedPath.substring(UPLOAD_DIR.length())).normalize();
+        if (!imagePath.startsWith(uploadPath) || !Files.isRegularFile(imagePath, LinkOption.NOFOLLOW_LINKS))
+            throw new InformationNotFoundException("No profile image was found.");
+
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).cacheControl(CacheControl.noStore())
+                .header("X-Content-Type-Options", "nosniff").body(new FileSystemResource(imagePath));
     }
 
     private String saveProfileImage(MultipartFile image) {

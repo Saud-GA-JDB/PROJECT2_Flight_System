@@ -22,6 +22,11 @@ public class UserProfileService {
     private final UserProfileRepository profileRepository;
 
     @Transactional(readOnly = true)
+    public Optional<String> findImageUrlByUserId(Long userId) {
+        return profileRepository.findImageUrlByUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
     public Optional<PersonalProfile> findByUserId(Long userId) {
         return profileRepository.findById(userId).map(this::snapshot);
     }

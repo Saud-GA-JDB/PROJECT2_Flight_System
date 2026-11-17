@@ -2,6 +2,7 @@ package com.ga.identity.controller;
 
 import com.ga.common.contract.identity.ProvisionedAccount;
 import com.ga.common.contract.identity.AccountSnapshot;
+import com.ga.common.contract.identity.CustomerListResponse;
 
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.service.AccountService;
@@ -23,6 +24,12 @@ public class InternalIdentityController {
     private final AccountService accounts;
     private final UserProfileService profiles;
     private final EmployeeAccountService provisioner;
+
+    @GetMapping("/customers")
+    public CustomerListResponse customers(@RequestParam String query,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return accounts.findCustomers(query, page, size);
+    }
 
     @GetMapping("/accounts/{id}")
     public AccountSnapshot account(@PathVariable Long id) {

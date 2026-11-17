@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.repository;
 
+import java.util.List;
+
 import java.util.Optional;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
@@ -18,4 +20,13 @@ public interface AirportEmployeeRepository extends JpaRepository<AirportEmployee
         WHERE e.userId = :userId
         """)
     Optional<AirportEmployee> findByUserId(@Param("userId") Long userId);
+
+    @Query("""
+        SELECT e FROM AirportEmployee e
+        WHERE e.airport.id = :airportId AND e.operator.id = :operatorId AND e.userId IS NOT NULL
+          AND (:role IS NULL OR e.airportRole = :role)
+        ORDER BY e.id ASC
+        """)
+    List<AirportEmployee> findEmployeesByAirportId(@Param("airportId") Long airportId,
+            @Param("operatorId") Long operatorId, @Param("role") AirportEmployee.AirportRole role);
 }

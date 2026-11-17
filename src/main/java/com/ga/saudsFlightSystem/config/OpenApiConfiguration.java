@@ -43,6 +43,22 @@ public class OpenApiConfiguration {
     @Bean
     public OpenApiCustomizer flightSystemDocumentation() {
         return openApi -> {
+            document(openApi, "/airlineAdmin/flights", PathItem.HttpMethod.GET,
+                    "List airline flights",
+                    "Active airline admin only; organization comes from the caller. Optional status, fromDate and toDate (inclusive scheduled-departure dates). Includes historical and pending flights. Zero-based page=0, size=20 (1-100). Scheduled departure descending, then ID descending.",
+                    "200", AirlineFlightListResponse.class, false);
+            document(openApi, "/airlineAdmin/employees", PathItem.HttpMethod.GET,
+                    "List airline employees",
+                    "Active airline admin only. Optional role. Active employees in the caller's airline, ordered by employee ID. Unpaged array. Selection does not guarantee scheduling availability.",
+                    "200", AirlineEmployeeResponse.class, true);
+            document(openApi, "/airportAdmin/employees", PathItem.HttpMethod.GET,
+                    "List airport employees",
+                    "Active airport admin of the current operator only. Optional role. Active employees at the same airport and operator, ordered by employee ID. Unpaged array.",
+                    "200", AirportEmployeeResponse.class, true);
+            document(openApi, "/faaadmin/airportOperators", PathItem.HttpMethod.GET,
+                    "List airport operators",
+                    "Active FAA admin only. All operators ordered by name then ID. Unpaged array.",
+                    "200", AirportOperatorResponse.class, true);
             document(openApi, "/airports", PathItem.HttpMethod.GET,
                     "List airports",
                     "Active account required. Returns airport reference data ordered by IATA code.",

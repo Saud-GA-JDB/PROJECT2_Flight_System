@@ -56,7 +56,9 @@ public class SecurityConfiguration {
                                 "/auth/users/login",
                                 "/auth/users/register/email",
                                 "/auth/users/verification",
-                                "/auth/users/forgetPassword"
+                                "/auth/users/forgetPassword",
+                                "/auth/users/recoveryQuestion/email",
+                                "/auth/users/recoveryQuestion"
                         ).permitAll()
                         .requestMatchers("/auth/users/me").authenticated()
                         .requestMatchers("/auth/users/setup").authenticated() // for completing the user account setup

@@ -1,5 +1,7 @@
 package com.ga.saudsFlightSystem.controller;
 
+import com.ga.saudsFlightSystem.model.request.response.AirportOperatorResponse;
+
 import com.ga.saudsFlightSystem.model.request.response.AirlineResponse;
 import com.ga.saudsFlightSystem.model.request.response.AirlineEmployeeResponse;
 import com.ga.saudsFlightSystem.model.request.response.ATCEmployeeResponse;
@@ -81,6 +83,11 @@ public class FAAAdminController {
 
 
 
+
+    @GetMapping("/airportOperators")
+    public ResponseEntity<List<AirportOperatorResponse>> getAirportOperators() {
+        return ResponseEntity.ok(airportOperatorService.getAirportOperators());
+    }
 
     @PostMapping("/airportOperators")
     public ResponseEntity<?> addAirportOperator(@RequestBody AddAirportOperatorRequest request) {

@@ -1,5 +1,7 @@
 package com.ga.identity.model;
 
+import java.time.Instant;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -55,6 +57,16 @@ public class User {
 
     @JsonIgnore
     private LocalDate passwordResetAttemptsDate;
+
+    @JsonIgnore
+    private String recoveryQuestionCodeHash;
+
+    @JsonIgnore
+    private Instant recoveryQuestionExpiresAt;
+
+    @JsonIgnore
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int failedRecoveryQuestionAttempts;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)

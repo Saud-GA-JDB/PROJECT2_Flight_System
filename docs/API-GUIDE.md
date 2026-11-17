@@ -2,6 +2,8 @@
 
 # Detailed API and operations guide
 
+For the frontend contract, confirmed remaining scope and instructions for continuing implementation in another chat, see the [frontend integration guide and handoff](FRONTEND-INTEGRATION.md#implementation-handoff).
+
 Cron Jobs
 ---
 
@@ -51,13 +53,13 @@ All fields in this setup example are required:
 Password reset endpoint
 ---
 
-Requires an active account and `Authorization: Bearer <token>`, including for this reset route. Send JSON with `Content-Type: application/json`.
+This route is public. Send JSON with `Content-Type: application/json`. To display the configured question first, use the email-verified recovery-question flow below.
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
 | POST | `/auth/users/forgetPassword` | Checks the customer's security answer, resets their password to CPR, sends an email, and returns a confirmation message. | `email`, `securityQuestionAnswer` | `{"email":"you@example.com","securityQuestionAnswer":"Your answer"}` |
 
-The target must have a customer profile. Unknown email returns 404; an incorrect answer returns 401. These responses and the successful 200 response contain a `message` field. The security answer is trimmed and converted to lowercase before checking it against the stored hash.
+The target must have an Identity profile with a CPR. Unknown email, an incorrect answer or the daily reset limit returns the same 401 message. Successful reset returns 200 with a message. The answer is trimmed and lowercased before checking its hash. Recovery-question verification does not change the existing answer-based reset contract.
 
 The reset email is sent to the target customer's email address with subject `Reset Password`. Notification/SMTP failures return 503 through the global error handler, with fields `timestamp`, `status`, `error`, `message`, and `path`, and message `Could not send the email.`. The explicit password save occurs after the email is sent.
 
@@ -79,7 +81,7 @@ Requires an active account and `Authorization: Bearer <token>`. Send `multipart/
 
 | Method | Endpoint | What it does | Required fields | Sample JSON body |
 | --- | --- | --- | --- | --- |
-| PUT | `/auth/users/updateProfile` | Updates profile details and returns `Profile updated successfully` with status 200. | `request` (JSON multipart part). Optional: `userId` (query parameter), `image` (file part). | `{"phoneNumber":"36001234","phoneNumberOpeningCode":"+973"}` (content of the `request` part) |
+| PUT | `/auth/users/updateProfile` | Updates profile details and returns JSON `{message: "Profile updated successfully", imageUrl}` with status 200. | `request` (JSON multipart part). Optional: `userId` (query parameter), `image` (file part). | `{"phoneNumber":"36001234","phoneNumberOpeningCode":"+973"}` (content of the `request` part) |
 
 Without `userId`, updates the logged-in user's profile. Allowed JSON fields are `phoneNumber`, `phoneNumberOpeningCode`, `securityQuestion`, and `securityQuestionAnswer`. The security question and answer must be provided together and must not be blank. Either phone field can be supplied on its own; the resulting number and country code must be valid together. Omitted fields remain unchanged.
 
@@ -93,7 +95,7 @@ To upload an image, save the JSON example to `profile.json` and send it as the `
 curl.exe -X PUT "http://localhost:8081/auth/users/updateProfile" -H "Authorization: Bearer YOUR_TOKEN" -F "request=@profile.json;type=application/json" -F "image=@profile.jpg"
 ```
 
-Omit the `image` part to keep the current image. A nonempty uploaded file is saved under `uploads/` with a generated filename, and its path is stored in the profile's `imageUrl`.
+Omit the `image` part to keep the current image. A nonempty uploaded file is saved as PNG under `uploads/` with a generated filename. The stored path stays private; the update response and `/auth/users/me` expose `/auth/users/{userId}/image` or null. Fetch image bytes with a Bearer token as the active owner or FAA admin. See the frontend guide's Avatar display section for the blob-URL example and EC2 upload persistence.
 
 Airport and airline airplane lists
 ---
@@ -118,7 +120,7 @@ Requires an active airline employee with airline role `ADMIN` and `Authorization
 | --- | --- | --- | --- | --- |
 | POST | `/airlineAdmin/airplanes` | Adds a grounded airplane to the logged-in admin's airline, sends the admin a confirmation email, and returns an `AddAirplaneResponse` including the new airplane `id`, with status 201. | `registrationNumber`, `model`, `standardSeatCapacity`, `firstClassSeatCapacity`, `maxMileage` | `{"registrationNumber":"A9C-ABC","model":"Airbus A320","standardSeatCapacity":150,"firstClassSeatCapacity":12,"maxMileage":6000}` |
 
-Registration number must be unique. Both seat capacities and max mileage must be greater than zero. Missing or invalid fields return 422; a duplicate registration number returns 404. Activation requires FAA approval.
+Registration number must be unique. Both seat capacities and max mileage must be greater than zero. Missing or invalid fields return 422; a duplicate registration number returns 409. Activation requires FAA approval.
 
 The confirmation email is sent to the logged-in admin's email address with subject `Airplane Added` and includes the airplane's registration number and model.
 
@@ -947,3 +949,95 @@ Success is 201 with id, userId, airlineId, fName, lName, emailAddress, airlineRo
 After commit, the existing Identity activation handoff allows login via `POST http://localhost:8081/auth/users/login` using the new email and supplied password. If a temporary activation handoff failed, the existing 30-second recovery task retries. Invalid input/unsupported role returns 400; insufficient account/membership permissions 403; duplicate account details 409. Missing bearer authentication is handled by the existing shared filter.
 
 Apply the audit-action constraint SQL supplied in chat before live testing: existing `audit_logs_action_check` must allow AIRLINE_EMPLOYEE_CREATED without removing other actions. No new tables or Identity changes are required. Manual sequence: create a pilot and attendant, log in as each, assign their employee IDs to an eligible flight of the same airline with PILOT/FLIGHT_ATTENDANT duties, and check assignment email at their account addresses. Use mailboxes you control when checking delivery.
+
+## Frontend readiness: administrative lists, recovery and avatars
+
+### Administrative lists
+
+All routes below require an active account. Backend scope comes from the caller; no organization ID is accepted as a way to choose another organization's data. Missing/invalid JWT returns `401`; wrong role, missing admin membership or invalid organization relationship returns `403`; malformed filters return `400`. Empty unpaged lists return `[]`.
+
+| GET route | Caller and scope | Filters / response |
+| --- | --- | --- |
+| `/airlineAdmin/flights` | Airline ADMIN, own airline | Optional `status`, `fromDate`, `toDate`, `page=0`, `size=20`; `Page<AirlineFlight>` |
+| `/airlineAdmin/employees` | Airline ADMIN, own airline | Optional `role`; active `AirlineEmployee[]`, employee ID ascending |
+| `/airportAdmin/employees` | Airport ADMIN matching the airport's current operator | Optional `role`; active `AirportEmployee[]` at that airport and operator, employee ID ascending |
+| `/maintenanceAdmin/technicians` | Maintenance ADMIN, own provider | Active `MaintenanceEmployee[]` with TECHNICIAN role, employee ID ascending |
+| `/faaadmin/maintenanceProviders` | FAA ADMIN | All `Organization[]`, name then ID ascending |
+| `/airlineAdmin/maintenanceProviders` | Airline ADMIN verified by Aviation | `contractedOnly=false` (default): all providers for contracting; `true`: own contracted providers for maintenance requests; `Organization[]`, name then ID ascending |
+| `/faaadmin/airportOperators` | FAA ADMIN | All `Organization[]`, name then ID ascending |
+| `/airlineAdmin/contracts` | Airline ADMIN verified by Aviation | Own `MaintenanceContract[]`, contract ID ascending |
+| `/maintenanceAdmin/contracts` | Maintenance ADMIN, own provider | Own `MaintenanceContract[]`, contract ID ascending |
+
+Only the flight list is paginated; the other new lists are unpaged selectors/reference lists. Airline employee roles are ADMIN, PILOT, FLIGHT_ATTENDANT and GATE_RECEPTION; airport roles are ADMIN, INSPECTOR and BAGGAGE_HANDLER. Omitting `role` includes all roles. Accounts must be active with the expected account role; unlinked, pending, deactivated and missing accounts are omitted. Names may be null if the Identity profile is absent. The selector does not guarantee that an employee is free for a particular assignment; the existing mutation checks remain authoritative.
+
+Flight management includes PENDING_CREW, ACTIVE, IN_AIR, CLOSED and CANCELLED records when no status filter is supplied. This does not add flight cancellation. `fromDate`/`toDate` are inclusive scheduled-departure dates (`YYYY-MM-DD`), including historical dates. Reversed dates are invalid. Results sort by scheduled departure descending then ID descending, with page >= 0 and size 1–100. An out-of-range page has empty content and the actual totals. Missing related aircraft/airports produce null reference fields rather than hiding historical flights. Use existing operations, crew and inspection routes with the returned flight ID.
+
+Contract display names are batch-read from the owning services. Missing legacy organizations produce null display fields but retain contract/organization IDs. An unavailable dependency fails the request instead of pretending the organization has no contracts. The internal airline-name lookup requires the existing Maintenance service credential and is not routed through the browser gateway.
+
+### Recovery question and avatar routes
+
+| Method | Route | Contract |
+| --- | --- | --- |
+| POST | `/auth/users/recoveryQuestion/email` | Public `{email}`. Generic `200 {message}`; eligible active accounts receive a code. Ten-minute resend cooldown. |
+| POST | `/auth/users/recoveryQuestion` | Public `{email, code}`. Six-digit string, ten-minute expiry, three failures. `200 {securityQuestion}` consumes the code; unavailable codes return generic `401 {message}`. |
+| GET | `/auth/users/{userId}/image` | Active owner or FAA admin. `200 image/png` with no-store; missing image/file 404. |
+| GET | `/auth/users/me` | Existing current-user fields plus gateway-relative `imageUrl` or null. |
+| PUT | `/auth/users/updateProfile` | Existing multipart authorization/validation; response is now JSON `{message, imageUrl}`. |
+
+After reading the question, use the unchanged `/auth/users/forgetPassword` answer-based reset. A recovery code is not an authentication token or reset token. Codes are hashed; attempts and consumption use the existing user-row lock. Invalid attempts return normally so their counters commit. Re-requesting before expiry does not reset attempts. Password, question and email changes invalidate pending codes.
+
+Identity requires three new columns before starting the updated service with schema validation: `recovery_question_code_hash` (varchar(255), nullable), `recovery_question_expires_at` (timestamp with time zone, nullable), and `failed_recovery_question_attempts` (integer, not null, default 0). No separate SQL file is added; exact manual SQL and restart instructions will be provided in the implementation summary. Lists and avatars require no schema changes. Keep the existing Docker upload bind mount; copy the uploads directory alongside a database migration to a new EC2 host. No new environment variable or AWS service is required. The new contract route needs the included gateway routing change and the existing Maintenance service key for internal airline-name lookup.
+
+The frontend guide includes complete response schemas and React image retrieval. Payment details remain `GET /payments/bookings/{bookingId}` for the owner. Refunds and restarting expired checkout remain excluded.
+
+Verified on 16 November 2026: all seven Maven modules compiled and packaged; 55 focused tests passed; 23 actual repository/schema checks passed against disposable PostgreSQL 18.6; and 70 HTTP checks passed through rebuilt Identity, Aviation, Maintenance and Gateway using real Feign calls and that disposable database. HTTP checks covered scoped lists, authorization, CORS, concurrent recovery-code consumption, failed-attempt persistence and avatar upload/read access. Email delivery was stubbed. Temporary services and the test database were removed afterward. Existing databases were not upgraded. React rendering, AWS deployment, SMTP delivery and the entire legacy database-fixture suite were not verified by these checks.
+
+
+### Airline admin analytics, customer lookup, and activation history
+
+These endpoints require an active AIRLINE_EMPLOYEE account with an airline ADMIN record.
+
+GET /airlineAdmin/dashboard?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
+
+Both dates are required and inclusive, using Bahrain scheduled-departure dates.
+The maximum range is 366 days. The response contains fromDate, toDate,
+timeZone, revenueDateBasis, refundsSupported, days, and revenue.
+
+days contains one row per date with flights: date, flightCount, bookingCount,
+bookedBookings, cancelledBookings, finishedBookings, occupiedSeats,
+seatCapacity, and occupancyPercentage. Cancelled flights are excluded from
+occupancy. Occupied seats count BOOKED and FINISHED bookings, regardless of
+payment. Capacity is remaining seats plus those bookings.
+occupancyPercentage is null when capacity is zero.
+
+revenue contains date, currency, paidTotal, and refundedTotal.
+Revenue is grouped by scheduled departure date and payment currency.
+paidTotal sums stored PAID payment amounts in integer minor units.
+It reflects locally recorded payment status; this read does not refresh Stripe.
+Refunds are not tracked: refundsSupported is false and refundedTotal is null.
+Dates without flights and currency groups without paid payments are omitted.
+An empty range returns empty days and revenue arrays.
+
+GET /airlineAdmin/customers?query=...&page=0&size=20
+
+Searches active CUSTOMER accounts by case-insensitive name or email substring,
+or exact user ID. The trimmed query must contain 1–100 characters.
+Results contain only userId, displayName, and emailAddress.
+Customers do not need an existing booking with the airline.
+
+GET /airlineAdmin/airplaneRequests?airplaneId=...&page=0&size=20
+
+airplaneId is required and must belong to the admin's airline.
+Requests are ordered by requestedAt descending, then requestId descending.
+Each item uses the existing AirplaneRequestResponse fields and status values.
+
+Both paginated endpoints return content, page, size, totalElements, and
+totalPages. page starts at zero; size must be 1–100.
+
+Activation history also returns canRequestActivation and nextEligibleRequestAt.
+A pending request or an aircraft that is not grounded prevents another request;
+nextEligibleRequestAt is null in either case. Otherwise it is the latest
+request time plus seven days, or null when there is no previous request.
+Use canRequestActivation to distinguish immediate eligibility from a blocked
+request. Eligibility is rechecked by the existing activation POST endpoint.
+Request timestamps retain the existing Bahrain local date-time format.

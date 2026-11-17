@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.saudsFlightSystem.model.request.response.AirlineFlightResponse;
+import com.ga.saudsFlightSystem.model.request.response.AirlineFlightListResponse;
+
 import com.ga.common.web.Pagination;
 
 import com.ga.common.web.exception.IllegalEndpoint;
@@ -120,6 +123,53 @@ public class FlightService {
         }
         long totalPages = Pagination.totalPages(totalElements, pageSize);
         return new FlightSearchResponse(content, pageNumber, pageSize, totalElements, totalPages);
+    }
+
+    @Transactional(readOnly = true)
+    public AirlineFlightListResponse getAirlineFlights(Flight.FlightStatus status, LocalDate fromDate,
+                                                       LocalDate toDate, int page, int size) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()) || !"AIRLINE_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("Only active airline admins can list flights.");
+
+        AirlineEmployee admin = airlineEmployeeRepository.findByUserIdAndRole(actor.userId(), AirlineEmployee.AirlineRole.ADMIN)
+                .orElseThrow( () -> new IllegalEndpoint("Only airline admins can list flights."));
+        if (admin.getAirline() == null)
+            throw new IllegalEndpoint("The admin must belong to an airline.");
+
+        Pagination.validateZeroBased(page, size);
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate))
+            throw new InvalidInformationException("fromDate must not be after toDate.");
+
+        LocalDateTime startDate = fromDate == null ? null : fromDate.atStartOfDay();
+        LocalDateTime endDate;
+        try {
+            endDate = toDate == null ? null : toDate.plusDays(1).atStartOfDay();
+        } catch (java.time.DateTimeException ex) {
+            throw new InvalidInformationException("toDate is outside the supported range.");
+        }
+
+        Long airlineId = admin.getAirline().getId();
+        String flightStatus = status == null ? null : status.name();
+        List<Long> ids = flightRepository.findAirlineFlightIds(airlineId, flightStatus, startDate, endDate, size, (long) page * size);
+        long totalElements = flightRepository.countAirlineFlights(airlineId, flightStatus, startDate, endDate);
+        List<AirlineFlightResponse> content = new ArrayList<>();
+        if (!ids.isEmpty()) {
+            for (Flight flight : flightRepository.findAirlineFlightsWithDetails(airlineId, ids)) {
+                Airplane airplane = flight.getAirplane();
+                Airport origin = flight.getOriginAirport();
+                Airport destination = flight.getDestinationAirport();
+                content.add(new AirlineFlightResponse(
+                        flight.getId(), flight.getFlightNumber(), airlineId,
+                        airplane == null ? null : airplane.getId(), airplane == null ? null : airplane.getRegistrationNumber(),
+                        origin == null ? null : origin.getId(), origin == null ? null : origin.getIataCode(),
+                        destination == null ? null : destination.getId(), destination == null ? null : destination.getIataCode(),
+                        flight.getScheduledDeparture(), flight.getScheduledArrival(), flight.getActualDeparture(), flight.getActualArrival(),
+                        flight.getStatus(), flight.getFirstClassSeatsCount(), flight.getStandardSeatsCount(),
+                        flight.getFirstClassPrice(), flight.getStandardPrice(), flight.getCurrency()));
+            }
+        }
+        return new AirlineFlightListResponse(content, page, size, totalElements, Pagination.totalPages(totalElements, size));
     }
 
     @Transactional(readOnly = true)

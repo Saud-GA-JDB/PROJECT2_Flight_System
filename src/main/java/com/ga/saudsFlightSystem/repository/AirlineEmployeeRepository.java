@@ -67,4 +67,12 @@ public interface AirlineEmployeeRepository extends JpaRepository<AirlineEmployee
           AND e.user_id IS NOT NULL
         """, nativeQuery = true)
     List<Long> findAdminUserIdsByAirlineId(@Param("airlineId") Long airlineId);
+
+    @Query("""
+        SELECT e FROM AirlineEmployee e
+        WHERE e.airline.id = :airlineId AND e.userId IS NOT NULL
+          AND (:role IS NULL OR e.airlineRole = :role)
+        ORDER BY e.id ASC
+        """)
+    List<AirlineEmployee> findEmployeesByAirlineId(@Param("airlineId") Long airlineId, @Param("role") AirlineEmployee.AirlineRole role);
 }

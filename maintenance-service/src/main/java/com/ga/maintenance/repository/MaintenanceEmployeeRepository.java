@@ -42,4 +42,12 @@ public interface MaintenanceEmployeeRepository extends JpaRepository<Maintenance
           )
         """, nativeQuery = true)
     List<Long> findCancellationRecipientUserIds(@Param("recordId") Long recordId, @Param("providerId") Long providerId);
+
+    @Query("""
+        SELECT e FROM MaintenanceEmployee e
+        WHERE e.provider.id = :providerId AND e.maintenanceRole = :role AND e.userId IS NOT NULL
+        ORDER BY e.id ASC
+        """)
+    List<MaintenanceEmployee> findTechniciansByProviderId(@Param("providerId") Long providerId,
+            @Param("role") MaintenanceEmployee.MaintenanceRole role);
 }

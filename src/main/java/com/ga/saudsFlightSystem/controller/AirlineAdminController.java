@@ -1,5 +1,10 @@
 package com.ga.saudsFlightSystem.controller;
 
+import com.ga.common.contract.identity.CustomerListResponse;
+import com.ga.saudsFlightSystem.model.Flight;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
+
 import com.ga.saudsFlightSystem.model.FlightOperation;
 import com.ga.saudsFlightSystem.model.AirlineEmployee;
 import com.ga.saudsFlightSystem.model.request.AddAirlineEmployeeRequest;
@@ -24,6 +29,39 @@ public class AirlineAdminController {
     private FlightService flightService;
     private FlightInspectionService flightInspectionService;
     private FlightOperationService operationService;
+    private AirlineAdminService airlineAdminService;
+
+    @GetMapping("/dashboard")
+    public ResponseEntity<AirlineDashboardResponse> getDashboard(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+        return ResponseEntity.ok(airlineAdminService.getDashboard(fromDate, toDate));
+    }
+
+    @GetMapping("/customers")
+    public ResponseEntity<CustomerListResponse> getCustomers(@RequestParam String query,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(airlineAdminService.getCustomers(query, page, size));
+    }
+
+    @GetMapping("/airplaneRequests")
+    public ResponseEntity<AirplaneRequestListResponse> getAirplaneRequests(@RequestParam Long airplaneId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(airlineAdminService.getAirplaneRequests(airplaneId, page, size));
+    }
+
+    @GetMapping("/flights")
+    public ResponseEntity<AirlineFlightListResponse> getFlights(@RequestParam(required = false) Flight.FlightStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(flightService.getAirlineFlights(status, fromDate, toDate, page, size));
+    }
+
+    @GetMapping("/employees")
+    public ResponseEntity<List<AirlineEmployeeResponse>> getEmployees(@RequestParam(required = false) AirlineEmployee.AirlineRole role) {
+        return ResponseEntity.ok(airlineEmployeeService.getAirlineEmployees(role));
+    }
 
     @PostMapping("/employees")
     public ResponseEntity<AirlineEmployeeResponse> addAirlineEmployee(@RequestParam("role") AirlineEmployee.AirlineRole role, @RequestBody AddAirlineEmployeeRequest request) {

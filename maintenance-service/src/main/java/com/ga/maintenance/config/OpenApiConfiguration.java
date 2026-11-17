@@ -35,6 +35,26 @@ public class OpenApiConfiguration {
     @Bean
     public OpenApiCustomizer maintenanceDocumentation() {
         return openApi -> {
+            document(openApi, "/faaadmin/maintenanceProviders", PathItem.HttpMethod.GET,
+                    "List maintenance providers",
+                    "Active FAA admin only. All providers ordered by name then ID. Unpaged array.",
+                    "200", MaintenanceProviderResponse.class, true);
+            document(openApi, "/airlineAdmin/maintenanceProviders", PathItem.HttpMethod.GET,
+                    "List maintenance providers for an airline",
+                    "Active airline admin verified by Aviation. contractedOnly=false lists all providers for contracting; true lists existing relationships for maintenance requests. Ordered by name then ID. Unpaged array.",
+                    "200", MaintenanceProviderResponse.class, true);
+            document(openApi, "/maintenanceAdmin/technicians", PathItem.HttpMethod.GET,
+                    "List maintenance technicians",
+                    "Active provider admin only. Active technicians from the caller's provider, ordered by employee ID. Unpaged array. Assignment still checks availability.",
+                    "200", MaintenanceEmployeeResponse.class, true);
+            document(openApi, "/airlineAdmin/contracts", PathItem.HttpMethod.GET,
+                    "List airline maintenance contracts",
+                    "Active airline admin verified by Aviation. Own airline contracts, ordered by contract ID. Unpaged array with both organization IDs and display names.",
+                    "200", MaintenanceContractResponse.class, true);
+            document(openApi, "/maintenanceAdmin/contracts", PathItem.HttpMethod.GET,
+                    "List provider maintenance contracts",
+                    "Active maintenance admin only. Own provider contracts, ordered by contract ID. Unpaged array with both organization IDs and display names.",
+                    "200", MaintenanceContractResponse.class, true);
             document(openApi, "/faaadmin/maintenanceProviders", PathItem.HttpMethod.POST,
                     "Create maintenance provider",
                     "FAA admin only.",

@@ -1,5 +1,12 @@
 package com.ga.maintenance.service;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+import com.ga.maintenance.client.IdentityServiceClient;
+import com.ga.maintenance.model.request.response.EmployeeProfileResponse;
+import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+
 import com.ga.common.contract.identity.ProvisionedAccount;
 
 import com.ga.common.validation.PhoneValidationService;
@@ -41,7 +48,40 @@ public class MaintenanceEmployeeService {
     private PhoneValidationService phoneValidationService;
     private PasswordService passwordService;
     private AuditLogService auditLogService;
+    private IdentityServiceClient identityServiceClient;
     private static final Logger logger = Logger.getLogger(MaintenanceEmployeeService.class.getName());
+
+    @Transactional
+    public List<MaintenanceEmployeeResponse> getTechnicians() {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()) || !"MAINTENANCE_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("Only active maintenance admins can list technicians.");
+
+        MaintenanceEmployee admin = maintenanceEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (admin == null || admin.getMaintenanceRole() != MaintenanceEmployee.MaintenanceRole.ADMIN || admin.getProvider() == null)
+            throw new IllegalEndpoint("Only maintenance admins can list technicians.");
+
+        Long providerId = admin.getProvider().getId();
+        List<MaintenanceEmployee> employees = maintenanceEmployeeRepository.findTechniciansByProviderId(providerId, MaintenanceEmployee.MaintenanceRole.TECHNICIAN);
+        List<MaintenanceEmployeeResponse> response = new ArrayList<>();
+        if (employees.isEmpty())
+            return response;
+
+        List<Long> userIds = employees.stream().map(MaintenanceEmployee::getUserId).toList();
+        Map<Long, AccountSnapshot> accounts = identityServiceClient.accounts(userIds);
+        Map<Long, EmployeeProfileResponse> profiles = identityServiceClient.profiles(userIds);
+        for (MaintenanceEmployee employee : employees) {
+            AccountSnapshot account = accounts.get(employee.getUserId());
+            if (account == null || !account.active() || !"ACTIVE".equals(account.status()) || !"MAINTENANCE_EMPLOYEE".equals(account.role()))
+                continue;
+            EmployeeProfileResponse profile = profiles.get(employee.getUserId());
+            response.add(new MaintenanceEmployeeResponse(
+                    employee.getId(), employee.getUserId(), providerId,
+                    profile == null ? null : profile.getFName(), profile == null ? null : profile.getLName(),
+                    account.emailAddress(), employee.getMaintenanceRole(), employee.getLicenseNumber()));
+        }
+        return response;
+    }
 
     @Transactional
     public CurrentEmployeeResponse getCurrentEmployee() {

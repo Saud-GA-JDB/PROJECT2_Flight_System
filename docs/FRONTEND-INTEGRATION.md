@@ -1,11 +1,12 @@
 # Frontend integration guide
 
-Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`, with current-user, current-employee, flight pricing/seat, booking-detail, CORS, creation-ID and airport/airplane-list updates for stages 1–7. Covers the implemented browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. This is a source-verified contract, not a claim that every flow was exercised against a running deployment.
+Contract updated on **16 November 2026**, including the implemented stage 8 administrative lists, recovery-question verification and avatar APIs. Covers the browser-facing API across all services. Controller, security, service and response code take precedence over older README/Postman examples. Stage 8 passed focused tests and HTTP checks through temporary local services backed by disposable PostgreSQL; see the verification context below for coverage and limits.
 
 ## Contents
 
 - [Connection and conventions](#connection-and-conventions)
 - [Current integration gaps](#current-integration-gaps)
+- [Deployment and verification context](#deployment-and-verification-context)
 - [Authentication and profiles](#authentication-and-profiles)
 - [Flight search, booking and payment](#flight-search-booking-and-payment)
 - [Airline administration](#airline-administration)
@@ -23,7 +24,7 @@ Contract reviewed on **16 November 2026**, against repository revision `6cc3e94`
 **Local API base URL: `http://localhost:8085`.** Append the paths below directly; there is no `/api` prefix. Use this gateway for all business endpoints, including login and notifications. Paths and enum values are case-sensitive: `/faaadmin` and `/airlineAdmin` deliberately use different casing.
 
 - Send `Authorization: Bearer <JWT>` on protected requests. No cookie session or refresh-token endpoint exists.
-- All endpoints require an active account except the four public Identity routes listed below, public payment return pages, authenticated account setup, and the authenticated current-user endpoint.
+- All endpoints require an active account except the six public Identity routes listed below, public payment return pages, authenticated account setup, and the authenticated current-user endpoint.
 - JSON bodies use `Content-Type: application/json`. Routes marked **query** take URL parameters, not JSON; **none** means no body. Profile updates use multipart.
 - Success bodies are not wrapped in a common envelope. They may be an object, an array, plain text, or empty (`204`). Error bodies also vary; see [Errors](#errors).
 - IDs are JSON integers. `userId`, employee `id`, `airplaneId`, `flightId`, `bookingId`, and request IDs are different identifiers. Never substitute an employee ID for a user ID.
@@ -39,8 +40,8 @@ Every paged response has `{content: T[], page, size, totalElements, totalPages}`
 | Endpoint family | First page | Defaults | Limits / sorting |
 | --- | --- | --- | --- |
 | `/flights/search` | **1** | `page=1&size=10` | `page >= 1`, size 1–100; configurable sort below |
-| Pilot/ATC flight lists, control events, navigation providers, facilities, controllers, airline maintenance history | **0** | `page=0&size=20` | `page >= 0`, size 1–100; no configurable sort |
-| Bookings, airlines, airports, airline airplanes, airplane requests, crew, inspections, provider maintenance requests, technician assignments | Unpaged | — | Returns a raw array |
+| Airline-management/Pilot/ATC flight lists, control events, navigation providers, facilities, controllers, airline maintenance history | **0** | `page=0&size=20` | `page >= 0`, size 1–100; no configurable sort |
+| Bookings, airlines, airports, airline airplanes, airplane requests, crew, inspections, provider maintenance requests, technician assignments, employee selectors, maintenance providers, airport operators, contracts | Unpaged | — | Returns a raw array |
 
 ### Browser access and interactive API docs
 
@@ -64,15 +65,27 @@ Their generated JSON is at `/v3/api-docs` on the same port. Generic response dec
 
 ## Current integration gaps
 
-These affect screen design and must be resolved with the backend team or explicitly supplied development fixtures. The endpoints below do **not** imply missing read APIs exist.
+These limitations remain outside the agreed frontend-readiness delivery. Administrative selectors, recovery-question retrieval and avatar display are described below.
 
 | Needed by a frontend | Current limitation |
 | --- | --- |
-| Show the recovery question | No security-question-read endpoint. Password recovery accepts an answer but does not return the question. Basic profile reads are available through `/auth/users/me`. |
-| Browse employees and business relationships; manage existing flights | No airplane-detail endpoint, airline-owned flight list, airline employee list, airport employee list, maintenance provider list, maintenance technician list, airport operator list, or contract list. Airport, airline airplane and ATC provider/facility/controller lists do exist. Several administrative screens therefore require IDs supplied separately. |
-| Profile images | Upload succeeds with a text response; no image URL is returned, and no public image-serving route is configured. Upload support alone does not provide an avatar display API. |
-| Refunds and restarting expired checkout | No refund or replacement-checkout endpoint. A paid booking cannot be cancelled through the current API. Expired payments cannot be restarted for the same booking. |
+| Refunds and restarting expired checkout — excluded from this delivery | No refund or replacement-checkout endpoint. A paid booking cannot be cancelled through the current API. Expired payments cannot be restarted for the same booking. The user explicitly excluded both additions; the frontend must reflect these existing limitations. |
 | Other workflows | No implemented flight cancellation/rescheduling, baggage handling, check-in, notification inbox or notification read/unread API. Enum values alone do not establish an available workflow. |
+
+## Deployment and verification context
+
+The backend is planned for **AWS EC2**, and the frontend for **AWS S3**. The frontend has not yet been created. Browser requests should use the gateway. Local CORS defaults cover `http://localhost:5173` and `http://localhost:3000`; when deploying, configure the actual frontend origin in `FRONTEND_ORIGINS` and an accessible HTTPS gateway URL. See [Browser access and interactive API docs](#browser-access-and-interactive-api-docs) for the existing setup instructions.
+
+Stage 7 compiled successfully. Focused verification covered 20 HTTP requests with the real controllers, services and security configuration, mocked persistence/Identity, and Spring Data repository-method parsing for scope and ordering. A real local gateway routed both list paths to a stub Aviation backend with Authorization headers preserved. These checks did not exercise a live database or deployed frontend. End-to-end integration and deployment validation remain to be done when those environments exist.
+
+Stage 8 verification on 16 November 2026:
+
+- All seven Maven modules compiled and packaged using a temporary reactor; all integration-test sources compiled. No changes were installed into the shared Maven repository.
+- 55 focused tests passed: the new Identity/list tests, current-user/profile validation, JWT filtering and airline employee creation. These use mocked persistence/dependencies where stated in the test classes.
+- 23 checks passed using the actual Spring Data repositories against a disposable PostgreSQL 18.6 database. They exercised optional filters, historical flight pagination/counts, scoped fetch joins, employee/operator/provider/contract queries and the manual three-column recovery upgrade while retaining existing test accounts.
+- 70 HTTP checks passed through rebuilt Identity, Aviation, Maintenance and Gateway instances on temporary ports, with that disposable database and real Feign calls. Coverage included role/organization denial, list responses, CORS preflight, one-time recovery-code consumption under concurrent requests, persisted failed attempts/cooldown, and avatar upload, current-user reread, PNG retrieval and access denial. Notification email was handled by a local stub; SMTP delivery was not tested.
+- The temporary processes and PostgreSQL container were stopped. Those isolated checks did not change existing application containers, database schemas or uploads. They do not establish React rendering, AWS routing, real email delivery or the entire legacy database-fixture suite.
+- After those checks, the three recovery columns were applied and verified in the local Docker `aviation` database on 16 November 2026. Identity, Aviation, Maintenance and Gateway were rebuilt and restarted; all four passed Docker health checks, and `http://localhost:8085/actuator/health` returned `UP`. The backup was skipped at the user's request. This confirms local startup; browser and external-service flows still need end-to-end verification.
 
 ## Authentication and profiles
 
@@ -83,15 +96,18 @@ These affect screen design and must be resolved with the backend team or explici
 | `POST /auth/users/login` | Public | JSON `{email, password}` | `200` `{message: "<JWT>"}` |
 | `GET /auth/users/me` | Authenticated, including `SETUP_REQUIRED` | None | `200` `CurrentUser` |
 | `POST /auth/users/setup` | Authenticated, `SETUP_REQUIRED` | Setup JSON below | `200` `AccountSetup` |
+| `POST /auth/users/recoveryQuestion/email` | Public | JSON `{email}` | `200` generic `{message}` |
+| `POST /auth/users/recoveryQuestion` | Public with emailed code | JSON `{email, code}` | `200` `{securityQuestion}` |
+| `GET /auth/users/{userId}/image` | Active owner or FAA admin | None | `200 image/png` bytes |
 | `POST /auth/users/forgetPassword` | **Public** | JSON `{email, securityQuestionAnswer}` | `200` `{message: "Your password has been reset. Please check your email."}` |
 | `POST /auth/users/changePassword` | Active account | JSON `{newPassword}` | `200` text `Success! New Password Has Been Set` |
-| `PUT /auth/users/updateProfile` | Active account; FAA for target `userId` | Multipart described below | `200` text `Profile updated successfully` |
+| `PUT /auth/users/updateProfile` | Active account; FAA for target `userId` | Multipart described below | `200` `{message, imageUrl}`; URL may be null |
 
 ### Current user
 
 After login or page reload, call `GET /auth/users/me` with the JWT to retrieve the current account and profile. Authenticated setup-required accounts may call this endpoint; use `status === "SETUP_REQUIRED"` to show account setup. Active employees then use the corresponding current-employee endpoint below for employee roles and organization IDs.
 
-The endpoint takes no user ID: it reads the authenticated account. It returns `userId`, `emailAddress`, account `role`, `status`, `active`, `fName`, `lName`, `phoneNumberOpeningCode` and `phoneNumber`. Unfilled or missing profile fields are `null`. Passwords, security answers and CPR are not returned. Missing or invalid authentication returns `401`.
+The endpoint takes no user ID: it reads the authenticated account. It returns `userId`, `emailAddress`, account `role`, `status`, `active`, `fName`, `lName`, `phoneNumberOpeningCode` and `phoneNumber`, plus `imageUrl` (gateway-relative, or `null`). Unfilled or missing profile fields are `null`. Passwords, security answers and CPR are not returned. Missing or invalid authentication returns `401`.
 
 ### Current employee
 
@@ -156,7 +172,38 @@ Self-update JSON fields (all optional): `phoneNumber`, `phoneNumberOpeningCode`,
 
 FAA admins may supply query `?userId=123` to update a target. In this mode JSON may contain `fName`, `lName`, `cpr`, `emailAddress`, `phoneNumber`, `phoneNumberOpeningCode`, `active`; **security fields are forbidden**. Changing names/CPR/email/active requires the explicit `userId`, even for an FAA admin editing themselves. `active` accepts only `false` (deactivation); reactivation is not supported. Email and CPR must be valid and unique, and cannot be changed before setup completes.
 
-Images must decode as an image; they are saved as PNG. Invalid images return `400`, oversized uploads `413`; upload size limits are deployment-dependent. An omitted or empty image keeps the existing image. The API does not return the resulting image URL.
+Images must decode as an image; they are saved as PNG. Invalid images return `400`, oversized uploads `413`; upload size limits are deployment-dependent. An omitted or empty image keeps the existing image. The update returns JSON `{message, imageUrl}`. The reference is also available through `/auth/users/me` after a reload; see Avatar display below.
+
+### Recovery question
+
+1. Call `POST /auth/users/recoveryQuestion/email` with `{"email":"you@example.com"}`. The `200 {message}` response is the same for unknown, inactive and cooldown accounts. Eligible active accounts receive a six-digit code through the existing Notification service. The question is not returned by email address alone.
+2. Call `POST /auth/users/recoveryQuestion` with `{"email":"you@example.com","code":"012345"}`. Keep the code as a string. A valid code returns `200 {"securityQuestion":"Your configured question"}` and is consumed.
+3. Display the question, collect the answer, and call the existing `POST /auth/users/forgetPassword` with `{email, securityQuestionAnswer}`. That endpoint's password reset behavior and daily answer limit are unchanged; code verification is for reading the question, not a new reset credential.
+
+Codes expire after ten minutes and permit three incorrect attempts. Re-requesting during that window does not resend or reset attempts, even after successful consumption. After expiry a new request replaces the code. Malformed email/code returns `400`; unknown, inactive, expired, consumed or exhausted verification returns the same `401 {message}`. Request and question responses use `Cache-Control: no-store`. A generic response is not a constant-time or mail-delivery guarantee. Notification failure uses the existing dependency error response; a failed send rolls back code state.
+
+The local Docker database already has the code hash, UTC expiry and failed-attempt count required by this version. For another existing database, apply the three-column upgrade described in the API guide before starting Identity with schema validation. No separate SQL file was added. Password, email or question changes invalidate any outstanding code.
+
+### Avatar display
+
+`GET /auth/users/me` includes `imageUrl`, for example `/auth/users/17/image`, or `null`. `PUT /auth/users/updateProfile` now returns JSON `{message, imageUrl}` instead of plain text. For an FAA-targeted update, that URL belongs to the target profile. An omitted image retains the existing reference.
+
+Fetch the reference through the configured API base with `Authorization: Bearer <token>`. `GET /auth/users/{userId}/image` permits only the active owner or an active FAA admin. Success is PNG bytes with `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`; missing references/files return `404`, foreign users `403`, missing authentication `401`.
+
+```ts
+const result = await api<{message: string; imageUrl: string | null}>(
+  "/auth/users/updateProfile", {method: "PUT", token, form});
+if (result.imageUrl) {
+  const image = await fetch(`${API_BASE}${result.imageUrl}`, {
+    headers: {Authorization: `Bearer ${token}`},
+  });
+  if (!image.ok) throw new Error(`Image request failed (${image.status})`);
+  const objectUrl = URL.createObjectURL(await image.blob());
+  // Use objectUrl as the avatar src; revoke it on replacement, logout or unmount.
+}
+```
+
+Image paths stored in the database remain `uploads/<generated UUID>.png`. Existing files work if they remain in that directory. Docker already persists `./uploads:/app/uploads`; keep that mount and include the host folder in EC2 backups. An IDE run must use the working directory containing its uploads folder. No public static-file mapping or S3 image bucket is added. For a new EC2 host, copy both the database and existing uploads. A database reference without its file returns `404`; show a default avatar.
 
 ## Flight search, booking and payment
 
@@ -240,6 +287,29 @@ Checkout reuses an existing pending session. `checkoutUrl` can be `null` when th
 Errors: `400` invalid booking/flight state, already paid, expired payment, invalid price, or checkout not yet saved; `403` not owner; `404` booking/payment missing; `409` competing checkout or a payment needing verification; `502` payment-provider failure; `503` provider temporarily unavailable. Expired payments cannot be restarted on the same booking. There is no refund API. Payment status changes are obtained by these calls; no frontend webhook subscription exists.
 
 ## Airline administration
+
+### Administrative lists
+
+All routes below require an active account. Backend scope comes from the caller; no organization ID is accepted as a way to choose another organization's data. Missing/invalid JWT returns `401`; wrong role, missing admin membership or invalid organization relationship returns `403`; malformed filters return `400`. Empty unpaged lists return `[]`.
+
+| GET route | Caller and scope | Filters / response |
+| --- | --- | --- |
+| `/airlineAdmin/flights` | Airline ADMIN, own airline | Optional `status`, `fromDate`, `toDate`, `page=0`, `size=20`; `Page<AirlineFlight>` |
+| `/airlineAdmin/employees` | Airline ADMIN, own airline | Optional `role`; active `AirlineEmployee[]`, employee ID ascending |
+| `/airportAdmin/employees` | Airport ADMIN matching the airport's current operator | Optional `role`; active `AirportEmployee[]` at that airport and operator, employee ID ascending |
+| `/maintenanceAdmin/technicians` | Maintenance ADMIN, own provider | Active `MaintenanceEmployee[]` with TECHNICIAN role, employee ID ascending |
+| `/faaadmin/maintenanceProviders` | FAA ADMIN | All `Organization[]`, name then ID ascending |
+| `/airlineAdmin/maintenanceProviders` | Airline ADMIN verified by Aviation | `contractedOnly=false` (default): all providers for contracting; `true`: own contracted providers for maintenance requests; `Organization[]`, name then ID ascending |
+| `/faaadmin/airportOperators` | FAA ADMIN | All `Organization[]`, name then ID ascending |
+| `/airlineAdmin/contracts` | Airline ADMIN verified by Aviation | Own `MaintenanceContract[]`, contract ID ascending |
+| `/maintenanceAdmin/contracts` | Maintenance ADMIN, own provider | Own `MaintenanceContract[]`, contract ID ascending |
+
+Only the flight list is paginated; the other new lists are unpaged selectors/reference lists. Airline employee roles are ADMIN, PILOT, FLIGHT_ATTENDANT and GATE_RECEPTION; airport roles are ADMIN, INSPECTOR and BAGGAGE_HANDLER. Omitting `role` includes all roles. Accounts must be active with the expected account role; unlinked, pending, deactivated and missing accounts are omitted. Names may be null if the Identity profile is absent. The selector does not guarantee that an employee is free for a particular assignment; the existing mutation checks remain authoritative.
+
+Flight management includes PENDING_CREW, ACTIVE, IN_AIR, CLOSED and CANCELLED records when no status filter is supplied. This does not add flight cancellation. `fromDate`/`toDate` are inclusive scheduled-departure dates (`YYYY-MM-DD`), including historical dates. Reversed dates are invalid. Results sort by scheduled departure descending then ID descending, with page >= 0 and size 1–100. An out-of-range page has empty content and the actual totals. Missing related aircraft/airports produce null reference fields rather than hiding historical flights. Use existing operations, crew and inspection routes with the returned flight ID.
+
+Contract display names are batch-read from the owning services. Missing legacy organizations produce null display fields but retain contract/organization IDs. An unavailable dependency fails the request instead of pretending the organization has no contracts. The internal airline-name lookup requires the existing Maintenance service credential and is not routed through the browser gateway.
+
 
 All routes in this section require account role `AIRLINE_EMPLOYEE`, airline role `ADMIN`, and ownership of the relevant airline's resources.
 
@@ -485,6 +555,7 @@ type CurrentUser = {
   status: "SETUP_REQUIRED" | "ACTIVE" | "DEACTIVATED" | "PENDING_EMPLOYEE";
   active: boolean; fName: string | null; lName: string | null;
   phoneNumberOpeningCode: string | null; phoneNumber: string | null;
+  imageUrl: string | null;
 };
 type CurrentAviationEmployee = {
   employeeId: number;
@@ -523,6 +594,20 @@ type BookingSummary = {
   scheduledDeparture: LocalDateTime; scheduledArrival: LocalDateTime;
   actualDeparture: LocalDateTime | null; actualArrival: LocalDateTime | null;
   flightStatus: FlightStatus;
+};
+type AirlineFlight = {
+  id: number; flightNumber: string; airlineId: number;
+  airplaneId: number | null; airplaneRegistrationNumber: string | null;
+  originAirportId: number | null; originAirport: string | null;
+  destinationAirportId: number | null; destinationAirport: string | null;
+  scheduledDeparture: LocalDateTime; scheduledArrival: LocalDateTime;
+  actualDeparture: LocalDateTime | null; actualArrival: LocalDateTime | null;
+  status: FlightStatus; firstClassSeatsCount: number; standardSeatsCount: number;
+  firstClassPrice: number; standardPrice: number; currency: "BHD" | "USD";
+};
+type MaintenanceContract = {
+  id: number; airlineId: number; airlineName: string | null; airlineCode: string | null;
+  providerId: number; providerName: string | null; providerContactEmail: string | null;
 };
 type Checkout = { paymentId: number; checkoutUrl: string | null };
 type Payment = {
@@ -778,8 +863,14 @@ const login = await api<{message: string}>("/auth/users/login", {
   method: "POST", json: {email, password},
 });
 const token = login.message;
-// No role/userId can be read from this response; see integration gaps.
+// Login returns the JWT; retrieve identity and profile using it.
+const currentUser = await api<CurrentUser>("/auth/users/me", {token});
+// Use currentUser.userId, currentUser.role and currentUser.status.
+```
 
+If `currentUser.status === "SETUP_REQUIRED"`, show and complete account setup before making the following protected requests. For active employees, also fetch the appropriate current-employee endpoint described above to select their dashboard. On page reload, call `/auth/users/me` again with the retained token.
+
+```ts
 const query = new URLSearchParams({
   originAirport: "BAH", destinationAirport: "DXB",
   seatType: "standard", page: "1", size: "10",
@@ -791,7 +882,7 @@ form.append("request", new Blob([JSON.stringify({
   phoneNumber: "36001234", phoneNumberOpeningCode: "+973",
 })], {type: "application/json"}));
 // if (selectedImage) form.append("image", selectedImage);
-await api<string>("/auth/users/updateProfile", {method: "PUT", token, form});
+await api<{message: string; imageUrl: string | null}>("/auth/users/updateProfile", {method: "PUT", token, form});
 
 // bookingId is obtained from a booking response/list and retained across redirect.
 const checkout = await api<Checkout>(`/payments/bookings/${bookingId}/checkout`, {
@@ -805,3 +896,53 @@ else {
 ```
 
 Use `URLSearchParams` for query values, especially `+973`, free-text reasons, names and dates. Pass abort signals when cancelling stale searches. Clear user-scoped caches on logout/account switch, and refetch affected resources after mutations rather than relying on notifications alone.
+
+
+### Airline admin analytics, customer lookup, and activation history
+
+These endpoints require an active AIRLINE_EMPLOYEE account with an airline ADMIN record.
+
+GET /airlineAdmin/dashboard?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
+
+Both dates are required and inclusive, using Bahrain scheduled-departure dates.
+The maximum range is 366 days. The response contains fromDate, toDate,
+timeZone, revenueDateBasis, refundsSupported, days, and revenue.
+
+days contains one row per date with flights: date, flightCount, bookingCount,
+bookedBookings, cancelledBookings, finishedBookings, occupiedSeats,
+seatCapacity, and occupancyPercentage. Cancelled flights are excluded from
+occupancy. Occupied seats count BOOKED and FINISHED bookings, regardless of
+payment. Capacity is remaining seats plus those bookings.
+occupancyPercentage is null when capacity is zero.
+
+revenue contains date, currency, paidTotal, and refundedTotal.
+Revenue is grouped by scheduled departure date and payment currency.
+paidTotal sums stored PAID payment amounts in integer minor units.
+It reflects locally recorded payment status; this read does not refresh Stripe.
+Refunds are not tracked: refundsSupported is false and refundedTotal is null.
+Dates without flights and currency groups without paid payments are omitted.
+An empty range returns empty days and revenue arrays.
+
+GET /airlineAdmin/customers?query=...&page=0&size=20
+
+Searches active CUSTOMER accounts by case-insensitive name or email substring,
+or exact user ID. The trimmed query must contain 1–100 characters.
+Results contain only userId, displayName, and emailAddress.
+Customers do not need an existing booking with the airline.
+
+GET /airlineAdmin/airplaneRequests?airplaneId=...&page=0&size=20
+
+airplaneId is required and must belong to the admin's airline.
+Requests are ordered by requestedAt descending, then requestId descending.
+Each item uses the existing AirplaneRequestResponse fields and status values.
+
+Both paginated endpoints return content, page, size, totalElements, and
+totalPages. page starts at zero; size must be 1–100.
+
+Activation history also returns canRequestActivation and nextEligibleRequestAt.
+A pending request or an aircraft that is not grounded prevents another request;
+nextEligibleRequestAt is null in either case. Otherwise it is the latest
+request time plus seven days, or null when there is no previous request.
+Use canRequestActivation to distinguish immediate eligibility from a blocked
+request. Eligibility is rechecked by the existing activation POST endpoint.
+Request timestamps retain the existing Bahrain local date-time format.

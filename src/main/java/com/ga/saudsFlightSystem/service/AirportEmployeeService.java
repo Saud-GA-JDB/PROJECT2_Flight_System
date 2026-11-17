@@ -1,5 +1,13 @@
 package com.ga.saudsFlightSystem.service;
 
+import com.ga.common.contract.identity.AccountSnapshot;
+import com.ga.saudsFlightSystem.identity.AccountLookup;
+import com.ga.saudsFlightSystem.identity.PersonalProfileStore;
+import com.ga.saudsFlightSystem.identity.PersonalProfile;
+import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+
 import com.ga.common.contract.identity.ProvisionedAccount;
 
 import com.ga.common.validation.PhoneValidationService;
@@ -42,7 +50,42 @@ public class AirportEmployeeService {
     private PasswordService passwordService;
     private AuditLogService auditLogService;
 
+    private AccountLookup accountLookup;
+    private PersonalProfileStore personalProfileStore;
+
     private static final Logger logger = Logger.getLogger(AirportEmployeeService.class.getName());
+
+    @Transactional
+    public List<AirportEmployeeResponse> getAirportEmployees(AirportEmployee.AirportRole role) {
+        CurrentActor actor = currentActorProvider.getCurrentActor();
+        if (!actor.active() || !"ACTIVE".equals(actor.status()) || !"AIRPORT_EMPLOYEE".equals(actor.role()))
+            throw new IllegalEndpoint("Only active airport admins can list employees.");
+
+        AirportEmployee admin = airportEmployeeRepository.findByUserId(actor.userId()).orElse(null);
+        if (admin == null || admin.getAirportRole() != AirportEmployee.AirportRole.ADMIN || admin.getAirport() == null
+                || admin.getOperator() == null || admin.getAirport().getOperator() == null
+                || !admin.getOperator().getId().equals(admin.getAirport().getOperator().getId()))
+            throw new IllegalEndpoint("Only an admin of the airport's current operator can list its employees.");
+
+        Long airportId = admin.getAirport().getId();
+        Long operatorId = admin.getOperator().getId();
+        List<AirportEmployee> employees = airportEmployeeRepository.findEmployeesByAirportId(airportId, operatorId, role);
+        List<Long> userIds = employees.stream().map(AirportEmployee::getUserId).toList();
+        Map<Long, AccountSnapshot> accounts = accountLookup.findAccountsByIds(userIds);
+        Map<Long, PersonalProfile> profiles = personalProfileStore.findByUserIds(userIds);
+        List<AirportEmployeeResponse> response = new ArrayList<>();
+        for (AirportEmployee employee : employees) {
+            AccountSnapshot account = accounts.get(employee.getUserId());
+            if (account == null || !account.active() || !"ACTIVE".equals(account.status()) || !"AIRPORT_EMPLOYEE".equals(account.role()))
+                continue;
+            PersonalProfile profile = profiles.get(employee.getUserId());
+            response.add(new AirportEmployeeResponse(
+                    employee.getId(), employee.getUserId(), operatorId, airportId,
+                    profile == null ? null : profile.getFName(), profile == null ? null : profile.getLName(),
+                    account.emailAddress(), employee.getAirportRole()));
+        }
+        return response;
+    }
 
     @Transactional
     public ResponseEntity<?> addAirportOperatorAdmin(Long airportId, AddAirportEmployeeRequest request) {

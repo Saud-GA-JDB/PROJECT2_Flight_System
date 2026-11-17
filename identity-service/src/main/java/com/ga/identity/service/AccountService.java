@@ -1,6 +1,14 @@
 package com.ga.identity.service;
 
 import com.ga.common.contract.identity.AccountSnapshot;
+import com.ga.common.contract.identity.CustomerListResponse;
+import com.ga.common.contract.identity.CustomerResponse;
+import com.ga.common.web.Pagination;
+import com.ga.common.web.exception.InvalidInformationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.Locale;
 
 import com.ga.common.web.exception.InformationNotFoundException;
 import com.ga.identity.model.User;
@@ -22,6 +30,23 @@ import java.util.stream.Collectors;
 public class AccountService {
     private final UserRepository userRepository;
     private final JWTUtils jwt;
+
+    @Transactional(readOnly = true)
+    public CustomerListResponse findCustomers(String query, int page, int size) {
+        Pagination.validateZeroBased(page, size);
+        if ((long) page * size > Integer.MAX_VALUE)
+            throw new InvalidInformationException("The requested page is outside the supported range.");
+        if (query == null || query.isBlank() || query.trim().length() > 100)
+            throw new InvalidInformationException("query must contain between 1 and 100 characters.");
+
+        Page<CustomerResponse> customers = userRepository.findCustomers(
+                query.trim().toLowerCase(Locale.ROOT), User.Role.CUSTOMER,
+                User.Status.ACTIVE, PageRequest.of(page, size));
+
+        return new CustomerListResponse(
+                customers.getContent(), page, size, customers.getTotalElements(),
+                Pagination.totalPages(customers.getTotalElements(), size));
+    }
 
     public Optional<String> findEmailAddressById(Long userId) {
         return userRepository.findEmailAddressById(userId);

@@ -1,5 +1,8 @@
 package com.ga.saudsFlightSystem.controller;
 
+import com.ga.saudsFlightSystem.model.request.response.AirportEmployeeResponse;
+import java.util.List;
+
 import com.ga.saudsFlightSystem.model.AirportEmployee;
 import com.ga.saudsFlightSystem.model.request.AddAirportEmployeeRequest;
 import com.ga.saudsFlightSystem.service.AirportEmployeeService;
@@ -15,6 +18,11 @@ public class AirportAdminController {
 
     private AirportEmployeeService airportEmployeeService;
     private FlightInspectionService flightInspectionService;
+
+    @GetMapping("/employees")
+    public ResponseEntity<List<AirportEmployeeResponse>> getEmployees(@RequestParam(required = false) AirportEmployee.AirportRole role) {
+        return ResponseEntity.ok(airportEmployeeService.getAirportEmployees(role));
+    }
 
     @PostMapping("/employees")
     public ResponseEntity<?> addAirportEmployee(@RequestParam(name = "role") AirportEmployee.AirportRole role, @RequestBody AddAirportEmployeeRequest request) {

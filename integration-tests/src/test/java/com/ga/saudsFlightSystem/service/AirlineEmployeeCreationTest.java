@@ -69,8 +69,8 @@ class AirlineEmployeeCreationTest {
         when(provisioner.createAccount(any())).thenReturn(new ProvisionedAccount(400L, "crew@example.com"));
         AirlineEmployeeService service = new AirlineEmployeeService(
                 null, provisioner, employees, null, null, null, null,
-                new PhoneValidationService(), new PasswordService(), null, audits, actors);
-        mvc = MockMvcBuilders.standaloneSetup(new AirlineAdminController(service, null, null, null, null, null))
+                new PhoneValidationService(), new PasswordService(), null, audits, actors, null, null);
+        mvc = MockMvcBuilders.standaloneSetup(new AirlineAdminController(service, null, null, null, null, null, null))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 

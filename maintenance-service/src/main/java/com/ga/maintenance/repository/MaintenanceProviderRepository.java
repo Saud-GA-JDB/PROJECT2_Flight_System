@@ -1,5 +1,7 @@
 package com.ga.maintenance.repository;
 
+import java.util.List;
+
 import com.ga.maintenance.model.MaintenanceProvider;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,4 +15,13 @@ public interface MaintenanceProviderRepository extends JpaRepository<Maintenance
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM MaintenanceProvider p WHERE p.id = :providerId")
     Optional<MaintenanceProvider> findByIdForUpdate(@Param("providerId") Long providerId);
+
+    List<MaintenanceProvider> findAllByOrderByNameAscIdAsc();
+
+    @Query("""
+        SELECT p FROM MaintenanceProvider p
+        WHERE EXISTS (SELECT c.id FROM MaintenanceContract c WHERE c.providerId = p.id AND c.airlineId = :airlineId)
+        ORDER BY p.name ASC, p.id ASC
+        """)
+    List<MaintenanceProvider> findContractedByAirlineId(@Param("airlineId") Long airlineId);
 }

@@ -11,6 +11,8 @@ import java.util.Optional;
 import java.util.List;
 
 public interface AirplaneRepository extends JpaRepository<Airplane, Long> {
+    Optional<Airplane> findByIdAndAirline_Id(Long airplaneId, Long airlineId);
+
     List<Airplane> findByAirline_IdOrderByRegistrationNumberAsc(Long airlineId);
     boolean existsByRegistrationNumber(String registrationNumber);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
