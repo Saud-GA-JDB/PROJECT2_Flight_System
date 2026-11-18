@@ -2,7 +2,7 @@
 
 `Jenkinsfile` belongs to the backend repository. Jenkins polls its configured Git
 branch every five minutes, builds the shared library and five Java 17 services,
-runs Identity and integration tests (including concurrency), explicitly runs the
+runs Aviation, Identity and integration tests (including concurrency), explicitly runs the
 14-scenario Cucumber runner, and builds five Docker images from the tested JARs.
 Every Maven and Docker command must succeed. Reports and application JARs are
 archived even after failures. Image tags are `<12-character-commit>-<build-number>`.
@@ -58,6 +58,13 @@ Docker engine. The pipeline refuses to silently reuse an existing test database.
 
 Database/fixture tests do not establish real Kafka or Feign transport coverage.
 The separate existing `DockerTestRunner` is not part of this initial pipeline.
+
+The integration suite runs sequentially with Spring's context cache limited to
+one context. Its existing `IdentityFixtures` helper stores a static EntityManager;
+reusing an older cached context after another context replaces that field mixes
+transaction managers. This CI setting avoids that shared-state problem without
+changing business code or excluding flight-operation tests. A future test cleanup
+should make the helper an injected instance rather than global state.
 
 ## References and assistance
 

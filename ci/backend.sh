@@ -41,8 +41,12 @@ case "${1:-}" in
       "-Dspring.config.additional-location=$ci_config"
     ;;
   tests)
+    "${maven[@]}" -f pom.xml verify "-Dspring.config.additional-location=$ci_config"
     "${maven[@]}" -f identity-service/pom.xml verify "-Dspring.config.additional-location=$ci_config"
-    "${maven[@]}" -f integration-tests/pom.xml verify "-Dspring.config.additional-location=$ci_config"
+    # IdentityFixtures holds a static EntityManager. Keep only the active test
+    # context cached so it cannot point at a different context's transaction.
+    "${maven[@]}" -f integration-tests/pom.xml verify '-Dtest=*Test' \
+      -Dspring.test.context.cache.maxSize=1 "-Dspring.config.additional-location=$ci_config"
     ;;
   cucumber)
     "${maven[@]}" -f integration-tests/pom.xml test -Dtest=runners.TestRunner \

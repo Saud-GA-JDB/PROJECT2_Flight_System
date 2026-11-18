@@ -1490,4 +1490,3 @@ ALTER TABLE ONLY public.user_profiles
 --
 
 \unrestrict Gf9SxIW566R48WrJSTr96f1eb0RGW6reotyZHPASEhVE2x0Om3vCCKxocmGNd4i
-
