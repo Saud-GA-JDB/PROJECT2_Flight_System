@@ -11,6 +11,26 @@ The initial pipeline is CI. Registry publication and EC2 deployment require AWS
 authentication and will be connected separately; a green CI build does not mean
 that the application was deployed.
 
+## Verified on 18 November 2026
+
+Local Jenkins build [#4](http://localhost:8082/job/flight-backend-ci/4/) passed for
+code commit `2a883676d6582dd34c82bc7acd0128adcfdb83d7`: **291 tests, zero failures,
+zero errors, zero skips**, including all 14 Cucumber scenarios. All five images
+were built with tag `2a883676d658-4`. Independent SHA-256 comparisons confirmed
+each image contains the exact corresponding tested JAR. Jenkins archived the
+reports and JARs and removed the disposable PostgreSQL container.
+
+This run used a Git-generated local source archive because publication of the
+new branch was awaiting authorization. The live job is therefore not yet polling
+GitHub. After publishing `codex/jenkins-ci`, switch the job to Pipeline script from
+SCM with that branch and `Jenkinsfile`, then run once to activate polling. Registry
+publication and AWS deployment have not been performed by this pipeline.
+
+Earlier failed runs confirmed that test failures stop image building. The CI
+fixes preserve application behavior: use its existing JPA settings, isolate the
+legacy test context, install the documented constraint in the disposable
+database, and use HTTPS package mirrors for image construction.
+
 ## Jenkins installation and agent
 
 The existing controller is `jenkins-local`, with data in Docker volume
