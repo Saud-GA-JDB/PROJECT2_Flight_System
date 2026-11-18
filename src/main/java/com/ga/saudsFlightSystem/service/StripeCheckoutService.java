@@ -2,6 +2,7 @@ package com.ga.saudsFlightSystem.service;
 
 import com.ga.saudsFlightSystem.model.request.response.PaymentResponse;
 import com.ga.saudsFlightSystem.model.request.response.CheckoutResponse;
+import com.ga.saudsFlightSystem.model.Payment;
 import com.ga.common.web.exception.InvalidInformationException;
 import com.stripe.StripeClient;
 import com.stripe.exception.StripeException;
@@ -31,6 +32,10 @@ public class StripeCheckoutService {
     public PaymentResponse refreshPayment(Long bookingId) throws StripeException {
         PaymentResponse payment = paymentService.getPayment(bookingId);
         String sessionId = paymentService.getCheckoutSessionId(payment.getId());
+
+        if (sessionId == null &&
+                (payment.getStatus() == Payment.PaymentStatus.PAID || payment.getStatus() == Payment.PaymentStatus.EXPIRED))
+            return payment;
 
         if (sessionId == null)
             throw new InvalidInformationException("Checkout has not been saved. Please retry the checkout request");
