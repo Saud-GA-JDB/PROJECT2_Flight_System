@@ -1,6 +1,8 @@
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list \
+    && apt-get -o Acquire::Retries=3 update \
+    && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* && mkdir -p /app/uploads
 COPY app.jar /app/app.jar
 ENV SERVER_PORT=8080 TZ=Asia/Bahrain
