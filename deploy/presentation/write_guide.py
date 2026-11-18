@@ -1,0 +1,75 @@
+"""Write a private login sheet and walkthrough from the generated account manifest."""
+import json
+from pathlib import Path
+root=Path(__file__).resolve().parent
+data=json.loads((root/'accounts.private.json').read_text())
+primary=[
+ ('Customer','ahmed.almansoori'),('Airline administrator - Gulf Air','hassan.mahmood'),
+ ('Airline administrator - Emirates','noor.khalid'),('FAA administrator','fatima.alsayed'),
+ ('Airport administrator','mohammed.rashid'),('Airport inspector','zainab.ali'),
+ ('Maintenance administrator','ibrahim.hassan'),('Maintenance technician','khalid.salman'),
+ ('Pilot','yusuf.abdulla'),('Air traffic controller','abdulla.khalifa'),
+ ('ATC administrator','abdulrahman.yousif'),('Flight attendant','maryam.hamad'),
+ ('Gate reception','rania.hassan'),('Baggage handler','jassim.khalifa')]
+lines=['SAUD FLIGHTS - PRESENTATION LOGINS','19 November 2026 - Bahrain time (UTC+3)','',
+ 'This guide describes the intended demo dataset; verify its import and current state separately.',
+ 'These are realistic fictional people and operational histories; they are not sourced airline operations.',
+ 'Do not rerun generated.sql after import: it intentionally refuses a second import.',
+ '', 'SHARED PASSWORD: '+data['password'],'', 'PRIMARY LOGINS','']
+for label,local in primary: lines.append(f'{label:38} {local}@mailsec.com')
+lines += ['', 'WHAT TO PRESENT', '',
+ '1. Customer: Ahmed has 20 trips, including completed, paid, unpaid and cancelled bookings.',
+ '   Search Bahrain to Dubai on 21 November (GF220). His unpaid booking 910227 is also on GF220.',
+ '   GF222 on 22 November has his first-class paid booking 910228.',
+ '   Cancellation requires at least 48 hours before departure and no pending/paid payment.',
+ '   Use separate tabs or browser profiles when switching roles: login is tab-scoped.',
+ '', '2. Airline admin: Hassan manages Gulf Air; Noor manages Emirates.',
+ '   Show the fleet, named crew, bookings, maintenance contracts, activation history and revenue.',
+ '   Set revenue dates to 1-30 November 2026. Gulf Air has five departures on 19 November.',
+ '   GF154 (flight 910009) is awaiting crew and has an unassigned inspection.',
+ '', '3. FAA: Fatima has four pending aircraft requests in the current database.',
+ '   New requests 910001 and 910002 concern A9C-RBK and A9C-RBL.',
+ '   Show airline, airport-operator, navigation-provider and control-tower directories.',
+ '', '4. Airport: Mohammed sees Bahrain departures, inspectors and pending inspections.',
+ '   GF172 (flight 910008) has an inspection assigned to Zainab.',
+ '   GF154 (flight 910009) has an unassigned inspection for an assignment walkthrough.',
+ '   GF186 (flight 910014) has a failed inspection and a concrete defect note.',
+ '', '5. Maintenance: Ibrahim has contracts, technicians and pending/completed/cancelled work.',
+ '   Khalid Salman has pending work order 910001 on A9C-RBK and two completed jobs.',
+ '   Work order 910002 on A9C-RBL is unassigned and available for assignment.',
+ '   Completing maintenance and FAA approval are separate steps in the application.',
+ '', '6. Pilot / tower: Yusuf is assigned to GF150 (flight 910007), Bahrain to Dubai on 19 November.',
+ '   It has full crew, a passed inspection and a pending departure clearance.',
+ '   Abdulla Khalifa can review it in the Bahrain tower queue; readiness for approval was verified.',
+ '   After approval, Yusuf can take off. Approval lasts 20 minutes, so approve during the walkthrough.',
+ '   For arrival at Dubai, use controller mansoor.ali@mailsec.com after Yusuf requests landing.',
+ '   GF180 (flight 910010) is ready for a fresh clearance request.',
+ '   Historical GF152 (flight 910001) has six control events for the history page.',
+ '   Complete landing before reusing the same crew/aircraft for another departure.',
+ '', '7. ATC admin: Abdulrahman has two named Bahrain controllers and the same tower operations.',
+ '', '8. Flight attendant, gate reception and baggage handler accounts are valid, but the current',
+ '   frontend has placeholder workspaces for those roles. Population does not add new features.',
+ '', 'DATA AND VERIFICATION','',
+ '48 presentation accounts: 34 new accounts and 14 renamed/reconfigured sample accounts.',
+ '10 unrelated existing accounts were preserved and fingerprint-checked during import.',
+ '31 new flights, 229 new bookings, 8 new aircraft, 17 new inspections, 8 new maintenance records,',
+ '6 new FAA requests, 3 staffed towers, 102 new crew assignments and 20 control events.',
+ '146 illustrative payment-history records (114 paid, 32 expired); no Stripe charges were made.',
+ 'No registration or booking emails were sent by the SQL import.',
+ 'Run verify_accounts.py to check current login/profile/employee-role behavior.',
+ 'Payment detail verification and any follow-up repair are recorded separately in verification.jsonl.',
+ '', 'CONNECTING THE FRONTEND','',
+ 'The frontend must use the EC2 gateway that connects to RDS. A local Docker gateway may use a different database.',
+ 'The checked private gateway is available over SSH at EC2 loopback port 8085.',
+ 'For the current Vite default proxy, if local port 8085 is free, keep this command running:',
+ 'ssh -N -L 8085:127.0.0.1:8085 -i /path/to/ssh-key.pem ec2-user@EC2_HOST',
+ 'Then run npm run dev in the frontend project and open http://localhost:5173.',
+ 'An already-configured public frontend can continue using its configured live API.',
+ '', 'BACKUP','',
+ 'Record the private pre-import backup path and SHA256 separately.',
+ 'Do not restore over RDS blindly: a full restore would replace later presentation changes.',
+ '', 'ALL ACCOUNTS','']
+for a in data['accounts']:
+    lines.append(f"{a['name']} | {a['email']} | {a['role']} / {a['subrole'] or '-'} | {a['organization'] or '-'}")
+(root/'PRESENTATION.private.txt').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+print('Private login sheet written; credentials not printed.')

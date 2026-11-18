@@ -1,0 +1,297 @@
+# Standalone EC2 configuration. Do not merge with local docker-compose.yml.
+# Images are built locally; runtime.env and certs live only on the host.
+name: sauds-flight-ec2
+services:
+  gateway:
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8085
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      IDENTITY_BASE_URL: http://identity:8081
+      AVIATION_BASE_URL: http://aviation:8080
+      MAINTENANCE_BASE_URL: http://maintenance:8083
+      NOTIFICATION_BASE_URL: http://notification:8084
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Bahrain -Xms32m -Xmx96m -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=144m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=32m
+        -Xss512k -XX:+ExitOnOutOfMemoryError
+      APP_SCHEDULING_ENABLED: ${APP_SCHEDULING_ENABLED:-false}
+      SERVER_TOMCAT_THREADS_MAX: '24'
+      SERVER_TOMCAT_THREADS_MIN_SPARE: '2'
+    healthcheck:
+      test:
+      - CMD
+      - curl
+      - --fail
+      - --silent
+      - --max-time
+      - '4'
+      - http://localhost:8085/actuator/health
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    image: sauds-flight-system-gateway:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: never
+    mem_limit: 224m
+    memswap_limit: 352m
+    ports:
+    - 127.0.0.1:8085:8085
+  redis:
+    image: redis:8.2-alpine
+    restart: unless-stopped
+    command:
+    - redis-server
+    - --save
+    - ''
+    - --appendonly
+    - 'no'
+    - --maxmemory
+    - 24mb
+    - --maxmemory-policy
+    - allkeys-lru
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    mem_limit: 48m
+    memswap_limit: 64m
+  kafka:
+    image: apache/kafka:4.1.2
+    restart: unless-stopped
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:29092,CONTROLLER://:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms128m -Xmx256m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m
+        -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=32m -XX:+ExitOnOutOfMemoryError
+      KAFKA_NUM_NETWORK_THREADS: 2
+      KAFKA_NUM_IO_THREADS: 2
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_RETENTION_BYTES: 134217728
+      KAFKA_LOG_SEGMENT_BYTES: 33554432
+    volumes:
+    - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - bash -c "echo > /dev/tcp/127.0.0.1/29092"
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    mem_limit: 448m
+    memswap_limit: 576m
+  identity:
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8081
+      APP_SEED_ENABLED: 'false'
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_HOST:?Set RDS_HOST in private runtime.env}:5432/aviation?sslmode=verify-full&sslrootcert=/app/certs/global-bundle.pem&ApplicationName=flight-identity
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Set RDS password in
+        private runtime.env}
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      NOTIFICATION_BASE_URL: http://notification:8084
+      NOTIFICATION_SERVICE_KEY: ${NOTIFICATION_SERVICE_KEY:?Set NOTIFICATION_SERVICE_KEY}
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Bahrain -Xms32m -Xmx128m -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=144m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=32m
+        -Xss512k -XX:+ExitOnOutOfMemoryError
+      APP_SCHEDULING_ENABLED: ${APP_SCHEDULING_ENABLED:-false}
+      SERVER_TOMCAT_THREADS_MAX: '24'
+      SERVER_TOMCAT_THREADS_MIN_SPARE: '2'
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: '3'
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: '1'
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    volumes:
+    - ./uploads:/app/uploads
+    - ./certs:/app/certs:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    image: sauds-flight-system-identity:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: never
+    mem_limit: 320m
+    memswap_limit: 448m
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 10
+  aviation:
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      REDIS_HOST: redis
+      APP_SEED_ENABLED: 'false'
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_HOST:?Set RDS_HOST in private runtime.env}:5432/aviation?sslmode=verify-full&sslrootcert=/app/certs/global-bundle.pem&ApplicationName=flight-aviation
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Set RDS password in
+        private runtime.env}
+      IDENTITY_BASE_URL: http://identity:8081
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      NOTIFICATION_BASE_URL: http://notification:8084
+      NOTIFICATION_SERVICE_KEY: ${NOTIFICATION_SERVICE_KEY:?Set NOTIFICATION_SERVICE_KEY}
+      MAINTENANCE_NOTIFICATION_SERVICE_KEY: ${MAINTENANCE_NOTIFICATION_SERVICE_KEY:?Set
+        MAINTENANCE_NOTIFICATION_SERVICE_KEY}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_ADMIN_FAIL_FAST: 'true'
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:?Set STRIPE_SECRET_KEY}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:?Set STRIPE_SUCCESS_URL}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:?Set STRIPE_CANCEL_URL}
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Bahrain -Xms32m -Xmx192m -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=144m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=32m
+        -Xss512k -XX:+ExitOnOutOfMemoryError
+      APP_SCHEDULING_ENABLED: ${APP_SCHEDULING_ENABLED:-false}
+      SERVER_TOMCAT_THREADS_MAX: '24'
+      SERVER_TOMCAT_THREADS_MIN_SPARE: '2'
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: '3'
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: '1'
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    depends_on:
+      kafka:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    image: sauds-flight-system-aviation:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: never
+    mem_limit: 448m
+    memswap_limit: 576m
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 10
+    volumes:
+    - ./certs:/app/certs:ro
+  notification:
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8084
+      IDENTITY_BASE_URL: http://identity:8081
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      NOTIFICATION_SERVICE_KEY: ${NOTIFICATION_SERVICE_KEY:?Set NOTIFICATION_SERVICE_KEY}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:?Set SPRING_MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:?Set SPRING_MAIL_PASSWORD}
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Bahrain -Xms32m -Xmx96m -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=144m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=32m
+        -Xss512k -XX:+ExitOnOutOfMemoryError
+      APP_SCHEDULING_ENABLED: ${APP_SCHEDULING_ENABLED:-false}
+      SERVER_TOMCAT_THREADS_MAX: '24'
+      SERVER_TOMCAT_THREADS_MIN_SPARE: '2'
+    depends_on:
+      kafka:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      aviation:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    image: sauds-flight-system-notification:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: never
+    mem_limit: 256m
+    memswap_limit: 384m
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 10
+  maintenance:
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8083
+      APP_SEED_ENABLED: 'false'
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_HOST:?Set RDS_HOST in private runtime.env}:5432/aviation?sslmode=verify-full&sslrootcert=/app/certs/global-bundle.pem&ApplicationName=flight-maintenance
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?Set RDS password in
+        private runtime.env}
+      AVIATION_BASE_URL: http://aviation:8080
+      IDENTITY_BASE_URL: http://identity:8081
+      IDENTITY_SERVICE_KEY: ${IDENTITY_SERVICE_KEY:?Set IDENTITY_SERVICE_KEY}
+      MAINTENANCE_NOTIFICATION_SERVICE_KEY: ${MAINTENANCE_NOTIFICATION_SERVICE_KEY:?Set
+        MAINTENANCE_NOTIFICATION_SERVICE_KEY}
+      JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Bahrain -Xms32m -Xmx128m -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=144m -XX:ReservedCodeCacheSize=32m -XX:MaxDirectMemorySize=32m
+        -Xss512k -XX:+ExitOnOutOfMemoryError
+      APP_SCHEDULING_ENABLED: ${APP_SCHEDULING_ENABLED:-false}
+      SERVER_TOMCAT_THREADS_MAX: '24'
+      SERVER_TOMCAT_THREADS_MIN_SPARE: '2'
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: '3'
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: '1'
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    depends_on:
+      identity:
+        condition: service_healthy
+      aviation:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+    pids_limit: 180
+    image: sauds-flight-system-maintenance:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: never
+    mem_limit: 320m
+    memswap_limit: 448m
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 10
+    volumes:
+    - ./certs:/app/certs:ro
+volumes:
+  kafka_data: null

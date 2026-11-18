@@ -1,0 +1,36 @@
+# Local configuration and credentials, at any depth under deploy/.
+.env
+.env.*
+!.env.example
+runtime.env
+runtime.env.*
+!runtime.env.example
+*.private.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+
+# Runtime data, database exports, archives, and verification output.
+backups/
+certs/
+uploads/
+build-*/
+build-complete
+*.backup
+*.dump
+*.sql.gz
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.log
+*.jsonl
+login-verification.json
+generated.sql
+__pycache__/
+*.pyc
+*.class
