@@ -22,7 +22,7 @@ reports and JARs and removed the disposable PostgreSQL container.
 
 This run used a Git-generated local source archive because publication of the
 new branch was awaiting authorization. The live job is therefore not yet polling
-GitHub. After publishing `codex/jenkins-ci`, switch the job to Pipeline script from
+GitHub. After publishing `jenkins-ci`, switch the job to Pipeline script from
 SCM with that branch and `Jenkinsfile`, then run once to activate polling. Registry
 publication and AWS deployment have not been performed by this pipeline.
 
@@ -31,7 +31,30 @@ fixes preserve application behavior: use its existing JPA settings, isolate the
 legacy test context, install the documented constraint in the disposable
 database, and use HTTPS package mirrors for image construction.
 
-## Jenkins installation and agent
+## What the files are for
+
+| File | Purpose | When used |
+| --- | --- | --- |
+| Root `Jenkinsfile` | Defines pipeline stages, reports and Git polling | Every build |
+| `ci/backend.sh` | Builds Java, prepares test data, runs tests and builds images | Every build |
+| `ci/application.properties` | Synthetic test settings pointing only to disposable PostgreSQL | Tests |
+| `ci/Dockerfile` | Packages each tested service JAR into a runtime image | Image builds |
+| `ci/database/schema.sql` | Empty database structure, including indexes and constraints | Test database creation |
+| `ci/database/constraints.sql` | Adds the documented clearance constraint missing from the snapshot | Test database creation |
+| `ci/jenkins/Dockerfile` | Defines the Jenkins worker with Java 17 and Docker tools | Worker setup/rebuild |
+| `ci/jenkins/compose.yml` | Runs the worker and its separate Docker engine | CI infrastructure startup |
+| `ci/jenkins/register-agent.groovy` | Registers the dedicated worker in Jenkins | Initial setup/recovery |
+| `ci/jenkins/bootstrap-agent.py` | Connects that worker without displaying its connection secret | Initial setup/recovery |
+| `ci/.gitattributes`, `ci/.gitignore` | Keep Linux line endings and exclude Python cache files | Repository maintenance |
+| `ci/README.md` | Instructions and verification notes only | Human reference |
+
+These files support the current setup; they are not all documentation. The setup
+helpers are retained so the worker can be recreated. The SQL files are needed by
+this pipeline's database tests. They are **not applied to AWS RDS**. The deployed
+application keeps its existing RDS configuration; CI creates and deletes its own
+PostgreSQL instance with synthetic records.
+
+## Starting Jenkins and its agent
 
 The existing controller is `jenkins-local`, with data in Docker volume
 `jenkinsvol1` and its UI at http://localhost:8082/. Start it with
