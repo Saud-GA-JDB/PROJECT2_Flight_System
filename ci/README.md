@@ -9,8 +9,13 @@ archived even after failures. Image tags are `<12-character-commit>-<build-numbe
 
 The CI pipeline also publishes the five tested images to private ECR repositories
 in account `425989919753`, region `eu-north-1`. A separate `flight-backend-release`
-job uses `Jenkinsfile.release` to check or deploy a selected CI image tag. A green
-CI build means images are available for release; it does not mean EC2 was updated.
+job uses `Jenkinsfile.release` to check or deploy a selected CI image tag.
+After successful publishing, report archiving and test-database cleanup, builds
+from `jenkins-ci` automatically start that release job with the same `IMAGE_TAG`
+and `CHECK_ONLY=false`. The CI job waits for the release result and propagates
+failures. Failed or unstable tests stop deployment. Other branches do not
+auto-deploy. The build worker is released before waiting for the release job,
+so both jobs can safely share the single executor.
 
 ## Verified on 18 November 2026
 
@@ -39,11 +44,19 @@ release manifest, confirmed that only Compose image references changed, and
 confirmed temporary registry credentials were removed. Kafka, Redis and the
 expected RDS connection remained healthy.
 
+The runs above verified the initial manual release workflow. Automatic deployment
+is now part of `Jenkinsfile`; builds using that version include the release result
+in their final status.
+
 For future changes, keep Docker Desktop, Jenkins and the dedicated agent running
-on this computer, push to `jenkins-ci`, and wait for a successful CI build. Use
-its archived `release-tag.txt` in the release job: check with `CHECK_ONLY=true`,
-then deploy the same tag with `CHECK_ONLY=false`. The computer needs a working
-SSH connection to EC2. CI does not automatically deploy after a push.
+on this computer. Commit work on your feature branch, switch to `jenkins-ci`,
+update it with `git pull --ff-only origin jenkins-ci`, merge your feature branch,
+resolve any conflicts, then push `jenkins-ci`. Git polling detects changes within
+roughly five minutes. The pipeline tests, publishes and deploys automatically;
+wait for the complete CI build, including its `Deploy backend` stage, to succeed.
+The computer needs a working SSH connection to EC2, and the SSH security-group
+rule must allow its current public IP. The live app continues running on EC2
+independently of this computer. Each deployment can briefly interrupt requests.
 
 Earlier failed runs confirmed that test failures stop image building. The CI
 fixes preserve application behavior: use its existing JPA settings, isolate the
@@ -59,7 +72,7 @@ database, and use HTTPS package mirrors for image construction.
 | `ci/application.properties` | Synthetic test settings pointing only to disposable PostgreSQL | Tests |
 | `ci/Dockerfile` | Packages each tested service JAR into a runtime image | Image builds |
 | `ci/aws.sh`, `ci/publish.sh` | Verify the restricted AWS identity and publish tested images | CI publishing |
-| Root `Jenkinsfile.release`, `ci/deploy.sh`, `ci/deploy/` | Check and deploy selected image digests; include isolated rollback tests | Manual release job |
+| Root `Jenkinsfile.release`, `ci/deploy.sh`, `ci/deploy/` | Check and deploy selected image digests; include isolated rollback tests | Automatic release, or manual checks |
 | `ci/database/schema.sql` | Empty database structure, including indexes and constraints | Test database creation |
 | `ci/database/constraints.sql` | Adds the documented clearance constraint missing from the snapshot | Test database creation |
 | `ci/jenkins/Dockerfile` | Defines the Jenkins worker with Java 17 and Docker tools | Worker setup/rebuild |
@@ -170,13 +183,18 @@ scan findings are not yet an enforced release gate. `release-tag.txt` and
 is a failed build; use only tags from successful complete builds.
 
 Create `flight-backend-release` as Pipeline script from SCM using this repository,
-branch `*/jenkins-ci`, script path `Jenkinsfile.release`. It does not poll GitHub.
-Choose **Build with Parameters**, paste a successful CI `IMAGE_TAG`, and keep
+branch `*/jenkins-ci`, script path `Jenkinsfile.release`. It does not poll GitHub;
+the CI job invokes it automatically after its successful build and publishing stages.
+For an optional manual readiness check, choose **Build with Parameters**, paste
+an archived CI `IMAGE_TAG`, and keep
 `CHECK_ONLY=true` first. This verifies all five published digests, SSH, existing
 service health, the expected private RDS connection with verified TLS, and the
 required clearance constraint. It performs no deployment or database writes.
 
-After a successful check, run with the same tag and `CHECK_ONLY=false` to release.
+Automatic releases pass `CHECK_ONLY=false` and still run all readiness checks
+before deployment. For a manual release, use an undeployed image tag after a
+successful check and set `CHECK_ONLY=false`; an existing release directory is
+deliberately refused to avoid silently overwriting a previous attempt.
 The release locks the host deployment directory, repeats the read-only checks,
 pulls all five digests, backs up Compose, replaces only application image
 references, and restarts the services sequentially. Runtime secrets, RDS schema,

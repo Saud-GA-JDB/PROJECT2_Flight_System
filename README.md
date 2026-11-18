@@ -17,11 +17,12 @@ After that initial setup, use `docker compose up -d --build --wait`. Clients use
 The [Jenkins pipeline](Jenkinsfile) builds all five services, runs automated tests
 and Cucumber workflows against a disposable PostgreSQL database, and builds
 versioned Docker images from the tested JARs, then publishes them to private AWS
-ECR repositories. The separate [release pipeline](Jenkinsfile.release) checks or
-deploys a selected successful image tag to the existing EC2 server, retaining
-AWS RDS and the server's runtime configuration. See the [Jenkins setup, release
-steps and verification guide](ci/README.md). A successful CI run makes images
-available; deployment requires running the release job with `CHECK_ONLY=false`.
+ECR repositories. Successful builds from `jenkins-ci` automatically invoke the
+[release pipeline](Jenkinsfile.release) with those exact image tags, check
+readiness and deploy to the existing EC2 server. The pipeline waits for deployment
+and health checks; a release failure fails the overall build. AWS RDS and the
+server's runtime configuration remain in place. See the [Jenkins setup, release
+steps and verification guide](ci/README.md). Other branches do not auto-deploy.
 
 ## Shared library
 
