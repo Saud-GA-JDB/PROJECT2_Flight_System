@@ -41,7 +41,12 @@ without deleting those volumes or touching application containers.
 database. It contains no application records, passwords or grants. It preserves
 the existing check constraints and indexes that Hibernate `create` would miss.
 Update this snapshot when the application schema changes; this is not a
-production migration or a database backup.
+production migration or a database backup. The first CI runs found the local
+snapshot lacked `flight_clearance_state_check` from the existing API guide.
+`ci/database/constraints.sql` applies that documented constraint only to
+`ci_aviation`, with a database-name guard. The local application database and RDS
+were not changed. Check this schema drift before enabling cloud deployment;
+Hibernate schema validation does not verify every check constraint.
 
 Each build creates `flight-ci-postgres` inside the dedicated CI engine, loads
 the schema, and runs `cisetup.CiFixtureSetup` to generate synthetic fixtures using
@@ -50,6 +55,11 @@ the existing seeders. The initializer refuses any database URL other than
 and scheduling disabled. SMTP and payment settings are deliberately nonworking;
 the existing in-process notification substitutes are used by service fixtures.
 No local `.env`, ignored application settings or RDS credentials are copied.
+
+The same disposable PostgreSQL container also creates `airline_admin_test` for
+the five opt-in repository tests. Only that separate database uses Hibernate
+`create-drop`, as required by the existing test class. The main test database
+continues using the imported schema and validation.
 
 The pipeline removes only the database container carrying its disposable-CI
 label. After a hard interruption, inspect the agent's CI engine before running

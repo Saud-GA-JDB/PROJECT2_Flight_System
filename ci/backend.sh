@@ -37,10 +37,15 @@ case "${1:-}" in
     done
     "$ready" || { docker logs --tail 60 "$db_name"; exit 1; }
     docker exec -i "$db_name" psql -X -v ON_ERROR_STOP=1 -U ci -d ci_aviation < ci/database/schema.sql
+    docker exec -i "$db_name" psql -X -v ON_ERROR_STOP=1 -U ci -d ci_aviation < ci/database/constraints.sql
+    docker exec "$db_name" createdb -U ci airline_admin_test
     "${maven[@]}" -f integration-tests/pom.xml test -Dtest=CiFixtureSetup \
       "-Dspring.config.additional-location=$ci_config"
     ;;
   tests)
+    export AIRLINE_ADMIN_TEST_DATABASE_URL=jdbc:postgresql://docker:55432/airline_admin_test
+    export AIRLINE_ADMIN_TEST_DATABASE_USERNAME=ci
+    export AIRLINE_ADMIN_TEST_DATABASE_PASSWORD=ci-disposable-only
     "${maven[@]}" -f pom.xml verify "-Dspring.config.additional-location=$ci_config"
     "${maven[@]}" -f identity-service/pom.xml verify "-Dspring.config.additional-location=$ci_config"
     # IdentityFixtures holds a static EntityManager. Keep only the active test
