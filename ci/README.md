@@ -20,10 +20,11 @@ were built with tag `2a883676d658-4`. Independent SHA-256 comparisons confirmed
 each image contains the exact corresponding tested JAR. Jenkins archived the
 reports and JARs and removed the disposable PostgreSQL container.
 
-This run used a Git-generated local source archive because publication of the
-new branch was awaiting authorization. The live job is therefore not yet polling
-GitHub. After publishing `jenkins-ci`, switch the job to Pipeline script from
-SCM with that branch and `Jenkinsfile`, then run once to activate polling. Registry
+That run used a Git-generated local source archive before the branch was
+published. The live job now loads `Jenkinsfile` from GitHub branch `jenkins-ci`,
+with polling configured every five minutes. The first GitHub checkout succeeded;
+its run exposed a missing commit environment variable. The pipeline now captures
+the revision returned by `checkout scm` explicitly for its image tags. Registry
 publication and AWS deployment have not been performed by this pipeline.
 
 Earlier failed runs confirmed that test failures stop image building. The CI
