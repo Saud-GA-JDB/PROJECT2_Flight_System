@@ -1,0 +1,55 @@
+name: flight-jenkins
+services:
+  docker:
+    image: docker:29.0.1-dind
+    container_name: flight-jenkins-docker
+    privileged: true
+    restart: unless-stopped
+    environment:
+      DOCKER_TLS_CERTDIR: /certs
+    volumes:
+      - docker-certs:/certs/client
+      - docker-data:/var/lib/docker
+    networks:
+      ci:
+        aliases: [docker]
+    healthcheck:
+      test: [CMD, docker, info]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  agent:
+    build: .
+    image: sauds-flight-jenkins-agent:local
+    container_name: flight-jenkins-agent
+    restart: unless-stopped
+    depends_on:
+      docker:
+        condition: service_healthy
+    environment:
+      DOCKER_HOST: tcp://docker:2376
+      DOCKER_TLS_VERIFY: '1'
+      DOCKER_CERT_PATH: /certs/client
+    command:
+      - -url
+      - http://jenkins-local:8080/
+      - -name
+      - flight-backend-agent
+      - -secret
+      - '@/home/jenkins/agent/connection-secret'
+      - -webSocket
+      - -workDir
+      - /home/jenkins/agent
+    volumes:
+      - docker-certs:/certs/client:ro
+      - agent-work:/home/jenkins/agent
+      - maven-cache:/home/jenkins/.m2
+    networks: [ci]
+networks:
+  ci:
+    name: flight-jenkins
+volumes:
+  docker-certs:
+  docker-data:
+  agent-work:
+  maven-cache:

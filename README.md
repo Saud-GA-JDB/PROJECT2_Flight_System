@@ -12,6 +12,14 @@ Follow the [Docker setup guide](docs/DOCKER.md) before the first startup: config
 
 After that initial setup, use `docker compose up -d --build --wait`. Clients use **`http://localhost:8085`** with existing API paths, including `/auth/users/login` and `/notifications`. The gateway routes requests to the four services, preserves their authentication checks, and does not expose `/internal/**`. Direct service ports 8080, 8081, 8083 and 8084 remain available locally for debugging and Swagger; PostgreSQL uses localhost:5433 and Kafka localhost:9092. Stop competing local application runs before using these ports.
 
+## Backend CI
+
+The [Jenkins pipeline](Jenkinsfile) builds all five services, runs automated tests
+and Cucumber workflows against a disposable PostgreSQL database, and builds
+versioned Docker images from the tested JARs. See the [Jenkins setup and coverage
+guide](ci/README.md). Registry publishing and AWS deployment are separate setup
+steps; a successful CI run alone is not a deployment.
+
 ## Shared library
 
 The four backend services depend on the [common library](common/README.md), organized into `security`, `web`, `events`, and `validation` packages. The gateway is independent. The library replaces `common-security` and `common-web` while preserving their existing Java package names.
