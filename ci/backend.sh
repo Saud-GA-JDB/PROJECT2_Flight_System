@@ -32,7 +32,9 @@ case "${1:-}" in
       -p 55432:5432 --tmpfs /var/lib/postgresql:rw postgres:18.6
     ready=false
     for attempt in {1..60}; do
-      if docker exec "$db_name" pg_isready -U ci -d ci_aviation >/dev/null 2>&1; then ready=true; break; fi
+      # The image's temporary initialization server accepts Unix sockets only.
+      # Wait for TCP so imports cannot race its shutdown/restart.
+      if docker exec "$db_name" pg_isready -h 127.0.0.1 -U ci -d ci_aviation >/dev/null 2>&1; then ready=true; break; fi
       sleep 1
     done
     "$ready" || { docker logs --tail 60 "$db_name"; exit 1; }
