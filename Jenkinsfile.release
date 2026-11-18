@@ -1,0 +1,39 @@
+pipeline {
+    agent { label 'flight-backend' }
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 45, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '15'))
+        skipDefaultCheckout(true)
+    }
+    parameters {
+        string(name: 'IMAGE_TAG', defaultValue: '', description: 'Immutable commit-build tag from successful flight-backend-ci, e.g. 012345abcdef-7')
+        booleanParam(name: 'CHECK_ONLY', defaultValue: true, description: 'Check published images, SSH and RDS schema without changing the running deployment.')
+    }
+    stages {
+        stage('Checkout release scripts') {
+            steps { deleteDir(); checkout scm }
+        }
+        stage('Verify release and RDS readiness') {
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'flight-ecr-publisher', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY'),
+                    sshUserPrivateKey(credentialsId: 'flight-ec2-deploy', keyFileVariable: 'DEPLOY_SSH_KEY', usernameVariable: 'DEPLOY_SSH_USER')
+                ]) { sh 'bash ci/deploy.sh check' }
+            }
+        }
+        stage('Deploy to existing EC2') {
+            when { expression { !params.CHECK_ONLY } }
+            steps {
+                withCredentials([
+                    usernamePassword(credentialsId: 'flight-ecr-publisher', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY'),
+                    sshUserPrivateKey(credentialsId: 'flight-ec2-deploy', keyFileVariable: 'DEPLOY_SSH_KEY', usernameVariable: 'DEPLOY_SSH_USER')
+                ]) { sh 'bash ci/deploy.sh release' }
+            }
+        }
+    }
+    post {
+        always { archiveArtifacts artifacts: 'target/release-images.tsv', allowEmptyArchive: true }
+    }
+}

@@ -19,6 +19,14 @@ pipeline {
                 }
             }
         }
+        stage('Verify publishing identity') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'flight-ecr-publisher',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh 'bash ci/publish.sh verify'
+                }
+            }
+        }
         stage('Build Java services') {
             steps { sh 'bash ci/backend.sh build' }
         }
@@ -34,11 +42,19 @@ pipeline {
         stage('Build Docker images') {
             steps { sh 'bash ci/backend.sh images' }
         }
+        stage('Publish images to ECR') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'flight-ecr-publisher',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh 'bash ci/publish.sh'
+                }
+            }
+        }
     }
     post {
         always {
             junit testResults: '**/target/surefire-reports/TEST-*.xml', allowEmptyResults: true
-            archiveArtifacts artifacts: 'integration-tests/target/cucumber.*,**/target/*-app.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'integration-tests/target/cucumber.*,**/target/*-app.jar,target/release-images.tsv,target/release-tag.txt', allowEmptyArchive: true
             sh 'bash ci/backend.sh cleanup'
         }
     }
