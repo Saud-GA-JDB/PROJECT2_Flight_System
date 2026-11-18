@@ -1,4 +1,4 @@
-# Backend CI with Jenkins
+# Backend CI/CD with Jenkins
 
 `Jenkinsfile` belongs to the backend repository. Jenkins polls its configured Git
 branch every five minutes, builds the shared library and five Java 17 services,
@@ -14,21 +14,36 @@ CI build means images are available for release; it does not mean EC2 was update
 
 ## Verified on 18 November 2026
 
-Local Jenkins build [#4](http://localhost:8082/job/flight-backend-ci/4/) passed for
-code commit `2a883676d6582dd34c82bc7acd0128adcfdb83d7`: **291 tests, zero failures,
-zero errors, zero skips**, including all 14 Cucumber scenarios. All five images
-were built with tag `2a883676d658-4`. Independent SHA-256 comparisons confirmed
-each image contains the exact corresponding tested JAR. Jenkins archived the
-reports and JARs and removed the disposable PostgreSQL container.
+Jenkins build [#8](http://localhost:8082/job/flight-backend-ci/8/) was triggered by
+Git polling on branch `jenkins-ci` at commit
+`6e784424e96e2c86c1ec733517d2323acdea9e87`. It passed **291 tests, zero failures,
+zero errors, zero skips**, including all 14 Cucumber scenarios, and published all
+five images to ECR with tag `6e784424e96e-8`. Jenkins verified the restricted
+publisher identity, archived the reports, tested JARs and five image digests, and
+removed the disposable PostgreSQL container. Earlier build #4 also independently
+verified that each image contains the exact corresponding tested JAR.
 
-That run used a Git-generated local source archive before the branch was
-published. The live job now loads `Jenkinsfile` from GitHub branch `jenkins-ci`,
-with polling configured every five minutes. The first GitHub checkout succeeded;
-its run exposed a missing commit environment variable. The pipeline now captures
-the revision returned by `checkout scm` explicitly for its image tags. GitHub-backed
-build #6 passed all 291 tests and built five images; scheduled polling then checked
-the GitHub branch against that successful checkout. Publishing/release support was
-added afterward and must be verified by its own Jenkins run.
+Release check [#2](http://localhost:8082/job/flight-backend-release/2/) passed with
+`CHECK_ONLY=true`, verifying ECR, the Jenkins SSH credential, service health and
+the expected RDS database with verified TLS. The approved clearance constraint
+was added and validated separately after a verified database backup; all ten
+existing flights satisfied the rule. Neither Jenkins pipeline applies SQL.
+
+Deployment [#3](http://localhost:8082/job/flight-backend-release/3/) then passed
+with `CHECK_ONLY=false`, releasing `6e784424e96e-8` to the existing EC2 server.
+All five application containers became healthy, and the gateway health,
+unauthenticated-route protection, internal-route isolation and four service
+OpenAPI checks passed. The public `/actuator/health` endpoint returned `UP`.
+Independent checks matched all five running digests and revision labels to the
+release manifest, confirmed that only Compose image references changed, and
+confirmed temporary registry credentials were removed. Kafka, Redis and the
+expected RDS connection remained healthy.
+
+For future changes, keep Docker Desktop, Jenkins and the dedicated agent running
+on this computer, push to `jenkins-ci`, and wait for a successful CI build. Use
+its archived `release-tag.txt` in the release job: check with `CHECK_ONLY=true`,
+then deploy the same tag with `CHECK_ONLY=false`. The computer needs a working
+SSH connection to EC2. CI does not automatically deploy after a push.
 
 Earlier failed runs confirmed that test failures stop image building. The CI
 fixes preserve application behavior: use its existing JPA settings, isolate the
@@ -94,13 +109,13 @@ Update this snapshot when the application schema changes; this is not a
 production migration or a database backup. The first CI runs found the local
 snapshot lacked `flight_clearance_state_check` from the existing API guide.
 `ci/database/constraints.sql` applies that documented constraint only to
-`ci_aviation`, with a database-name guard. The local application database and RDS
-were not changed. Check this schema drift before enabling cloud deployment;
-Hibernate schema validation does not verify every check constraint.
+`ci_aviation`, with a database-name guard. CI does not change the local application
+database or RDS. Hibernate schema validation does not verify every check constraint.
 
 The read-only RDS inspection on 18 November also found that constraint missing.
-The release preflight deliberately blocks deployments until a separately reviewed
-migration installs and validates it. Neither pipeline applies SQL to RDS.
+After explicit approval and a verified backup, a separate transaction added and
+validated it without updating application rows. The release preflight checks it
+on every release. Neither pipeline applies SQL to RDS.
 
 Each build creates `flight-ci-postgres` inside the dedicated CI engine, loads
 the schema, and runs `cisetup.CiFixtureSetup` to generate synthetic fixtures using
